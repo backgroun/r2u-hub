@@ -21,7 +21,7 @@
     background-attachment: fixed;
     word-break: keep-all;
   }
-  .wrap { max-width: 480px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom) + 28px); }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 12px 12px calc(env(safe-area-inset-bottom) + 28px); }
 
   .hero {
     background: var(--wood); border: 3px solid var(--wood-d); border-radius: 16px;
@@ -131,7 +131,7 @@
   .sheet .btns { display: flex; gap: 8px; margin-top: 14px; }
 
   .toast {
-    position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 14px); transform: translate(-50%, -140%);
+    position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 66px); transform: translate(-50%, -140%);
     background: #222; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 700;
     z-index: 20; transition: transform .25s; max-width: 90vw; text-align: center;
   }

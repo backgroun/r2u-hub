@@ -5,6 +5,7 @@ import { currentUser, fmtRaceDate, getLinks, getMembers, getMenu, getMonth, getR
 import { addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMonthRecord, toggleCheer, updateAfter, addMembers, changePassword, linkAction, memberAction, saveBingoSecret, saveLink, saveMenu, syncMembersAction } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import SheetSync from "@/components/sheet-sync";
+import LogoutButton from "@/components/logout-button";
 import RaceForm from "@/components/race-form";
 import GroupbuyStaff from "@/components/groupbuy-staff";
 import { rankMonth, shiftYm } from "@/lib/rank";
@@ -493,11 +494,14 @@ async function Bingo() {
 
 function Me() {
   return (
+    <section className="grid gap-3">
     <ActionForm action={changePassword} className="panel p-4 grid gap-3" >
       <h2 className="font-bold">비밀번호 바꾸기</h2>
       <label className="field"><span className="label">지금 비밀번호</span><input name="cur" type="text" className="input pw-mask" required autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
       <label className="field"><span className="label">새 비밀번호 (4자 이상)</span><input name="pw" type="text" className="input pw-mask" required minLength={4} autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
       <div><Submit>변경</Submit></div>
     </ActionForm>
+      <LogoutButton />
+    </section>
   );
 }

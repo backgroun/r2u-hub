@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { CrownIcon } from "@/components/crown";
 import { currentUser, getMenu, isStaffAccount } from "@/lib/hub";
-import { logout } from "@/app/actions";
 import { eventOpen } from "@/lib/event";
 
 // iOS 탭바 아이콘 (선 아이콘, currentColor)
@@ -31,31 +29,17 @@ export default async function HubNav() {
     ...(open || u.admin ? [{ href: "/bingo", label: menu.bingo }] : []),
     // 운영진 모드(관리용 계정)는 개인 페이지 대신 운영진 화면, 크루원은 내 페이지
     // 운영진으로 지정된 크루원은 내 페이지와 운영진 메뉴를 모두 본다 (PC·휴대폰 동일)
-    ...(isStaffAccount(u) ? [{ href: "/admin", label: "운영진" }] : [{ href: "/me", label: "내 페이지" }, ...(u.admin ? [{ href: "/admin", label: "운영진" }] : [])]),
+    ...(isStaffAccount(u) ? [{ href: "/admin", label: "운영진" }] : [{ href: "/me", label: `${[...u.nick].slice(0, 4).join("")}님` }, ...(u.admin ? [{ href: "/admin", label: "운영진" }] : [])]),
   ];
-  const TOP = TABS;
-  const tab = (t: { href: string; label: string }, withIcon: boolean) => {
-    const inner = <>{withIcon && <Icon href={t.href} />}<span>{t.label}{!withIcon && t.href === "/bingo" ? " ↗" : ""}</span></>;
+  const tab = (t: { href: string; label: string }) => {
+    const inner = <><Icon href={t.href} /><span>{t.label}</span></>;
     // 오픈 전 운영진은 미리보기 허용 주소를 거쳐 들어간다
     return t.href === "/bingo"
       ? <a key={t.href} href={open ? t.href : "/api/event/preview"} target="_blank" rel="noopener" data-tab={t.href}>{inner}</a>
       : <Link key={t.href} href={t.href} data-tab={t.href}>{inner}</Link>;
   };
+  // 위쪽 메뉴 한 줄만 둔다 (로고·로그인 표시 줄은 없앰, 로그아웃은 내 페이지에)
   return (
-    <>
-      {/* 위: 로고 · (PC) 메뉴 · 내 이름 */}
-      <nav className="hubnav" aria-label="R2U 메뉴">
-        <div className="hubnav-in">
-          <Link href="/" className="hubnav-logo" aria-label="R2U 홈"><span className="logo-mark" /></Link>
-          <div className="hubnav-tabs">{TOP.map((t) => tab(t, false))}</div>
-          <form action={logout} className="hubnav-me">
-            <Link href={isStaffAccount(u) ? "/admin" : "/me"} className="hubnav-nick">{isStaffAccount(u) ? "운영진 모드" : <>{u.admin && <CrownIcon size={12} />}{u.nick} 님</>}</Link>
-            <button className="text-xs text-[var(--bib)]" type="submit">로그아웃</button>
-          </form>
-        </div>
-      </nav>
-      {/* 아래: 휴대폰 탭바 (iOS) */}
-      <nav className="tabbar" aria-label="R2U 메뉴">{TABS.map((t) => tab(t, true))}</nav>
-    </>
+    <nav className="tabbar" aria-label="R2U 메뉴"><div className="tabbar-in">{TABS.map(tab)}</div></nav>
   );
 }

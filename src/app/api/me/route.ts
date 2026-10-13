@@ -5,5 +5,5 @@ import { currentUser } from "@/lib/hub";
 export async function GET() {
   const u = await currentUser();
   const nick = u && u.nick !== "운영진" ? u.nick : null;
-  return NextResponse.json({ nick }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ nick, admin: !!u?.admin, staff: u?.nick === "운영진" }, { headers: { "cache-control": "no-store" } });
 }

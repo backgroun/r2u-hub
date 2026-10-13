@@ -7,6 +7,7 @@ import { getOrders, listRounds } from "@/lib/db";
 import { nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/types";
 import { changePassword } from "@/app/actions";
 import { ActionForm, Submit } from "@/components/action-form";
+import LogoutButton from "@/components/logout-button";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "내 페이지" };
@@ -155,6 +156,7 @@ export default async function MyPage() {
           <div><Submit>변경</Submit></div>
         </ActionForm>
       </details>
+      <LogoutButton />
     </main>
   );
 }

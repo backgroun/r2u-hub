@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CrownIcon } from "@/components/crown";
 import { currentUser, getMenu, isStaffAccount } from "@/lib/hub";
 import { logout } from "@/app/actions";
+import { eventOpen } from "@/lib/event";
 
 // iOS 탭바 아이콘 (선 아이콘, currentColor)
 const ICONS: Record<string, React.ReactNode> = {
@@ -20,7 +21,7 @@ const Icon = ({ href }: { href: string }) => (
 export default async function HubNav() {
   const u = await currentUser();
   if (!u) return null;
-  const menu = await getMenu();
+  const [menu, open] = await Promise.all([getMenu(), eventOpen()]);
   const TABS = [
     { href: "/", label: "홈" },
     { href: "/races", label: menu.races },
@@ -33,7 +34,9 @@ export default async function HubNav() {
   // PC 위쪽 메뉴: 운영진으로 지정된 크루원은 운영진 화면도 함께
   const TOP = u.admin && !isStaffAccount(u) ? [...TABS, { href: "/admin", label: "운영진" }] : TABS;
   const tab = (t: { href: string; label: string }, withIcon: boolean) => {
-    const inner = <>{withIcon && <Icon href={t.href} />}<span>{t.label}{!withIcon && t.href === "/bingo" ? " ↗" : ""}</span></>;
+    const inner = <>{withIcon && <Icon href={t.href} />}<span>{t.label}{!withIcon && t.href === "/bingo" && open ? " ↗" : ""}</span></>;
+    // 이벤트는 오픈일 전에는 아이콘만 보이고, 누르면 ‘기대해주세요’ 안내만 뜬다
+    if (t.href === "/bingo" && !open) return <Link key={t.href} href="/event" data-tab={t.href}>{inner}</Link>;
     return t.href === "/bingo"
       ? <a key={t.href} href={t.href} target="_blank" rel="noopener" data-tab={t.href}>{inner}</a>
       : <Link key={t.href} href={t.href} data-tab={t.href}>{inner}</Link>;

@@ -355,6 +355,12 @@ export async function syncMembersAction(_: Result, fd: FormData): Promise<Result
     const parts = [`시트 ${r.total}명 확인`, r.added.length ? `새 회원 ${r.added.length}명 추가 (${r.added.join(", ")})` : "새 회원 없음"];
     if (r.promoted.length) parts.push(`운영진 지정: ${r.promoted.join(", ")}`);
     if (r.missing.length) parts.push(`시트에 없는 회원 ${r.missing.length}명: ${r.missing.join(", ")} (필요하면 아래에서 삭제하세요)`);
+    parts.push(`이벤트 참가자 ${r.eventNicks.length}명 확인`);
+    if (r.bingo?.noSecret) parts.push("빙고 운영진 비밀 문장을 저장하면 빙고 명단에도 자동으로 들어가요");
+    else if (r.bingo) {
+      if (r.bingo.pushed.length) parts.push(`빙고 명단에 추가 (${r.bingo.pushed.join(", ")})`);
+      if (r.bingo.failed.length) parts.push(`빙고 명단 추가 실패 (${r.bingo.failed.join(", ")})`);
+    }
     return ok(parts.join(" · "));
   } catch (e) { return errMsg(e); }
 }

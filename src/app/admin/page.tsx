@@ -55,7 +55,7 @@ async function Members({ self }: { self: string }) {
     <section className="grid gap-4">
       <SheetSync
         title="구글시트로 회원 동기화"
-        help="시트 탭의 A열에 닉네임을 적고(머리글 ‘닉네임’ 아래부터), 이 버튼을 누르면 새 닉네임이 회원으로 추가돼요. ‘역할’ 열에 ‘운영진’이라고 적으면 운영진으로 지정돼요. 시트에서 빠진 회원은 자동으로 지우지 않고 알려만 드려요."
+        help="시트 탭의 A열에 닉네임을 적고(머리글 ‘닉네임’ 아래부터), 이 버튼을 누르면 새 닉네임이 회원으로 추가돼요. ‘역할’ 열에 ‘운영진’이라고 적으면 운영진으로 지정돼요. C열 ‘닉네임(이벤트)’의 닉네임은 이벤트 참가자로 불러와요. 시트에서 빠진 회원은 자동으로 지우지 않고 알려만 드려요."
         url={sheets.members} action={syncMembersAction} button="회원 동기화"
       />
       <ActionForm action={addMembers} className="panel p-4 grid gap-3">
@@ -462,8 +462,16 @@ function Groupbuy() {
 
 async function Bingo() {
   const has = !!(await redis.get("r2u:bingoSecret"));
+  const raw = await redis.get<string[] | string>("r2u:eventNicks");
+  const nicks: string[] = Array.isArray(raw) ? raw : typeof raw === "string" ? (JSON.parse(raw) as string[]) : [];
   return (
     <section className="grid gap-3">
+      <div className="panel p-4 grid gap-2">
+        <h2 className="font-bold">이벤트 참가자 ({nicks.length}명)</h2>
+        <p className="text-sm text-muted">회원 시트 C열 ‘닉네임(이벤트)’의 닉네임이에요. 회원 탭의 ‘회원 동기화’를 누르면 갱신돼요.</p>
+        {nicks.length ? <div className="flex flex-wrap gap-1.5">{nicks.map((n) => <span key={n} className="chip">{n}</span>)}</div>
+          : <p className="text-sm text-muted">아직 불러온 명단이 없어요.</p>}
+      </div>
       <div className="panel p-4 grid gap-2">
         <h2 className="font-bold">빙고(이벤트) 운영진 모드</h2>
         <p className="text-sm text-muted">

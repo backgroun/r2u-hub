@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { eventOpen } from "@/lib/event";
 
 // 로그인한 크루원만 페이지를 볼 수 있다. 쿠키 서명만 확인하고, 역할 확인은 각 페이지가 DB로 한다.
 async function valid(raw: string | undefined) {
@@ -12,7 +13,16 @@ async function valid(raw: string | undefined) {
 }
 
 export async function middleware(req: NextRequest) {
-  if (await valid(req.cookies.get("r2u_s")?.value)) return NextResponse.next();
+  if (await valid(req.cookies.get("r2u_s")?.value)) {
+    // 이벤트 오픈일 전에는 빙고 화면 대신 안내 페이지로 (운영진이 ?staff=1 로 들어오는 건 허용)
+    const p = req.nextUrl.pathname;
+    if ((p === "/bingo" || p === "/bingo/index.html") && !req.nextUrl.searchParams.has("staff") && !(await eventOpen())) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/event"; url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
+  }
   const url = req.nextUrl.clone();
   url.pathname = "/login";
   url.search = `?next=${encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search)}`;

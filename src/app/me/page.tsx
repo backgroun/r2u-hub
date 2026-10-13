@@ -54,7 +54,6 @@ export default async function MyPage() {
       <header className="grid gap-1">
         <h1 className="hub-h1">{u.admin && <CrownIcon size={22} />}{u.nick} 님</h1>
         <p className="text-sm text-muted">내 대회, 월간 기록, 공구 내역을 모아 봤어요.</p>
-        {u.admin && <div className="mt-1"><Link href="/admin" className="btn text-sm">운영진 화면 열기</Link></div>}
       </header>
 
       <section className="stat-strip">

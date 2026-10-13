@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<base href="/bingo/">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f6b3a">
+<title>R2U 5×5 미션 빙고</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="R2U 빙고">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="photo.css">
+<link rel="stylesheet" href="admin.css">
+<link rel="stylesheet" href="report.css">
+<link rel="stylesheet" href="fx.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <h1><span class="crew">R2U</span> 5×5 미션 <b>빙고</b></h1>
+    <p>달리는 25가지 즐거움, 함께 채워보세요!</p>
+  </header>
+
+  <section class="card">
+    <div id="login">
+      <div class="namebox">
+        <label for="who">참가자</label>
+        <select id="who"><option value="">불러오는 중…</option></select>
+      </div>
+      <div class="namebox">
+        <label for="pw">비밀번호</label>
+        <input id="pw" type="text" class="pw-mask" maxlength="20" placeholder="비밀번호" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore>
+      </div>
+      <div class="namebox" id="pw2row" hidden>
+        <label for="pw2">비번 확인</label>
+        <input id="pw2" type="text" class="pw-mask" maxlength="20" placeholder="한 번 더 입력" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore>
+      </div>
+      <div class="actions"><button class="btn main" id="enter" type="button">입장</button></div>
+      <p class="hint" id="loginHint"></p>
+    </div>
+    <div class="me-row" id="me" hidden>
+      <span class="who"><span id="meName"></span><small> 님</small></span>
+      <span class="me-acts">
+        <button class="btn ghost mini" id="fxToggle" type="button" aria-label="효과음 끄기">🔊</button>
+        <button class="btn ghost mini" id="logout" type="button">다른 사람</button>
+      </span>
+    </div>
+    <div class="stat">
+      <span>완료 <strong id="cnt">0</strong>/25</span>
+      <span>빙고 <strong id="bingo">0</strong>줄</span>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+  </section>
+
+  <main class="grid" id="grid" aria-label="미션 빙고판"></main>
+
+  <div class="actions">
+    <button class="btn sub" id="reportOpen" type="button" hidden>📋 내 리포트</button>
+    <button class="btn main" id="copy" type="button">내 현황 복사</button>
+  </div>
+
+  <section class="card board" id="board" hidden>
+    <div class="head">
+      <h2>크루 전체 현황</h2>
+      <button class="btn ghost mini" id="refresh" type="button">새로고침</button>
+    </div>
+    <p class="sum" id="boardSum"></p>
+    <ol class="rank" id="rank"></ol>
+  </section>
+
+  <section class="card info">
+    <div class="period">
+      <small>이벤트 기간</small>
+      <b id="period"></b>
+    </div>
+    <h2 id="infoTitle">참여 방법 및 안내</h2>
+    <ul id="infoList">
+      <li>참가비 5,000원 / R2U 크루원 누구나 참여 가능!</li>
+      <li>전체 25개 미션 중 자유롭게 도전해요.</li>
+      <li>러닝 1회에 미션 1개 수행 가능, 하루 최대 3개 미션까지 인정돼요.</li>
+      <li>인증 방법: 게시판에 게시 후, 담당 운영진에게 개인 채팅으로 인증해 주세요.</li>
+      <li>칸을 누르고 인증을 완료하면 바로 빙고와 순위에 반영돼요. 체크는 본인 양심에 맡겨요!</li>
+      <li>처음 입장할 때 비밀번호를 직접 정해요. 잊어버리면 운영진에게 초기화를 요청하세요.</li>
+    </ul>
+  </section>
+  <button class="reset" id="reset" type="button">내 기록 초기화</button>
+  <button class="reset" id="adminOpen" type="button" hidden>운영진 모드</button>
+</div>
+
+<div class="dim" id="dim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sTitle">
+  <div class="top">
+    <div class="big" id="sIcon"></div>
+    <div>
+      <div class="num" id="sNum"></div>
+      <h3 id="sTitle"></h3>
+    </div>
+  </div>
+  <p class="desc" id="sDesc"></p>
+  <p class="state" id="sState"></p>
+  <div class="field">
+    <label for="sDate">수행 날짜</label>
+    <input id="sDate" type="date">
+  </div>
+  <div class="field" id="photoField">
+    <label>인증 사진 <small id="sPhotoReq"></small></label>
+    <div class="photo-row">
+      <button class="btn ghost" id="sPhotoBtn" type="button">📷 사진 고르기</button>
+      <button class="btn ghost mini" id="sPhotoClear" type="button" hidden>빼기</button>
+    </div>
+    <input id="sPhotoIn" type="file" accept="image/*" hidden>
+    <img id="sPrev" class="prev" alt="선택한 인증 사진 미리보기" hidden>
+  </div>
+  <div class="btns">
+    <button class="btn danger" id="sUndo" type="button" hidden>인증 취소</button>
+    <button class="btn ghost" id="sClose" type="button">닫기</button>
+    <button class="btn main" id="sOk" type="button">인증완료</button>
+  </div>
+</div>
+<div class="admin" id="admin" role="dialog" aria-modal="true" aria-label="운영진 모드" hidden>
+  <div class="admin-in">
+    <div class="admin-top">
+      <b>🛠 운영진 모드</b>
+      <button class="btn ghost mini" id="adminClose" type="button">닫기</button>
+    </div>
+    <div id="adminLogin">
+      <p class="hint">운영진 비밀 문장을 입력하세요. (이 화면을 닫으면 다시 입력해야 해요)</p>
+      <div class="namebox"><label for="adminPw">비밀 문장</label>
+        <input id="adminPw" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="운영진 비밀 문장"></div>
+      <div class="actions"><button class="btn main" id="adminGo" type="button">확인</button></div>
+    </div>
+    <div id="adminBody" hidden>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab on" data-tab="members">멤버</button>
+        <button type="button" class="tab" data-tab="missions">미션</button>
+        <button type="button" class="tab" data-tab="info">안내·기간</button>
+      </div>
+      <section id="tab-members">
+        <div class="addrow"><input id="newMember" maxlength="20" placeholder="새 멤버 이름(닉네임)"><button class="btn main mini" id="addMember" type="button">추가</button></div>
+        <ul class="mlist" id="memberList"></ul>
+      </section>
+      <section id="tab-missions" hidden>
+        <p class="hint">고친 칸의 [저장]을 눌러야 반영돼요. 이미 인증한 기록의 미션 이름도 같이 바뀌어요.</p>
+        <ul class="mlist" id="missionList"></ul>
+      </section>
+      <section id="tab-info" hidden>
+        <div class="field2"><label for="infoStart">시작일</label><input id="infoStart" type="date"></div>
+        <div class="field2"><label for="infoEnd">종료일</label><input id="infoEnd" type="date"></div>
+        <div class="field2"><label for="infoTitleIn">안내 제목</label><input id="infoTitleIn" maxlength="30"></div>
+        <div class="lab">안내 문구 (한 줄에 하나씩, 최대 12줄)</div>
+        <div id="infoRows"></div>
+        <button class="btn ghost mini" id="infoAddRow" type="button">＋ 줄 추가</button>
+        <div class="actions"><button class="btn main" id="infoSave" type="button">안내·기간 저장</button></div>
+      </section>
+    </div>
+  </div>
+</div>
+<div class="report" id="report" role="dialog" aria-modal="true" aria-label="내 리포트" hidden>
+  <div class="report-in">
+    <div class="report-top">
+      <b id="reportTitle">내 리포트</b>
+      <button class="btn ghost mini" id="reportClose" type="button">닫기</button>
+    </div>
+    <p class="report-sum" id="reportSum"></p>
+    <div class="report-save" id="reportSave">
+      <button class="btn main" id="reportImg" type="button" disabled>🖼 이미지로 저장</button>
+      <small id="reportImgHint"></small>
+    </div>
+    <div id="reportShots" hidden></div>
+    <div id="reportList"></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="config.js"></script>
+<script src="missions.js"></script>
+<script src="app.js"></script>
+<script src="photo.js"></script>
+<script>Photo.init();</script>
+<script src="admin.js"></script>
+<script src="report.js"></script>
+<script src="fx.js"></script>
+
+<!-- R2U 허브로 가는 탭바 (허브와 같은 메뉴) -->
+<nav class="r2u-tabbar" aria-label="R2U 메뉴">
+  <a href="/" data-k="home"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>홈</span></a>
+  <a href="/races" data-k="races"><svg viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg><span>대회</span></a>
+  <a href="/monthly" data-k="monthly"><svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M21 20H3"/></svg><span>월간기록</span></a>
+  <a href="/groupbuy" data-k="groupbuy"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg><span>공구</span></a>
+  <a href="/bingo" data-k="bingo" class="on" aria-current="page"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 9.3h16M4 14.6h16M9.3 4v16M14.6 4v16"/></svg><span>11월 이벤트</span></a>
+  <a href="/me" data-k="me"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>내 페이지</span></a>
+</nav>
+<style>
+  .r2u-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; justify-content: space-around;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); background: rgba(20, 28, 22, .86);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-top: .5px solid rgba(255,255,255,.14); }
+  .r2u-tabbar a { flex: 1; min-width: 0; display: grid; justify-items: center; gap: 2px; padding: 2px 0; color: rgba(255,255,255,.62);
+    font: 600 10px/1.2 -apple-system, "Pretendard", "Apple SD Gothic Neo", sans-serif; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .r2u-tabbar a span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .r2u-tabbar a.on { color: #ffd23f; }
+  .r2u-tabbar a:active { opacity: .55; }
+  .r2u-tabbar svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  body { padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
+</style>
+<script>
+  // 운영진이 바꾼 메뉴 이름을 허브에서 받아 온다
+  fetch('/api/menu', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(m => {
+    if (!m) return;
+    for (const k of ['races', 'monthly', 'groupbuy', 'bingo']) {
+      const el = document.querySelector('.r2u-tabbar [data-k="' + k + '"] span');
+      if (el && m[k]) el.textContent = m[k];
+    }
+  }).catch(() => {});
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+/* 버튼 누르는 느낌 + 효과음 스위치(다른 사람 버튼 앞) */
+.btn, .tab, .cell, .reset { transition: transform .06s ease, box-shadow .06s ease, filter .06s ease; }
+.btn { box-shadow: 0 3px 0 rgba(0, 0, 0, .2); }
+.btn.mini { box-shadow: 0 2px 0 rgba(0, 0, 0, .18); }
+.btn:active:not([disabled]) { transform: translateY(3px); box-shadow: 0 0 0 rgba(0, 0, 0, .2); filter: brightness(.95); }
+.btn.mini:active:not([disabled]) { transform: translateY(2px); }
+.tab:active { transform: scale(.96); }
+.cell:active { transform: translateY(2px) scale(.95); box-shadow: 0 0 0 rgba(0, 0, 0, .18); }
+.reset:active { opacity: .6; }
+.me-acts { display: flex; align-items: center; gap: 6px; }
+#fxToggle { padding: 6px 10px; font-size: 15px; line-height: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .btn:active:not([disabled]), .cell:active, .tab:active { transform: none; }
+}

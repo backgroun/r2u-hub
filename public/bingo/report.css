@@ -1,0 +1,24 @@
+/* 내 리포트 */
+.report { position: fixed; inset: 0; z-index: 40; background: #f4f7f3; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.report[hidden] { display: none; }
+.report-in { max-width: 560px; margin: 0 auto; padding: 14px 16px 60px; }
+.report-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 18px; }
+.report-sum { margin: 0 0 14px; color: #5b6b5e; font-size: 14px; }
+.report .day { margin: 18px 0 8px; font-weight: 800; color: #2f6b3a; }
+.report .item { background: #fff; border-radius: 14px; padding: 10px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.report .item .h { display: flex; align-items: center; gap: 8px; font-weight: 800; }
+.report .item .h small { color: #7a8a7d; font-weight: 400; }
+.report .item img { display: block; width: 100%; max-height: 420px; object-fit: contain; margin-top: 8px; border-radius: 10px; background: #eef2ec; }
+.report .item .none { margin-top: 6px; color: #9aa79d; font-size: 13px; }
+.report .empty { text-align: center; color: #7a8a7d; padding: 40px 0; }
+.report .foot { margin-top: 18px; color: #9aa79d; font-size: 12px; text-align: center; }
+.report .report-save { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.report .report-save small { color: #7a8a7d; font-size: 12px; }
+.report .report-save .btn[disabled] { opacity: .5; }
+.report #reportShots { background: #fff; border-radius: 14px; padding: 12px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.report #reportShots[hidden] { display: none; }
+.report #reportShots p { margin: 0 0 8px; font-size: 13px; color: #5b6b5e; }
+.report #reportShots .shot { margin-bottom: 12px; }
+.report #reportShots img { display: block; width: 100%; border-radius: 8px; border: 1px solid #dfe8dd; }
+.report #reportShots .row { display: flex; gap: 8px; margin-top: 6px; }
+.report #reportShots .row a { flex: 1; text-align: center; text-decoration: none; }

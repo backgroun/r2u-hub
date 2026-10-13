@@ -1,0 +1,25 @@
+import { NextResponse, type NextRequest } from "next/server";
+
+// 로그인한 크루원만 페이지를 볼 수 있다. 쿠키 서명만 확인하고, 역할 확인은 각 페이지가 DB로 한다.
+async function valid(raw: string | undefined) {
+  if (!raw || !process.env.SESSION_SECRET) return false;
+  const [n, t, sig] = raw.split(".");
+  if (!sig) return false;
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(process.env.SESSION_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${n}.${t}`)));
+  const b64 = btoa(String.fromCharCode(...mac)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return b64 === sig;
+}
+
+export async function middleware(req: NextRequest) {
+  if (await valid(req.cookies.get("r2u_s")?.value)) return NextResponse.next();
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  url.search = `?next=${encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search)}`;
+  return NextResponse.redirect(url);
+}
+
+export const config = {
+  // 로그인 화면, API, 정적 파일(빙고 css/js/이미지 포함)은 제외. 빙고 화면(/bingo, /bingo/index.html)은 보호.
+  matcher: ["/((?!login|api|_next|favicon\\.ico|logo\\.png|bingo/.+\\.(?:js|css|png|webmanifest)).*)"],
+};

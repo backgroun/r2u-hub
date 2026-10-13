@@ -21,7 +21,7 @@
     background-attachment: fixed;
     word-break: keep-all;
   }
-  .wrap { max-width: 480px; margin: 0 auto; padding: 12px 12px calc(env(safe-area-inset-bottom) + 28px); }
+  .wrap { max-width: 480px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom) + 28px); }
 
   .hero {
     background: var(--wood); border: 3px solid var(--wood-d); border-radius: 16px;

@@ -30,10 +30,10 @@ export default async function HubNav() {
     // 이벤트는 오픈일 전에는 운영진에게만 보인다
     ...(open || u.admin ? [{ href: "/bingo", label: menu.bingo }] : []),
     // 운영진 모드(관리용 계정)는 개인 페이지 대신 운영진 화면, 크루원은 내 페이지
-    isStaffAccount(u) ? { href: "/admin", label: "운영진" } : { href: "/me", label: "내 페이지" },
+    // 운영진으로 지정된 크루원은 내 페이지와 운영진 메뉴를 모두 본다 (PC·휴대폰 동일)
+    ...(isStaffAccount(u) ? [{ href: "/admin", label: "운영진" }] : [{ href: "/me", label: "내 페이지" }, ...(u.admin ? [{ href: "/admin", label: "운영진" }] : [])]),
   ];
-  // PC 위쪽 메뉴: 운영진으로 지정된 크루원은 운영진 화면도 함께
-  const TOP = u.admin && !isStaffAccount(u) ? [...TABS, { href: "/admin", label: "운영진" }] : TABS;
+  const TOP = TABS;
   const tab = (t: { href: string; label: string }, withIcon: boolean) => {
     const inner = <>{withIcon && <Icon href={t.href} />}<span>{t.label}{!withIcon && t.href === "/bingo" ? " ↗" : ""}</span></>;
     // 오픈 전 운영진은 미리보기 허용 주소를 거쳐 들어간다

@@ -163,6 +163,14 @@ export async function startSession(nick: string) {
     httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: MAX_AGE,
   });
 }
+/** 오픈 전 이벤트 미리보기 허용 쿠키 (운영진이 확인한 뒤에만 준다. 미들웨어가 서명을 확인한다) */
+export const PREVIEW_COOKIE = "r2u_ev";
+export async function allowEventPreview(nick: string) {
+  const body = `${Buffer.from(nick).toString("base64url")}.${Date.now()}`;
+  (await cookies()).set(PREVIEW_COOKIE, `${body}.${sign(body)}`, {
+    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 12 * 3600,
+  });
+}
 export async function endSession() {
   (await cookies()).delete(SESSION_COOKIE);
 }

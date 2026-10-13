@@ -478,7 +478,7 @@ async function Bingo() {
           {has ? "저장된 비밀 문장으로 빙고 운영진 화면에 바로 들어가요. 참가자 명단, 미션, 이벤트 기간을 거기서 관리해요."
             : "빙고 운영진 비밀 문장을 한 번 저장해 두면, 다음부터 버튼 한 번으로 빙고 운영진 모드에 들어가요."}
         </p>
-        {has && <div><a href="/bingo?staff=1" target="_blank" rel="noopener" className="btn btn-primary">빙고 운영진 모드 열기</a></div>}
+        {has && <div><a href="/api/event/preview?staff=1" target="_blank" rel="noopener" className="btn btn-primary">빙고 운영진 모드 열기</a></div>}
       </div>
       <ActionForm action={saveBingoSecret} className="panel p-4 grid gap-3">
         <label className="field">

@@ -14,9 +14,9 @@ async function valid(raw: string | undefined) {
 
 export async function middleware(req: NextRequest) {
   if (await valid(req.cookies.get("r2u_s")?.value)) {
-    // 이벤트 오픈일 전에는 빙고 화면 대신 안내 페이지로 (운영진이 ?staff=1 로 들어오는 건 허용)
+    // 이벤트 오픈일 전에는 빙고 화면 대신 안내 페이지로 (운영진 미리보기 쿠키가 있으면 허용)
     const p = req.nextUrl.pathname;
-    if ((p === "/bingo" || p === "/bingo/index.html") && !req.nextUrl.searchParams.has("staff") && !(await eventOpen())) {
+    if ((p === "/bingo" || p === "/bingo/index.html") && !(await valid(req.cookies.get("r2u_ev")?.value)) && !(await eventOpen())) {
       const url = req.nextUrl.clone();
       url.pathname = "/event"; url.search = "";
       return NextResponse.redirect(url);

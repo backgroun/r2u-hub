@@ -27,18 +27,18 @@ export default async function HubNav() {
     { href: "/races", label: menu.races },
     { href: "/monthly", label: menu.monthly },
     { href: "/groupbuy", label: menu.groupbuy },
-    { href: "/bingo", label: menu.bingo },
+    // 이벤트는 오픈일 전에는 운영진에게만 보인다
+    ...(open || u.admin ? [{ href: "/bingo", label: menu.bingo }] : []),
     // 운영진 모드(관리용 계정)는 개인 페이지 대신 운영진 화면, 크루원은 내 페이지
     isStaffAccount(u) ? { href: "/admin", label: "운영진" } : { href: "/me", label: "내 페이지" },
   ];
   // PC 위쪽 메뉴: 운영진으로 지정된 크루원은 운영진 화면도 함께
   const TOP = u.admin && !isStaffAccount(u) ? [...TABS, { href: "/admin", label: "운영진" }] : TABS;
   const tab = (t: { href: string; label: string }, withIcon: boolean) => {
-    const inner = <>{withIcon && <Icon href={t.href} />}<span>{t.label}{!withIcon && t.href === "/bingo" && open ? " ↗" : ""}</span></>;
-    // 이벤트는 오픈일 전에는 아이콘만 보이고, 누르면 ‘기대해주세요’ 안내만 뜬다
-    if (t.href === "/bingo" && !open) return <Link key={t.href} href="/event" data-tab={t.href}>{inner}</Link>;
+    const inner = <>{withIcon && <Icon href={t.href} />}<span>{t.label}{!withIcon && t.href === "/bingo" ? " ↗" : ""}</span></>;
+    // 오픈 전 운영진은 미리보기 허용 주소를 거쳐 들어간다
     return t.href === "/bingo"
-      ? <a key={t.href} href={t.href} target="_blank" rel="noopener" data-tab={t.href}>{inner}</a>
+      ? <a key={t.href} href={open ? t.href : "/api/event/preview"} target="_blank" rel="noopener" data-tab={t.href}>{inner}</a>
       : <Link key={t.href} href={t.href} data-tab={t.href}>{inner}</Link>;
   };
   return (

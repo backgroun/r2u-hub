@@ -41,7 +41,15 @@ export default function WeatherBar({ initial }: { initial: Weather | null }) {
         try { localStorage.setItem(KEY, JSON.stringify({ lat, lon })); } catch { /* 저장소 막힘 */ }
         load(lat, lon);
       },
-      (e) => { if (manual) window.alert(e.code === 1 ? "위치 권한이 꺼져 있어요. 주소창 왼쪽 자물쇠(설정)에서 ‘위치’를 허용해 주세요." : "내 위치를 가져오지 못했어요. 잠시 후 다시 눌러 주세요."); },
+      (e) => {
+        if (!manual) return;
+        if (e.code !== 1) return window.alert("내 위치를 가져오지 못했어요. 잠시 후 다시 눌러 주세요.");
+        // 홈 화면에 추가한 앱은 주소창이 없어서 자물쇠가 없다 → 휴대폰 설정 앱에서 허용해야 한다
+        const app = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+        window.alert(app
+          ? "위치 권한이 꺼져 있어요.\n휴대폰 설정 앱 → 개인정보 보호 및 보안 → 위치 서비스 → ‘Safari 웹사이트’(또는 R2U)에서 ‘앱을 사용하는 동안’으로 바꿔 주세요."
+          : "위치 권한이 꺼져 있어요. 주소창 왼쪽 자물쇠(설정)에서 ‘위치’를 허용해 주세요.");
+      },
       { maximumAge: 30 * 60_000, timeout: 10_000 },
     );
   };

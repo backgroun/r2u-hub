@@ -1,15 +1,23 @@
 import Link from "next/link";
 import { CrownIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { currentUser, isStaffAccount, fmtRaceDate, getMonth, getRaces, kstToday, type RaceFull } from "@/lib/hub";
+import { driverOf, currentUser, isStaffAccount, fmtRaceDate, getMonth, getRaceRecs, getRaces, kstToday, type RaceFull } from "@/lib/hub";
 import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
 import { getOrders, listRounds } from "@/lib/db";
 import { nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/types";
-import { changePassword } from "@/app/actions";
+import { changePassword, deleteRaceRecord } from "@/app/actions";
+import RaceRecordForm from "@/components/race-record-form";
 import { ActionForm, Submit } from "@/components/action-form";
+import LogoutButton from "@/components/logout-button";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "내 페이지" };
+
+/** 신청할 때 적은 코스를 기록 폼의 코스 이름으로 맞춘다 */
+const courseOf = (c?: string) => {
+  const t = (c ?? "").trim().toLowerCase();
+  return t === "5k" ? "5K" : t === "10k" ? "10K" : t === "half" || t === "하프" ? "Half" : t === "full" || t === "풀" ? "Full" : "기타";
+};
 
 export default async function MyPage() {
   const u = await currentUser();
@@ -21,10 +29,11 @@ export default async function MyPage() {
   const START_YM = "2026-10";
   const months = Array.from({ length: 6 }, (_, i) => shiftYm(ym, -i)).filter((m) => m >= START_YM);
 
-  const [races, monthRecs, rounds] = await Promise.all([
+  const [races, monthRecs, rounds, recs] = await Promise.all([
     getRaces(),
     Promise.all(months.map((m) => getMonth(m))),
     listRounds(100),
+    getRaceRecs(u.nick),
   ]);
 
   // 대회
@@ -32,6 +41,13 @@ export default async function MyPage() {
   const cheering = races.filter((r) => r.cheers.includes(u.nick) && r.date >= today);
   const upcoming = joined.filter((r) => r.date >= today);
   const past = joined.filter((r) => r.date < today).reverse();
+
+  // 내 대회 기록: 코스별 최고 기록(PB)과 기록 목록, 기록을 넣을 수 있는 지난 대회(내가 참가 신청한 대회만)
+  const raceById = new Map(races.map((r) => [r.id, r]));
+  const recList = Object.entries(recs).map(([id, rec]) => ({ id, rec, race: raceById.get(id) })).filter((x): x is { id: string; rec: typeof x.rec; race: RaceFull } => !!x.race).sort((a, b) => b.race.date.localeCompare(a.race.date));
+  const pb = new Map<string, { sec: number; time: string }>();
+  for (const { rec } of recList) { if (!rec.sec) continue; const cur = pb.get(rec.course); if (!cur || rec.sec < cur.sec) pb.set(rec.course, { sec: rec.sec, time: rec.time }); }
+  const pastAll = races.filter((r) => r.date <= today && r.participants.some((p) => p.nick === u.nick)).sort((a, b) => b.date.localeCompare(a.date));
 
   // 월간 기록 (최근 6개월)
   const monthly = months.map((m, i) => {
@@ -53,7 +69,6 @@ export default async function MyPage() {
       <header className="grid gap-1">
         <h1 className="hub-h1">{u.admin && <CrownIcon size={22} />}{u.nick} 님</h1>
         <p className="text-sm text-muted">내 대회, 월간 기록, 공구 내역을 모아 봤어요.</p>
-        {u.admin && <div className="mt-1"><Link href="/admin" className="btn text-sm">운영진 화면 열기</Link></div>}
       </header>
 
       <section className="stat-strip">
@@ -85,6 +100,40 @@ export default async function MyPage() {
             </div>
           </details>
         )}
+      </section>
+
+      {/* 내 대회 기록 */}
+      <section className="grid gap-2">
+        <div className="sec-head"><h2 className="label">내 대회 기록</h2></div>
+        {pb.size > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {[...pb.entries()].map(([c, v]) => <span key={c} className="chip count-badge">🏅 {c} 최고 {v.time}</span>)}
+          </div>
+        )}
+        <details className="panel p-4">
+          <summary className="font-bold">+ 대회 기록 추가</summary>
+          {pastAll.length === 0 ? <p className="mt-2 text-sm text-muted">기록을 남길 수 있는 대회가 아직 없어요. 참가 신청한 대회가 끝나면 여기서 기록을 적을 수 있어요.</p> : (
+            <RaceRecordForm races={pastAll.map((r) => ({ id: r.id, label: `${fmtRaceDate(r.date).md} ${r.name}`, course: courseOf(r.participants.find((p) => p.nick === u.nick)?.course) }))} />
+          )}
+        </details>
+        <div className="row-list">
+          {recList.length === 0 && <p className="py-4 text-sm text-muted">아직 남긴 대회 기록이 없어요. 위에서 추가해 보세요.</p>}
+          {recList.map(({ id, rec, race }) => {
+            const d = fmtRaceDate(race.date);
+            return (
+              <div key={id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="font-bold truncate">{race.name}</p>
+                  <p className="text-xs text-muted">{d.y}.{d.md}{rec.sec ? ` · ${rec.course}` : ""}{rec.note ? ` · ${rec.note}` : ""}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {rec.sec ? <b className="num text-lg">{rec.time}</b> : <span className="chip chip-failed">{rec.course}</span>}
+                  <form action={deleteRaceRecord}><input type="hidden" name="id" value={id} /><button className="btn btn-ghost btn-danger text-xs py-1 px-2" aria-label="기록 삭제">삭제</button></form>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       {/* 월간 기록 */}
@@ -155,6 +204,7 @@ export default async function MyPage() {
           <div><Submit>변경</Submit></div>
         </ActionForm>
       </details>
+      <LogoutButton />
     </main>
   );
 }
@@ -162,7 +212,7 @@ export default async function MyPage() {
 function RaceRow({ r, nick }: { r: RaceFull; nick: string }) {
   const d = fmtRaceDate(r.date);
   const course = r.participants.find((p) => p.nick === nick)?.course;
-  const ride = r.afters.find((a) => a.kind === "carpool" && (a.by === nick || a.yes.includes(nick)));
+  const ride = r.afters.find((a) => a.kind === "carpool" && (driverOf(a) === nick || a.yes.includes(nick)));
   const party = r.afters.find((a) => (a.kind ?? "after") === "after" && a.yes.includes(nick));
   return (
     <Link href={`/races#${r.id}`} className="flex items-center gap-3 py-3">
@@ -172,7 +222,7 @@ function RaceRow({ r, nick }: { r: RaceFull; nick: string }) {
         <span className="text-sm text-muted truncate">{r.time ? `${r.time} 출발 · ` : ""}{r.place || "장소 미정"}</span>
         <span className="flex flex-wrap gap-1 mt-0.5">
           {course && <span className="chip chip-open">{course}</span>}
-          {ride && <span className="chip chip-ship">{ride.by === nick ? "카풀 운전" : "카풀 탑승"}</span>}
+          {ride && <span className="chip chip-ship">{driverOf(ride) === nick ? "카풀 운전" : "카풀 탑승"}</span>}
           {party && <span className="chip chip-warn">뒷풀이 참석</span>}
         </span>
       </span>

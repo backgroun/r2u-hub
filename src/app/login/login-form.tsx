@@ -1,6 +1,7 @@
 "use client";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { login } from "@/app/actions";
+import { CrownIcon } from "@/components/crown";
 
 const LAST_NICK = "r2u:lastNick"; // 이 기기에서 마지막으로 입장한 닉네임
 const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
@@ -15,7 +16,7 @@ const matches = (nick: string, q: string) => {
   return n.includes(k) || chosung(n).includes(k);
 };
 
-export default function LoginForm({ members, next }: { members: { nick: string; hasPw: boolean }[]; next: string }) {
+export default function LoginForm({ members, next, children }: { members: { nick: string; hasPw: boolean; admin?: boolean }[]; next: string; children?: React.ReactNode }) {
   const [state, run, pending] = useActionState(login, null);
   const [nick, setNick] = useState("");
   const [q, setQ] = useState("");
@@ -32,7 +33,7 @@ export default function LoginForm({ members, next }: { members: { nick: string; 
 
   return (
     <div className="grid gap-3">
-      <form action={run} onSubmit={remember} className="panel p-5 grid gap-4" autoComplete="off">
+      <form action={run} onSubmit={remember} className="panel p-5 grid gap-4" autoComplete="off" data-af="1">
         <input type="hidden" name="next" value={next} />
         {staff ? (
           <>
@@ -43,18 +44,16 @@ export default function LoginForm({ members, next }: { members: { nick: string; 
           <div className="field">
             <span className="label">닉네임</span>
             <div className="nick-picked">
-              <b>{nick}</b>
+              <b className="inline-flex items-center gap-1">{m?.admin && <CrownIcon size={15} />}{nick}</b>
               <button type="button" className="btn btn-ghost text-sm" onClick={() => { setNick(""); setQ(""); }}>바꾸기</button>
             </div>
             <input type="hidden" name="nick" value={nick} />
           </div>
         ) : (
           <div className="field">
-            <span className="label">닉네임 찾기</span>
-            <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="한두 글자 또는 초성 (예: ㅈㅇ)" aria-label="닉네임 찾기" />
             <div className="nick-grid" aria-label="닉네임 목록">
               {list.map((x) => (
-                <button key={x.nick} type="button" className="nick-chip" onClick={() => setNick(x.nick)}>{x.nick}</button>
+                <button key={x.nick} type="button" className="nick-chip" onClick={() => setNick(x.nick)}>{x.admin && <CrownIcon size={13} />}{x.nick}</button>
               ))}
               {list.length === 0 && <span className="text-sm text-muted">‘{q}’에 맞는 닉네임이 없어요.</span>}
             </div>
@@ -79,6 +78,12 @@ export default function LoginForm({ members, next }: { members: { nick: string; 
           </button>
         )}
       </form>
+      {!staff && !nick && (
+        <div className="flex items-center gap-3 px-1">
+          <input className="input min-w-0 flex-1 nick-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="닉네임 찾기 (한두 글자 또는 초성, 예: ㅈㅇ)" aria-label="닉네임 찾기" />
+        </div>
+      )}
+      {children}
       <button type="button" className="justify-self-center text-xs text-muted underline underline-offset-2 py-2" onClick={() => setStaff((v) => !v)}>
         {staff ? "크루원으로 입장하기" : "운영진 모드"}
       </button>

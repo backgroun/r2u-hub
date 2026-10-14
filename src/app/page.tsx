@@ -2,6 +2,8 @@ import Link from "next/link";
 import { CrownIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, kstNow, kstToday, regInfo } from "@/lib/hub";
+import PushToggle from "@/components/push-toggle";
+import { getNotices, noticeState } from "@/lib/notice";
 import { rankMonth, ymOf } from "@/lib/rank";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +14,7 @@ export default async function Home() {
   const today = kstToday();
   const ym = ymOf(today);
   const [races, month, links] = await Promise.all([getRaces(), getMonth(ym), getLinks()]);
+  const notice = (await getNotices()).find((n) => noticeState(n, today) === "live");
   const upcoming = races.filter((r) => r.date >= today).slice(0, 4);
   // 접수 마감 전인 대회: 접수중 먼저(마감 임박 순), 그다음 접수예정(시작 순)
   const now = kstNow();
@@ -34,6 +37,16 @@ export default async function Home() {
           <h1 className="hub-h1">{u.admin && !isStaffAccount(u) && <CrownIcon size={22} />}{u.nick} 님, 안녕하세요</h1>
         </div>
       </header>
+
+      {notice && (
+        <section className="panel panel-alert p-4 grid gap-1.5">
+          <p className="label">📢 공지</p>
+          <h2 className="font-bold">{notice.title}</h2>
+          {notice.body && <p className="text-sm whitespace-pre-wrap">{notice.body}</p>}
+          <p className="text-xs text-muted">{new Date(notice.at + 9 * 3600e3).toISOString().slice(5, 10).replace("-", "/")} · {notice.by}</p>
+        </section>
+      )}
+      <PushToggle />
 
       {!isStaffAccount(u) && (
       <section className="panel p-4 grid gap-2.5">

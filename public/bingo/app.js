@@ -8,6 +8,8 @@ let state = load();
 let cur = -1;
 let rows = [];
 let roster = SYNC ? [] : DUMMY_ROSTER.map(r => r.name);
+let hubPeriod = null; // 허브에서 운영진이 정한 이벤트 기간 {start,end} (있으면 이쪽이 우선)
+let eventNicks = []; // 허브가 알려 주는 이벤트 참가자 명단 (비어 있으면 거르지 않음)
 let hubNick = ''; // R2U 허브에 로그인한 닉네임 (입장 화면 자동 선택용)
 let fresh = new Set(); // 아직 비밀번호가 없는(처음 입장하는) 참가자
 let syncErr = null;    // 명단을 불러오지 못했을 때의 오류
@@ -195,7 +197,8 @@ function applyMissions(list) {
 }
 function applyInfo(i) {
   if (!i) return;
-  if (i.start && i.end) { START = i.start; END = i.end; }
+  if (hubPeriod) { START = hubPeriod.start; END = hubPeriod.end; }
+  else if (i.start && i.end) { START = i.start; END = i.end; }
   $('period').textContent = `${fmtLong(START)} ~ ${fmtLong(END)}`;
   if (i.title) $('infoTitle').textContent = i.title;
   if (Array.isArray(i.items)) {
@@ -223,7 +226,8 @@ function fillSelect() {
   first.value = '';
   first.textContent = roster.length ? '참가자를 선택하세요' : (SYNC ? (syncErr ? '명단을 불러오지 못했어요' : '불러오는 중…') : '명단이 비어 있어요');
   sel.appendChild(first);
-  for (const n of roster) {
+  const shown = eventNicks.length ? roster.filter(n => eventNicks.some(e => norm(e) === norm(n))) : roster;
+  for (const n of shown) {
     const o = document.createElement('option');
     o.value = n; o.textContent = n;
     sel.appendChild(o);
@@ -435,8 +439,12 @@ syncAll(true);
 
 // R2U 허브에 로그인한 닉네임이 빙고 명단에 있으면 입장 화면에서 자동으로 골라 둔다
 fetch('/api/me', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
-  if (!j || !j.nick) return;
-  hubNick = j.nick;
+  if (!j) return;
+  if (Array.isArray(j.eventNicks)) eventNicks = j.eventNicks;
+  if (j.eventPeriod) { hubPeriod = j.eventPeriod; START = hubPeriod.start; END = hubPeriod.end; $('period').textContent = `${fmtLong(START)} ~ ${fmtLong(END)}`; }
+  if (j.nick) hubNick = j.nick;
+  // 이 브라우저에 다른 사람으로 입장해 둔 기록이 남아 있으면, 허브에 로그인한 사람으로 바꾼다
+  if (self !== top && j.nick && loggedIn() && norm(state.name) !== norm(j.nick)) { logout(); autoTried = false; }
   if (!loggedIn()) { fillSelect(); renderLoginMode(); autoEnter(); }
 }).catch(() => {});
 

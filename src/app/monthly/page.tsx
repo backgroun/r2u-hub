@@ -70,6 +70,18 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
         <Link href={q({ m: shiftYm(ym, 1) })} className="btn btn-ghost px-3" aria-label="다음 달">→</Link>
       </header>
 
+      {/* 크루 전체 목표·달성율, 한 명과 대결 */}
+      <Link href={`/crew?m=${ym}`} className="vs-banner keep-motion" aria-label="크루 현황 보기, 한 명과 대결하기">
+        <span className="vs-bgL" aria-hidden /><span className="vs-bgR" aria-hidden />
+        <span className="vs-grit" aria-hidden />
+        <span className="vs-bolt" aria-hidden />
+        <span className="vs-burst" aria-hidden />
+        <span className="vs-side vs-l" data-text="크루 현황"><b>크루 현황</b></span>
+        <span className="vs-badge" aria-hidden><i>VS</i></span>
+        <span className="vs-side vs-r" data-text="한판 붙자"><b>한판 붙자</b></span>
+        <span className="vs-flash" aria-hidden />
+      </Link>
+
       {/* 크루 요약 */}
       <section className="stat-strip">
         <div><span className="label">크루 합계</span><b className="num">{crewKm}<small>km</small></b></div>

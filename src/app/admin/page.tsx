@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { CrownIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { currentUser, fmtRaceDate, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, redis, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMonthRecord, toggleCheer, updateAfter, addMembers, changePassword, linkAction, memberAction, saveBingoSecret, saveLink, saveMenu, syncMembersAction } from "@/app/actions";
+import { currentUser, isStaffAccount, fmtRaceDate, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, redis, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
+import { addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMonthRecord, toggleCheer, updateAfter, addMembers, changePassword, linkAction, memberAction, postNotice, removeNotice, decideJoin, saveBingoSecret, saveEventPeriod, saveLink, saveMenu, syncMembersAction } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
+import { bingoRpc, eventStart, hubPeriod } from "@/lib/event";
+import { listJoins, pendingJoinCount } from "@/lib/join";
+import { getNotices, noticeState, pushReady, subCount } from "@/lib/notice";
 import SheetSync from "@/components/sheet-sync";
+import LogoutButton from "@/components/logout-button";
 import RaceForm from "@/components/race-form";
 import GroupbuyStaff from "@/components/groupbuy-staff";
 import { rankMonth, shiftYm } from "@/lib/rank";
@@ -12,7 +16,7 @@ import { rankMonth, shiftYm } from "@/lib/rank";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "운영진" };
 
-const TABS = { members: "회원", content: "게시물", menu: "메뉴", links: "링크", races: "대회", groupbuy: "공구", bingo: "빙고", me: "내 비밀번호" } as const;
+const TABS = { members: "회원", content: "게시물", notice: "공지", menu: "메뉴", links: "링크", races: "대회", groupbuy: "공구", bingo: "이벤트", me: "내 비밀번호" } as const;
 type Tab = keyof typeof TABS;
 const TAGS = ["커뮤니티", "기록", "공지", "이벤트", "공구", "기타"];
 
@@ -22,6 +26,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const { tab: t, sec, m, past } = await searchParams;
   const tab: Tab = t && t in TABS ? (t as Tab) : u.admin ? "members" : "me";
   if (!u.admin && tab !== "me") redirect("/admin?tab=me");
+  const todo: Partial<Record<Tab, number>> = u.admin ? { members: await pendingJoinCount() } : {};
 
   return (
     <main className="hub-wrap">
@@ -31,13 +36,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       </header>
       {u.admin && (
         <nav className="tabs" aria-label="관리 메뉴">
-          {(Object.keys(TABS) as Tab[]).map((k) => (
-            <Link key={k} href={`/admin?tab=${k}`} aria-current={k === tab ? "page" : undefined}>{TABS[k]}</Link>
+          {(Object.keys(TABS) as Tab[]).filter((k) => k !== "me" || isStaffAccount(u)).map((k) => (
+            <Link key={k} href={`/admin?tab=${k}`} aria-current={k === tab ? "page" : undefined}>{TABS[k]}{todo[k] ? <b className="tab-badge inline">{todo[k]}</b> : null}</Link>
           ))}
         </nav>
       )}
       {tab === "members" && <Members self={u.nick} />}
       {tab === "content" && <Content sec={sec} ym={m} />}
+      {tab === "notice" && <Notices />}
       {tab === "menu" && <Menu />}
       {tab === "links" && <Links />}
       {tab === "races" && <Races past={past === "1"} />}
@@ -48,14 +54,69 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   );
 }
 
+async function Notices() {
+  const [list, subs] = await Promise.all([getNotices(), subCount()]);
+  return (
+    <section className="grid gap-3">
+      <ActionForm action={postNotice} className="panel p-4 grid gap-3">
+        <h2 className="font-bold">공지 올리기</h2>
+        <p className="text-sm text-muted">올리면 홈 화면 맨 위에 보여요. 알림을 켠 크루원 {subs}명에게는 휴대폰 알림도 가요.{pushReady() ? "" : " (알림용 키가 아직 설정되지 않아 알림은 가지 않아요)"}</p>
+        <label className="field"><span className="label">제목</span><input name="title" className="input" required maxLength={60} /></label>
+        <label className="field"><span className="label">내용 (선택)</span><textarea name="body" className="input" rows={4} maxLength={500} /></label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="field"><span className="label">노출 시작일 (선택)</span><input name="from" type="date" className="input" /></label>
+          <label className="field"><span className="label">노출 종료일 (선택)</span><input name="to" type="date" className="input" /></label>
+        </div>
+        <p className="text-xs text-muted">비워 두면 바로, 계속 보여요. 시작일이 오늘보다 뒤면 그날부터 보이고 알림은 보내지 않아요. 여러 공지가 보일 때는 가장 최근 것이 홈에 떠요.</p>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="push" defaultChecked /> 알림도 보내기</label>
+        <div><Submit>공지 올리기</Submit></div>
+      </ActionForm>
+      <div className="panel p-4 grid gap-3">
+        <h2 className="font-bold">올린 공지 ({list.length})</h2>
+        {list.length === 0 && <p className="text-sm text-muted">아직 올린 공지가 없어요.</p>}
+        {list.map((n) => (
+          <div key={n.id} className="grid gap-1 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
+            <div className="flex items-start justify-between gap-2">
+              <b>{n.title}</b>
+              <form action={removeNotice}><input type="hidden" name="id" value={n.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
+            </div>
+            {n.body && <p className="text-sm text-muted whitespace-pre-wrap">{n.body}</p>}
+            <p className="text-xs text-muted">
+              {new Date(n.at + 9 * 3600e3).toISOString().slice(0, 16).replace("T", " ")} · {n.by}
+              {" · "}{n.from || n.to ? `노출 ${n.from ?? "처음"} ~ ${n.to ?? "계속"}` : "기간 제한 없음"}
+              {" · "}<b>{{ live: "노출 중", scheduled: "노출 예정", ended: "노출 종료" }[noticeState(n, kstToday())]}</b>
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 async function Members({ self }: { self: string }) {
-  const [members, sheets] = await Promise.all([getMembers(), getSheets()]);
+  const [members, sheets, joins] = await Promise.all([getMembers(), getSheets(), listJoins()]);
+  const pending = joins.filter((j) => j.status === "pending");
   const waiting = members.filter((m) => !m.pw).length;
   return (
     <section className="grid gap-4">
+      {pending.length > 0 && (
+        <div className="panel panel-alert p-4 grid gap-3">
+          <h2 className="font-bold">🙋 닉네임 생성 요청 ({pending.length})</h2>
+          <p className="text-sm text-muted">카톡방으로 온 요청 링크를 열어서 승인할 수도 있어요. 승인하면 회원이 만들어지고 구글시트에도 추가돼요.</p>
+          {pending.map((j) => (
+            <div key={j.id} className="flex items-center justify-between gap-2 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
+              <div className="min-w-0"><b>{j.nick}</b> <span className="text-xs text-muted">{new Date(j.at + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ")}</span></div>
+              <div className="flex gap-1.5 shrink-0">
+                <form action={decideJoin}><input type="hidden" name="id" value={j.id} /><input type="hidden" name="act" value="approve" /><button className="btn btn-primary text-sm py-1 px-3">승인</button></form>
+                <form action={decideJoin}><input type="hidden" name="id" value={j.id} /><input type="hidden" name="act" value="reject" /><button className="btn btn-ghost btn-danger text-sm py-1 px-3">거절</button></form>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <SheetSync
         title="구글시트로 회원 동기화"
-        help="시트 탭의 A열에 닉네임을 적고(머리글 ‘닉네임’ 아래부터), 이 버튼을 누르면 새 닉네임이 회원으로 추가돼요. ‘역할’ 열에 ‘운영진’이라고 적으면 운영진으로 지정돼요. 시트에서 빠진 회원은 자동으로 지우지 않고 알려만 드려요."
+        help="시트 탭의 A열에 닉네임을 적고(머리글 ‘닉네임’ 아래부터), 이 버튼을 누르면 새 닉네임이 회원으로 추가돼요. C열 ‘닉네임(이벤트)’의 닉네임은 이벤트 참가자로 불러와요. 시트에서 빠진 회원은 자동으로 지우지 않고 알려만 드려요."
         url={sheets.members} action={syncMembersAction} button="회원 동기화"
       />
       <ActionForm action={addMembers} className="panel p-4 grid gap-3">
@@ -334,7 +395,7 @@ async function AddedRaces() {
   );
 }
 
-const MENU_LABELS: Record<MenuKey, string> = { races: "대회 (/races)", monthly: "월간기록 (/monthly)", groupbuy: "공구 (/groupbuy)", bingo: "빙고 (/bingo, 새 창)" };
+const MENU_LABELS: Record<MenuKey, string> = { races: "대회 (/races)", monthly: "월간기록 (/monthly)", groupbuy: "공구 (/groupbuy)", bingo: "이벤트 (/event)" };
 
 async function Menu() {
   const menu = await getMenu();
@@ -359,7 +420,7 @@ async function Links() {
   const links = await getLinks();
   return (
     <section className="grid gap-4">
-      <p className="text-sm text-muted">홈 화면 ‘바로가기’에 보이는 링크예요. 상단 메뉴(대회·월간기록·공구·빙고)에 없는 밴드, 단톡방 같은 외부 링크를 넣으세요.</p>
+      <p className="text-sm text-muted">홈 화면 ‘바로가기’에 보이는 링크예요. 상단 메뉴(대회·월간기록·공구·이벤트)에 없는 밴드, 단톡방 같은 외부 링크를 넣으세요.</p>
       <div className="panel p-4 grid gap-1">
         <h2 className="font-bold">새 링크</h2>
         <LinkForm />
@@ -462,19 +523,39 @@ function Groupbuy() {
 
 async function Bingo() {
   const has = !!(await redis.get("r2u:bingoSecret"));
+  const snap = await bingoRpc<{ info?: { start?: string; end?: string } }>("get_snapshot");
+  const own = await hubPeriod();
+  const start = own?.start ?? snap?.info?.start ?? (await eventStart()), end = own?.end ?? snap?.info?.end ?? "2026-11-30";
+  const raw = await redis.get<string[] | string>("r2u:eventNicks");
+  const nicks: string[] = Array.isArray(raw) ? raw : typeof raw === "string" ? (JSON.parse(raw) as string[]) : [];
   return (
     <section className="grid gap-3">
       <div className="panel p-4 grid gap-2">
-        <h2 className="font-bold">빙고(이벤트) 운영진 모드</h2>
-        <p className="text-sm text-muted">
-          {has ? "저장된 비밀 문장으로 빙고 운영진 화면에 바로 들어가요. 참가자 명단, 미션, 이벤트 기간을 거기서 관리해요."
-            : "빙고 운영진 비밀 문장을 한 번 저장해 두면, 다음부터 버튼 한 번으로 빙고 운영진 모드에 들어가요."}
-        </p>
-        {has && <div><a href="/bingo?staff=1" target="_blank" rel="noopener" className="btn btn-primary">빙고 운영진 모드 열기</a></div>}
+        <h2 className="font-bold">이벤트 참가자 ({nicks.length}명)</h2>
+        <p className="text-sm text-muted">회원 시트 C열 ‘닉네임(이벤트)’의 닉네임이에요. 회원 탭의 ‘회원 동기화’를 누르면 갱신돼요.</p>
+        {nicks.length ? <div className="flex flex-wrap gap-1.5">{nicks.map((n) => <span key={n} className="chip">{n}</span>)}</div>
+          : <p className="text-sm text-muted">아직 불러온 명단이 없어요.</p>}
       </div>
+      <div className="panel p-4 grid gap-2">
+        <h2 className="font-bold">이벤트 운영진 모드</h2>
+        <p className="text-sm text-muted">
+          {has ? "저장된 비밀 문장으로 이벤트 운영진 화면에 바로 들어가요. 참가자 명단, 미션, 이벤트 기간을 거기서 관리해요."
+            : "이벤트 운영진 비밀 문장을 한 번 저장해 두면, 다음부터 버튼 한 번으로 이벤트 운영진 모드에 들어가요."}
+        </p>
+        {has && <div><a href="/api/event/preview?staff=1" className="btn btn-primary">이벤트 운영진 모드 열기</a></div>}
+      </div>
+      <ActionForm action={saveEventPeriod} className="panel p-4 grid gap-3">
+        <h2 className="font-bold">이벤트 오픈일·종료일</h2>
+        <p className="text-sm text-muted">오픈일 전에는 운영진만 이벤트 화면을 볼 수 있고, 크루원에게는 “11월 이벤트 기대해주세요”가 보여요.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="field"><span className="label">오픈일(시작일)</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
+          <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>
+        </div>
+        <div><Submit>기간 저장</Submit></div>
+      </ActionForm>
       <ActionForm action={saveBingoSecret} className="panel p-4 grid gap-3">
         <label className="field">
-          <span className="label">빙고 운영진 비밀 문장 {has ? "(바꾸려면 새로 입력)" : ""}</span>
+          <span className="label">이벤트 운영진 비밀 문장 {has ? "(바꾸려면 새로 입력)" : ""}</span>
           <input name="secret" className="input" autoComplete="off" required maxLength={200} />
         </label>
         <div><Submit>저장</Submit></div>
@@ -485,11 +566,14 @@ async function Bingo() {
 
 function Me() {
   return (
+    <section className="grid gap-3">
     <ActionForm action={changePassword} className="panel p-4 grid gap-3" >
       <h2 className="font-bold">비밀번호 바꾸기</h2>
       <label className="field"><span className="label">지금 비밀번호</span><input name="cur" type="text" className="input pw-mask" required autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
       <label className="field"><span className="label">새 비밀번호 (4자 이상)</span><input name="pw" type="text" className="input pw-mask" required minLength={4} autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
       <div><Submit>변경</Submit></div>
     </ActionForm>
+      <LogoutButton />
+    </section>
   );
 }

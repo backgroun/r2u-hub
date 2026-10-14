@@ -5,7 +5,16 @@ import { MY_ROUNDS, store, type MyRound } from "@/lib/client";
 
 export default function MyRounds() {
   const [mine, setMine] = useState<MyRound[]>([]);
-  useEffect(() => setMine(store.get<MyRound[]>(MY_ROUNDS, [])), []);
+  useEffect(() => {
+    const saved = store.get<MyRound[]>(MY_ROUNDS, []);
+    setMine(saved);
+    // 운영진이 지운 공구가 남지 않게, 서버에 아직 있는지 확인하고 없는 것은 목록에서 뺀다
+    Promise.all(saved.map((m) => fetch(`/api/rounds/${m.id}`, { cache: "no-store" }).then((r) => (r.status === 404 ? null : m)).catch(() => m)))
+      .then((res) => {
+        const alive = res.filter((m): m is MyRound => !!m);
+        if (alive.length !== saved.length) { store.set(MY_ROUNDS, alive); setMine(alive); }
+      });
+  }, []);
   if (!mine.length) return null;
   return (
     <section className="grid gap-3">

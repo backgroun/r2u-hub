@@ -17,9 +17,26 @@ export const K = {
   cheer: (id: string) => `r2u:race:${id}:cheer`, // hash nick -> 신청 시각
   after: (id: string) => `r2u:race:${id}:after`, // hash afterId -> AfterParty
   rsvp: (afterId: string) => `r2u:after:${afterId}`, // hash nick -> "yes" | "no"
+  raceRec: (nick: string) => `r2u:racerec:${nick}`, // hash raceId -> RaceRec (내 대회 기록)
+  vs: (ym: string) => `r2u:vs:${ym}`, // hash 내 닉네임 -> 이번 달 대결 상대 닉네임
   month: (ym: string) => `r2u:month:${ym}`, // hash nick -> MonthRec
   fails: (nick: string) => `r2u:fails:${nick}`,
 };
+
+export type RaceRec = { course: string; sec: number; time: string; note: string; at: number };
+/** "1:45:30"·"45:30"을 초로. 형식이 맞지 않으면 null */
+export function parseRaceTime(t: string): { sec: number; time: string } | null {
+  const m = t.trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1] ?? 0), mi = Number(m[2]), se = Number(m[3]);
+  if (mi > 59 || se > 59 || (!h && !mi && !se)) return null;
+  const sec = h * 3600 + mi * 60 + se;
+  return { sec, time: `${h}:${String(mi).padStart(2, "0")}:${String(se).padStart(2, "0")}` };
+}
+export async function getRaceRecs(nick: string): Promise<Record<string, RaceRec>> {
+  const h = (await redis.hgetall<Record<string, unknown>>(K.raceRec(nick))) ?? {};
+  return Object.fromEntries(Object.entries(h).map(([id, v]) => [id, parse<RaceRec>(v)]));
+}
 
 export type Member = { nick: string; role: "admin" | "member"; pw: string | null };
 export type Link = { id: string; title: string; url: string; desc: string; tag: string };
@@ -33,7 +50,8 @@ export type Race = {
 };
 /** 대회 아래 함께하기 글: 단체사진(photo) · 카풀(carpool) · 뒷풀이(after, 예전 글은 kind 없음) */
 export type AfterKind = "photo" | "carpool" | "after";
-export type AfterParty = { id: string; kind?: AfterKind; place: string; time: string; memo: string; seats?: number; by: string; at: number };
+export type AfterParty = { id: string; kind?: AfterKind; place: string; time: string; memo: string; seats?: number; driver?: string; by: string; at: number }; // by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
+export const driverOf = (a: { driver?: string; by: string }) => a.driver || a.by;
 export type AfterFull = AfterParty & { yes: string[]; no: string[] };
 export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; afters: AfterFull[] };
 export type MonthRec = { goal: number; days: Record<string, number>; goalEdits?: number }; // goalEdits: 크루원이 목표를 바꾼 횟수 (월 2번까지)
@@ -85,7 +103,7 @@ export async function getLinks(): Promise<Link[]> {
 }
 
 /* ---------- 상단 메뉴 이름 (운영진이 바꿀 수 있다) ---------- */
-export const MENU_DEFAULTS = { races: "대회", monthly: "월간기록", groupbuy: "공구", bingo: "11월 이벤트" };
+export const MENU_DEFAULTS = { races: "대회", monthly: "월간기록", groupbuy: "공구", bingo: "이벤트" };
 export type MenuKey = keyof typeof MENU_DEFAULTS;
 export async function getMenu(): Promise<typeof MENU_DEFAULTS> {
   return { ...MENU_DEFAULTS, ...(parse<Partial<typeof MENU_DEFAULTS> | null>(await redis.get("r2u:menu")) ?? {}) };
@@ -134,6 +152,16 @@ export async function getRaces(): Promise<RaceFull[]> {
 }
 
 /* ---------- 월간 기록 ---------- */
+/** 이번 달 내가 고른 대결 상대 (없으면 null) */
+export async function getVs(ym: string, nick: string): Promise<string | null> {
+  const v = await redis.hget<string>(K.vs(ym), nick);
+  return typeof v === "string" && v ? v : null;
+}
+/** 이번 달 모든 크루원의 대결 상대 (닉네임 -> 상대 닉네임) */
+export async function getAllVs(ym: string): Promise<Record<string, string>> {
+  const h = (await redis.hgetall<Record<string, unknown>>(K.vs(ym))) ?? {};
+  return Object.fromEntries(Object.entries(h).filter(([, v]) => typeof v === "string" && v).map(([k, v]) => [k, v as string]));
+}
 export async function getMonth(ym: string): Promise<Record<string, MonthRec>> {
   const h = (await redis.hgetall<Record<string, unknown>>(K.month(ym))) ?? {};
   return Object.fromEntries(Object.entries(h).map(([n, v]) => [n, parse<MonthRec>(v)]));
@@ -158,13 +186,32 @@ function sign(s: string) {
   return createHmac("sha256", process.env.SESSION_SECRET!).update(s).digest("base64url");
 }
 export async function startSession(nick: string) {
+  (await cookies()).delete(PREVIEW_COOKIE); // 이전 사람의 이벤트 미리보기 허용이 남지 않게
   const body = `${Buffer.from(nick).toString("base64url")}.${Date.now()}`;
   (await cookies()).set(SESSION_COOKIE, `${body}.${sign(body)}`, {
     httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: MAX_AGE,
   });
 }
+/** 오픈 전 이벤트 미리보기 허용 쿠키 (운영진이 확인한 뒤에만 준다. 미들웨어가 서명을 확인한다) */
+export const PREVIEW_COOKIE = "r2u_ev";
+export async function allowEventPreview(nick: string) {
+  const body = `${Buffer.from(nick).toString("base64url")}.${Date.now()}`;
+  (await cookies()).set(PREVIEW_COOKIE, `${body}.${sign(body)}`, {
+    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 12 * 3600,
+  });
+}
+/** 미리보기 쿠키가 우리가 준 것이고, 지금 로그인한 운영진 본인 것인지 확인 */
+export async function hasEventPreview() {
+  const [n, t, sig] = ((await cookies()).get(PREVIEW_COOKIE)?.value ?? "").split(".");
+  if (!sig) return false;
+  const a = Buffer.from(sign(`${n}.${t}`)), b = Buffer.from(sig);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+  const u = await currentUser();
+  return !!u?.admin && Buffer.from(n, "base64url").toString() === u.nick;
+}
 export async function endSession() {
   (await cookies()).delete(SESSION_COOKIE);
+  (await cookies()).delete(PREVIEW_COOKIE);
 }
 
 /** 로그인한 크루원. 역할은 매번 DB에서 다시 읽어서, 운영진 해제·삭제가 즉시 반영된다. */

@@ -3,9 +3,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   K, redis, checkPw, hashPw, currentUser, startSession, endSession, getMember, saveMember, getMembers,
-  getLinks, saveLinks, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type SheetKind,
+  getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type SheetKind,
 } from "@/lib/hub";
 import { syncMembers } from "@/lib/sheet";
+import { appendMemberToSheet, getJoin, listJoins, newJoinId, saveJoin } from "@/lib/join";
+import { addNotice, deleteNotice, sendPushAll } from "@/lib/notice";
+import { bingoRpc, EVENT_PERIOD_KEY, resetEventCache } from "@/lib/event";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
 
 export type Result = { ok: boolean; msg?: string } | null;
@@ -146,6 +149,26 @@ export async function saveRace(_: Result, fd: FormData): Promise<Result> {
   return ok(id ? "대회 정보를 수정했어요." : `${race.name}을(를) 추가했어요.`);
 }
 
+/** 대회 찾기에서 못 찾은 대회를 직접 적어 우리 일정에 넣는다. 크루원 누구나 가능. */
+export async function addManualRace(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  const dt = (k: string) => { const v = str(fd, k, 16); return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? v : undefined; };
+  const time = str(fd, "time", 5);
+  const regStart = dt("regStart"), regEnd = dt("regEnd");
+  const race: Race = {
+    id: newId(), name: str(fd, "name", 60), date: str(fd, "date", 10), place: str(fd, "place", 60), note: str(fd, "note", 200),
+    time: /^\d{2}:\d{2}$/.test(time) ? time : undefined, regStart, regEnd, reg: "", addedBy: u.nick,
+  };
+  if (!race.name || !/^\d{4}-\d{2}-\d{2}$/.test(race.date)) return fail("대회명과 대회 날짜를 입력해 주세요.");
+  if (regStart && regEnd && regStart > regEnd) return fail("접수 마감이 접수 시작보다 빨라요.");
+  const existing = Object.values((await redis.hgetall<Record<string, Race>>(K.races)) ?? {}).map((v) => (typeof v === "string" ? JSON.parse(v) : v) as Race);
+  const dup = existing.find((r) => r.name === race.name && r.date === race.date);
+  if (dup) redirect(`/races#${dup.id}`);
+  await redis.hset(K.races, { [race.id]: JSON.stringify(race) });
+  revalidatePath("/", "layout");
+  redirect(`/races#${race.id}`);
+}
+
 /** 대회 찾기(마라톤온라인)에서 고른 대회를 크루 일정에 넣는다. 크루원 누구나 가능. */
 export async function addExternalRace(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
@@ -229,6 +252,12 @@ export async function addAfter(_: Result, fd: FormData): Promise<Result> {
   if (kind === "carpool") {
     if (!(seats >= 1 && seats <= 10)) return fail("태울 수 있는 자리 수(1~10)를 적어 주세요.");
     a.seats = seats;
+    // 운전자는 올리는 사람이 아니어도 된다(크루원 중에서 고른다). 비우면 올리는 사람.
+    const driver = str(fd, "driver", 30);
+    if (driver && driver !== u.nick) {
+      if (driver === "운영진" || !(await getMember(driver))) return fail("운전자는 크루원 중에서 골라 주세요.");
+      a.driver = driver;
+    }
   }
   if (!a.place && !a.time && !a.memo) return fail(kind === "photo" ? "단체사진 시간이나 장소를 적어 주세요." : "장소나 내용을 적어 주세요.");
   await redis.hset(K.after(id), { [a.id]: JSON.stringify(a) });
@@ -248,7 +277,7 @@ export async function rsvpAfter(fd: FormData) {
   if (!raw) return;
   const post = (typeof raw === "string" ? JSON.parse(raw) : raw) as AfterParty;
   const seats = post.kind === "carpool" ? post.seats ?? 0 : 0;
-  if (post.kind === "carpool" && post.by === u.nick) return; // 운전자는 탑승 신청하지 않는다
+  if (post.kind === "carpool" && (post.driver || post.by) === u.nick) return; // 운전자는 탑승 신청하지 않는다
   if (v === "yes" && seats > 0) {
     const cur = Object.entries((await redis.hgetall<Record<string, string>>(K.rsvp(afterId))) ?? {});
     if (cur.filter(([n, x]) => x === "yes" && n !== u.nick).length >= seats) return;
@@ -355,23 +384,41 @@ export async function syncMembersAction(_: Result, fd: FormData): Promise<Result
     const parts = [`시트 ${r.total}명 확인`, r.added.length ? `새 회원 ${r.added.length}명 추가 (${r.added.join(", ")})` : "새 회원 없음"];
     if (r.promoted.length) parts.push(`운영진 지정: ${r.promoted.join(", ")}`);
     if (r.missing.length) parts.push(`시트에 없는 회원 ${r.missing.length}명: ${r.missing.join(", ")} (필요하면 아래에서 삭제하세요)`);
+    parts.push(`이벤트 참가자 ${r.eventNicks.length}명 확인`);
+    if (r.bingo?.noSecret) parts.push("이벤트 운영진 비밀 문장을 저장하면 이벤트 명단에도 자동으로 들어가요");
+    else if (r.bingo) {
+      if (r.bingo.pushed.length) parts.push(`이벤트 명단에 추가 (${r.bingo.pushed.join(", ")})`);
+      if (r.bingo.failed.length) parts.push(`빙고 명단 추가 실패 (${r.bingo.failed.join(", ")})`);
+    }
     return ok(parts.join(" · "));
   } catch (e) { return errMsg(e); }
 }
 
 /* ---------- 운영진: 크루원이 올린 내용 고치기·지우기 ---------- */
 export async function updateAfter(_: Result, fd: FormData): Promise<Result> {
-  await admin();
+  const u = await me();
   const id = str(fd, "id"), afterId = str(fd, "after");
   const raw = await redis.hget(K.after(id), afterId);
   if (!raw) return fail("이미 지워진 글이에요.");
   const a = (typeof raw === "string" ? JSON.parse(raw) : raw) as AfterParty;
+  // 올린 사람, 카풀 운전자, 운영진이 고칠 수 있다
+  if (!u.admin && a.by !== u.nick && (a.driver || a.by) !== u.nick) return fail("올린 사람만 고칠 수 있어요.");
   const next: AfterParty = { ...a, place: str(fd, "place", 60), time: str(fd, "time", 30), memo: str(fd, "memo", 200) };
   if (a.kind === "carpool") {
     const seats = Math.round(Number(fd.get("seats")) || 0);
     if (!(seats >= 1 && seats <= 10)) return fail("자리 수는 1~10이에요.");
+    const riders = Object.values((await redis.hgetall<Record<string, string>>(K.rsvp(afterId))) ?? {}).filter((x) => x === "yes").length;
+    if (seats < riders) return fail(`이미 ${riders}명이 탑승 신청했어요. 자리를 ${riders}개보다 적게 줄일 수 없어요.`);
     next.seats = seats;
+    const driver = str(fd, "driver", 30);
+    if (driver) {
+      if (driver === "운영진" || !(await getMember(driver))) return fail("운전자는 크루원 중에서 골라 주세요.");
+      next.driver = driver === a.by ? undefined : driver;
+      // 운전자는 탑승자 명단에서 뺀다
+      await redis.hdel(K.rsvp(afterId), driver);
+    }
   }
+  if (!next.place && !next.time && !next.memo) return fail("장소나 내용을 적어 주세요.");
   await redis.hset(K.after(id), { [afterId]: JSON.stringify(next) });
   revalidatePath("/races");
   revalidatePath("/admin");
@@ -410,9 +457,124 @@ export async function saveMenu(_: Result, fd: FormData): Promise<Result> {
 export async function saveBingoSecret(_: Result, fd: FormData): Promise<Result> {
   await admin();
   const s = str(fd, "secret", 200);
-  if (!s) return fail("빙고 운영진 비밀 문장을 입력해 주세요.");
+  if (!s) return fail("이벤트 운영진 비밀 문장을 입력해 주세요.");
   await redis.set("r2u:bingoSecret", s);
   revalidatePath("/admin");
-  return ok("저장했어요. 이제 버튼 한 번으로 빙고 운영진 모드에 들어가요.");
+  return ok("저장했어요. 이제 버튼 한 번으로 이벤트 운영진 모드에 들어가요.");
 }
 
+
+/* ---------- 이벤트 오픈일·종료일 (운영진) ---------- */
+export async function saveEventPeriod(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const start = str(fd, "start", 10), end = str(fd, "end", 10);
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  if (!re.test(start) || !re.test(end)) return fail("날짜를 골라 주세요.");
+  if (end < start) return fail("종료일이 시작일보다 빠를 수 없어요.");
+  // 허브에 저장한다 (이벤트 서버의 비밀 문장은 필요 없다). 이벤트 화면은 허브에서 이 기간을 받아 쓴다.
+  await redis.set(EVENT_PERIOD_KEY, JSON.stringify({ start, end }));
+  resetEventCache();
+  revalidatePath("/", "layout");
+  return ok("이벤트 기간을 저장했어요. (반영까지 최대 1분)");
+}
+
+/* ---------- 공지사항 (운영진) ---------- */
+export async function postNotice(_: Result, fd: FormData): Promise<Result> {
+  const u = await admin();
+  const title = str(fd, "title", 60), body = str(fd, "body", 500);
+  if (!title) return fail("공지 제목을 입력해 주세요.");
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  const from = str(fd, "from", 10), to = str(fd, "to", 10);
+  if ((from && !re.test(from)) || (to && !re.test(to))) return fail("날짜를 다시 골라 주세요.");
+  if (from && to && to < from) return fail("노출 종료일이 시작일보다 빠를 수 없어요.");
+  if (to && to < kstToday()) return fail("노출 종료일이 이미 지났어요.");
+  await addNotice({ title, body, by: u.nick, ...(from ? { from } : {}), ...(to ? { to } : {}) });
+  revalidatePath("/", "layout");
+  if (from && from > kstToday()) return ok(`공지를 올렸어요. ${from}부터 홈에 보여요. (알림은 보내지 않았어요)`);
+  if (fd.get("push") !== "on") return ok("공지를 올렸어요. (알림은 보내지 않았어요)");
+  const r = await sendPushAll(`📢 ${title}`, body.slice(0, 120) || "새 공지가 올라왔어요.", "/");
+  if (r.skipped) return ok("공지를 올렸어요. 알림용 키가 설정돼 있지 않아 알림은 보내지 못했어요.");
+  return ok(`공지를 올리고 알림을 보냈어요. (성공 ${r.sent}명${r.failed ? `, 실패 ${r.failed}명` : ""})`);
+}
+export async function removeNotice(fd: FormData) {
+  await admin();
+  await deleteNotice(str(fd, "id", 40));
+  revalidatePath("/", "layout");
+}
+
+/* ---------- 닉네임 생성 요청 (신규 크루원) → 링크를 카톡방에 전달 → 운영진 승인 ---------- */
+export async function requestJoin(_: Result, fd: FormData): Promise<Result> {
+  const nick = str(fd, "nick", 20);
+  if (nick.length < 2) return fail("닉네임은 2글자 이상으로 적어 주세요.");
+  if (/[\s,\n]/.test(nick) || nick === "운영진") return fail("사용할 수 없는 닉네임이에요. (공백·쉼표 없이 적어 주세요)");
+  const lower = nick.toLowerCase();
+  if ((await getMembers()).some((m) => m.nick.toLowerCase() === lower)) return fail("이미 있는 닉네임이에요. 로그인 화면에서 골라 주세요.");
+  const all = await listJoins();
+  const dup = all.find((r) => r.status === "pending" && r.nick.toLowerCase() === lower);
+  if (dup) redirect(`/join/${dup.id}`);
+  if (all.filter((r) => r.status === "pending").length >= 60) return fail("요청이 너무 많이 쌓여 있어요. 운영진에게 말해 주세요.");
+  const id = newJoinId();
+  await saveJoin({ id, nick, at: Date.now(), status: "pending" });
+  redirect(`/join/${id}?new=1`);
+}
+
+export async function decideJoin(fd: FormData) {
+  const u = await admin();
+  const r = await getJoin(str(fd, "id", 60));
+  if (!r || r.status !== "pending") return;
+  if (str(fd, "act") === "reject") {
+    await saveJoin({ ...r, status: "rejected", by: u.nick });
+  } else {
+    // 그 사이 같은 닉네임이 생겼으면 새로 만들지 않는다
+    if (!(await getMember(r.nick))) await saveMember({ nick: r.nick, role: "member", pw: null });
+    const sheet = await appendMemberToSheet(r.nick);
+    await saveJoin({ ...r, status: "approved", by: u.nick, sheet });
+  }
+  revalidatePath("/", "layout");
+}
+
+/* ---------- 내 대회 기록 ---------- */
+export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  const id = str(fd, "id", 20);
+  const race = await redis.hget(K.races, id);
+  if (!race) return fail("대회를 골라 주세요.");
+  if (!(await redis.hget(K.raceP(id), u.nick))) return fail("참가 신청한 대회만 기록할 수 있어요.");
+  const course = str(fd, "course", 20) || "기타";
+  // DNF(미완주)·DNS(불참)는 기록 시간 없이 저장한다
+  if (course === "DNF" || course === "DNS") {
+    await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: 0, time: "", note: str(fd, "note", 100), at: Date.now() }) });
+    revalidatePath("/me");
+    return ok(`${course}로 저장했어요.`);
+  }
+  // 시계 입력은 초가 0이면 "01:45"처럼 초를 빼고 보낸다. 앞의 두 칸을 시:분으로 본다.
+  const raw = str(fd, "time", 12);
+  const t = parseRaceTime(/^\d{1,2}:\d{2}$/.test(raw) ? `${raw}:00` : raw);
+  if (!t) return fail("기록의 시간·분·초를 골라 주세요. (0시간 0분 0초는 저장할 수 없어요)");
+  await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: t.sec, time: t.time, note: str(fd, "note", 100), at: Date.now() }) });
+  revalidatePath("/me");
+  return ok(`기록을 저장했어요. (${course} ${t.time})`);
+}
+export async function deleteRaceRecord(fd: FormData) {
+  const u = await me();
+  await redis.hdel(K.raceRec(u.nick), str(fd, "id", 20));
+  revalidatePath("/me");
+}
+
+/* ---------- 크루 현황: 한 명 골라 대결하기 ---------- */
+export async function setVersus(fd: FormData) {
+  const u = await me();
+  const ym = str(fd, "ym", 7), opp = str(fd, "opp", 30);
+  if (!/^\d{4}-\d{2}$/.test(ym) || !opp || opp === u.nick || opp === "운영진") return;
+  if (!(await getMember(opp))) return;
+  await redis.hset(K.vs(ym), { [u.nick]: opp });
+  revalidatePath("/crew");
+  redirect(`/crew?m=${ym}`);
+}
+export async function clearVersus(fd: FormData) {
+  const u = await me();
+  const ym = str(fd, "ym", 7);
+  if (/^\d{4}-\d{2}$/.test(ym)) await redis.hdel(K.vs(ym), u.nick);
+  revalidatePath("/crew");
+  redirect(`/crew?m=${ym}`);
+}

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { WEEK, currentUser, getAdminNicks, isStaffAccount, fmtRaceDate, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, deleteAfter, joinRace, leaveRace, rsvpAfter, toggleCheer } from "@/app/actions";
+import { WEEK, currentUser, getAdminNicks, isStaffAccount, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
+import { addAfter, deleteAfter, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
-import { Nick, Nicks } from "@/components/crown";
+import { Nick } from "@/components/crown";
+import { cache } from "react";
+import RsvpButtons from "@/components/rsvp-buttons";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "대회 일정" };
@@ -123,16 +125,38 @@ function RaceCalendar({ races, u, admins, today, ym, day }: { races: RaceFull[];
   );
 }
 
+/** 참가자를 코스별로 묶는다 (5K → 10K → 하프 → 풀 → 그 밖 → 미정 순). 표기가 달라도(Half/하프, Full/풀) 같은 코스로 보고, 이름은 코스 선택 버튼과 같게 5K·10K·Half·Full로 쓴다 */
+function groupByCourse(ps: RaceFull["participants"]) {
+  const norm = (c: string) => { const t = c.trim().toLowerCase(); return t === "half" || t === "하프" ? "half" : t === "full" || t === "풀" ? "full" : t; };
+  const ORDER = ["5k", "10k", "half", "full"];
+  const map = new Map<string, { key: string; label: string; list: typeof ps }>();
+  for (const p of ps) {
+    const key = norm(p.course ?? "") || "";
+    const label = key === "" ? "미정" : key === "half" ? "Half" : key === "full" ? "Full" : key === "5k" ? "5K" : key === "10k" ? "10K" : (p.course ?? "").trim();
+    if (!map.has(key)) map.set(key, { key, label, list: [] });
+    map.get(key)!.list.push(p);
+  }
+  const rank = (k: string) => (k === "" ? 99 : ORDER.includes(k) ? ORDER.indexOf(k) : 50);
+  for (const g of map.values()) g.list.sort((a, b) => a.nick.localeCompare(b.nick, "ko"));
+  return [...map.values()].sort((a, b) => rank(a.key) - rank(b.key));
+}
+
 function RaceCard({ r, u, admins, past }: { r: RaceFull; u: User; admins: Set<string>; past: boolean }) {
+  // 대회까지 남은 날(오늘 = 0, 지났으면 음수), 한국 날짜 기준
+  const dd = Math.round((Date.parse(`${r.date}T00:00:00Z`) - Date.parse(`${kstToday()}T00:00:00Z`)) / 86400000);
   const d = fmtRaceDate(r.date);
   const me = r.participants.find((p) => p.nick === u.nick);
   const reg = regInfo(r);
   return (
-    <article id={r.id} className="panel p-4 grid gap-3" style={past ? { opacity: 0.8 } : undefined}>
+    <article id={r.id} className={`panel p-4 grid gap-3 ${dd >= 0 && dd <= 3 ? "race-gold keep-motion" : ""}`} style={past ? { opacity: 0.8 } : undefined}>
       <div className="flex gap-3 items-start">
         <span className="datebox"><b>{d.md}</b><span>{d.w}요일</span></span>
         <div className="min-w-0 grid gap-0.5" style={{ flex: 1 }}>
-          <h3 className="font-bold text-lg leading-snug">{r.name}</h3>
+          <h3 className="font-bold text-lg leading-snug flex flex-wrap items-center gap-x-2 gap-y-1">
+            {r.name}
+            <span className={`chip dday ${dd < 0 ? "past" : dd === 0 ? "today" : dd <= 3 ? "gold keep-motion" : dd <= 7 ? "soon" : ""}`}>{dd < 0 ? "종료" : dd === 0 ? "D-DAY" : `D-${dd}`}</span>
+            <span className="chip count-badge" aria-label={`크루 참가 ${r.participants.length}명`}>👥 {r.participants.length}명</span>
+          </h3>
           <p className="text-sm text-muted flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span>{r.time ? `${r.time} 출발 · ` : ""}{r.place || "장소 미정"}</span>
             {reg.text && (
@@ -153,20 +177,26 @@ function RaceCard({ r, u, admins, past }: { r: RaceFull; u: User; admins: Set<st
       </div>
 
       <div className="grid gap-1.5">
-        <span className="label">크루 참가 {r.participants.length}명</span>
-        <div className="flex flex-wrap gap-1.5">
-          {r.participants.length === 0 && <span className="text-sm text-muted">아직 없어요.</span>}
-          {r.participants.map((p) => (
-            <span key={p.nick} className={`pchip ${p.nick === u.nick ? "me" : ""}`}>
-              <Nick n={p.nick} admins={admins} />{p.course && <span className="text-muted">· {p.course}</span>}
-              {p.nick === u.nick && !past && (
-                <form action={leaveRace} className="inline">
-                  <input type="hidden" name="id" value={r.id} />
-                  <input type="hidden" name="nick" value={p.nick} />
-                  <button type="submit" aria-label={`${p.nick} 참가 취소`}>✕</button>
-                </form>
-              )}
-            </span>
+        {r.participants.length === 0 && <span className="text-sm text-muted">아직 없어요.</span>}
+        <div className="grid gap-1.5">
+          {groupByCourse(r.participants).map((g) => (
+            <div key={g.key} className="pgroup">
+              <span className="pgroup-l">{g.label}<small>{g.list.length}</small></span>
+              <div className="flex flex-wrap gap-1.5">
+                {g.list.map((p) => (
+                  <span key={p.nick} className={`pchip ${p.nick === u.nick ? "me" : ""}`}>
+                    <Nick n={p.nick} admins={admins} />
+                    {p.nick === u.nick && !past && (
+                      <form action={leaveRace} className="inline">
+                        <input type="hidden" name="id" value={r.id} />
+                        <input type="hidden" name="nick" value={p.nick} />
+                        <button type="submit" aria-label={`${p.nick} 참가 취소`}>✕</button>
+                      </form>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -187,27 +217,21 @@ function RaceCard({ r, u, admins, past }: { r: RaceFull; u: User; admins: Set<st
         </ActionForm>
       )}
 
-      <div className="grid gap-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="label">📣 응원 {r.cheers.length}명</span>
-          {!past && u.nick !== "운영진" && (
-            <form action={toggleCheer}>
-              <input type="hidden" name="id" value={r.id} />
-              <input type="hidden" name="nick" value={u.nick} />
-              <button className={`btn text-sm py-1.5 px-3 ${r.cheers.includes(u.nick) ? "is-on" : ""}`}>
-                {r.cheers.includes(u.nick) ? "응원 가요 ✓" : "응원 갈게요"}
-              </button>
-            </form>
-          )}
-        </div>
-        {r.cheers.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {r.cheers.map((n) => (
-              <span key={n} className={`pchip ${n === u.nick ? "me" : ""}`}>
-                <Nick n={n} admins={admins} />
-              </span>
-            ))}
-          </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="label">📣 응원 {r.cheers.length}명</span>
+        {[...r.cheers].sort((a, b) => a.localeCompare(b, "ko")).map((n) => (
+          <span key={n} className={`pchip cheer ${n === u.nick ? "me" : ""}`}>
+            <Nick n={n} admins={admins} />
+          </span>
+        ))}
+        {!past && u.nick !== "운영진" && (
+          <form action={toggleCheer} className="ml-auto">
+            <input type="hidden" name="id" value={r.id} />
+            <input type="hidden" name="nick" value={u.nick} />
+            <button className={`btn cheer-btn text-sm py-1.5 px-3 ${r.cheers.includes(u.nick) ? "is-on" : ""}`}>
+              {r.cheers.includes(u.nick) ? "응원 가요 ✓" : "응원 갈게요"}
+            </button>
+          </form>
         )}
       </div>
 
@@ -234,6 +258,43 @@ const KINDS: { kind: AfterKind; add: string; tag: string }[] = [
 ];
 const kindOf = (a: AfterFull): AfterKind => a.kind ?? "after";
 
+const crewNicks = cache(async () => (await getMembers()).map((m) => m.nick).filter((n) => n !== "운영진").sort((a, b) => a.localeCompare(b, "ko")));
+
+/** 카풀 운전자 고르기: 기본은 올리는 나, 다른 크루원도 고를 수 있다 */
+async function DriverSelect({ me, value }: { me: string; value?: string }) {
+  const nicks = await crewNicks();
+  return (
+    <label className="field full"><span className="label">운전자</span>
+      <select name="driver" className="input" defaultValue={value ?? me}>
+        {nicks.map((n) => <option key={n} value={n}>{n}{n === me ? " (나)" : ""}</option>)}
+      </select>
+    </label>
+  );
+}
+
+/** 단사·카풀·뒷풀이 입력 칸 (새로 올릴 때와 고칠 때 같이 쓴다) */
+function AfterFields({ kind, me, a }: { kind: AfterKind; me: string; a?: AfterFull }) {
+  return (
+    <>
+              {kind === "photo" && <>
+                <label className="field"><span className="label">시간</span><input name="time" type="time" className="input" defaultValue={a?.time} /></label>
+                <label className="field"><span className="label">장소</span><input name="place" className="input" defaultValue={a?.place} maxLength={60} placeholder="예: 출발선 왼쪽 R2U 깃발" /></label>
+              </>}
+              {kind === "carpool" && <>
+                <DriverSelect me={me} value={a ? driverOf(a) : undefined} />
+                <label className="field"><span className="label">출발지</span><input name="place" className="input" defaultValue={a?.place} maxLength={60} placeholder="예: 삼산 롯데백화점 앞" /></label>
+                <label className="field"><span className="label">출발 시간</span><input name="time" type="time" className="input" defaultValue={a?.time} /></label>
+                <label className="field"><span className="label">태울 수 있는 자리</span><input name="seats" type="number" defaultValue={a?.seats} inputMode="numeric" min={1} max={10} className="input" placeholder="예: 3" required /></label>
+              </>}
+              {kind === "after" && <>
+                <label className="field"><span className="label">장소</span><input name="place" className="input" defaultValue={a?.place} maxLength={60} placeholder="예: 태화강 국밥집" /></label>
+                <label className="field"><span className="label">시간</span><input name="time" type="time" className="input" defaultValue={a?.time} /></label>
+              </>}
+              <label className="field full"><span className="label">내용</span><input name="memo" className="input" defaultValue={a?.memo} maxLength={200} placeholder="기타 공유 사항" /></label>
+    </>
+  );
+}
+
 function AfterParties({ r, u, admins }: { r: RaceFull; u: User; admins: Set<string> }) {
   const order: AfterKind[] = ["photo", "carpool", "after"];
   const items = [...r.afters].sort((a, b) => order.indexOf(kindOf(a)) - order.indexOf(kindOf(b)) || a.at - b.at);
@@ -247,20 +308,7 @@ function AfterParties({ r, u, admins }: { r: RaceFull; u: User; admins: Set<stri
             <ActionForm action={addAfter} className="grid-2 mt-2" collapse>
               <input type="hidden" name="id" value={r.id} />
               <input type="hidden" name="kind" value={k.kind} />
-              {k.kind === "photo" && <>
-                <label className="field"><span className="label">시간</span><input name="time" type="time" className="input" /></label>
-                <label className="field"><span className="label">장소</span><input name="place" className="input" maxLength={60} placeholder="예: 출발선 왼쪽 R2U 깃발" /></label>
-              </>}
-              {k.kind === "carpool" && <>
-                <label className="field"><span className="label">출발지</span><input name="place" className="input" maxLength={60} placeholder="예: 삼산 롯데백화점 앞" /></label>
-                <label className="field"><span className="label">출발 시간</span><input name="time" type="time" className="input" /></label>
-                <label className="field"><span className="label">태울 수 있는 자리</span><input name="seats" type="number" inputMode="numeric" min={1} max={10} className="input" placeholder="예: 3" required /></label>
-              </>}
-              {k.kind === "after" && <>
-                <label className="field"><span className="label">장소</span><input name="place" className="input" maxLength={60} placeholder="예: 태화강 국밥집" /></label>
-                <label className="field"><span className="label">시간</span><input name="time" type="time" className="input" /></label>
-              </>}
-              <label className="field full"><span className="label">내용</span><input name="memo" className="input" maxLength={200} placeholder="기타 공유 사항" /></label>
+              <AfterFields kind={k.kind} me={u.nick} />
               <div className="full"><Submit>올리기</Submit></div>
             </ActionForm>
           </details>
@@ -276,41 +324,46 @@ function AfterItem({ a, raceId, u, admins }: { a: AfterFull; raceId: string; u: 
   const tag = KINDS.find((k) => k.kind === kind)!.tag;
   const full = kind === "carpool" && (a.seats ?? 0) > 0 && a.yes.length >= (a.seats ?? 0);
   const title = kind === "carpool" ? `${a.place || "출발지 미정"} 출발` : a.place || a.time || tag;
+  const canEdit = u.admin || a.by === u.nick || driverOf(a) === u.nick;
+  const actions = canEdit ? (
+    <>
+      <details className="after-add after-edit ml-auto">
+        <summary>수정</summary>
+        <ActionForm action={updateAfter} className="grid-2 mt-2" keep collapse>
+          <input type="hidden" name="id" value={raceId} />
+          <input type="hidden" name="after" value={a.id} />
+          <AfterFields kind={kind} me={u.nick} a={a} />
+          <div className="full"><Submit>수정 저장</Submit></div>
+        </ActionForm>
+      </details>
+      {a.by === u.nick && (
+        <form action={deleteAfter}>
+          <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} />
+          <ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton>
+        </form>
+      )}
+    </>
+  ) : null;
   return (
     <div className={`after-item k-${kind}`}>
       <div className="flex items-start gap-2">
         <span className={`chip k-tag`}>{tag}</span>
         <div className="min-w-0 grid gap-0.5" style={{ flex: 1 }}>
           <b className="leading-snug">{title}{a.time && title !== a.time && <span className="text-muted font-normal"> · {a.time}</span>}</b>
+          {kind === "carpool" && <span className="text-sm" title="운전자"><span aria-label="운전자">🚗</span> <Nick n={driverOf(a)} admins={admins} /></span>}
           {a.memo && <span className="text-sm">{a.memo}</span>}
-          <span className="text-xs text-muted">{kind === "carpool" ? <>운전 <Nick n={a.by} admins={admins} /></> : <><Nick n={a.by} admins={admins} /> 님이 올림</>}</span>
         </div>
-        {a.by === u.nick && (
-          <form action={deleteAfter}>
-            <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} />
-            <ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton>
-          </form>
-        )}
+        <span className="text-xs text-muted text-right shrink-0 ml-auto self-start leading-snug"><><Nick n={a.by} admins={admins} /> 님이 올림</></span>
       </div>
-      {kind !== "photo" && <form action={rsvpAfter} className="flex flex-wrap items-center gap-1.5">
-        <input type="hidden" name="id" value={raceId} />
-        <input type="hidden" name="after" value={a.id} />
-        {kind === "carpool" ? (
-          a.by === u.nick ? (
-            <span className="text-sm font-bold">탑승 {a.yes.length}/{a.seats}명</span>
-          ) : (
-            <button name="v" value={mine === "yes" ? "" : "yes"} disabled={full && mine !== "yes"} className={`btn text-sm py-1 px-3 ${mine === "yes" ? "is-on" : ""}`}>
-              {mine === "yes" ? `탑승 취소 (${a.yes.length}/${a.seats})` : full ? `자리 없음 (${a.yes.length}/${a.seats})` : `탑승 신청 (${a.yes.length}/${a.seats})`}
-            </button>
-          )
-        ) : (
-          <>
-            <button name="v" value={mine === "yes" ? "" : "yes"} className={`btn text-sm py-1 px-3 ${mine === "yes" ? "is-on" : ""}`}>참석 {a.yes.length}</button>
-            <button name="v" value={mine === "no" ? "" : "no"} className={`btn btn-ghost text-sm py-1 px-3 ${mine === "no" ? "is-on" : ""}`}>불참 {a.no.length}</button>
-          </>
-        )}
-        {a.yes.length > 0 && <span className="text-xs text-muted">{kind === "carpool" ? "탑승" : "참석"}: <Nicks list={a.yes} admins={admins} /></span>}
-      </form>}
+      {kind !== "photo" && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
+          {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><Nick n={n} admins={admins} /></span>)}
+          {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><Nick n={n} admins={admins} /></span>)}
+          {actions}
+        </div>
+      )}
+      {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}
     </div>
   );
 }

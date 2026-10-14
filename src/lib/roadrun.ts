@@ -7,6 +7,7 @@ const BASE = "http://www.roadrun.co.kr/schedule";
 
 // 지역 이름의 EUC-KR 인코딩 (사이트 검색 폼이 EUC-KR 값을 받는다)
 export const AREAS: Record<string, string> = {
+  전국: "", // 지역을 비우면 전국 대회가 나온다
   울산: "%BF%EF%BB%EA", 부산: "%BA%CE%BB%EA", 경남: "%B0%E6%B3%B2", 경북: "%B0%E6%BA%CF", 대구: "%B4%EB%B1%B8",
   서울: "%BC%AD%BF%EF", 경기: "%B0%E6%B1%E2", 인천: "%C0%CE%C3%B5", 강원: "%B0%AD%BF%F8", 충북: "%C3%E6%BA%CF",
   충남: "%C3%E6%B3%B2", 대전: "%B4%EB%C0%FC", 세종: "%BC%BC%C1%BE", 전북: "%C0%FC%BA%CF", 전남: "%C0%FC%B3%B2",

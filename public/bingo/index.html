@@ -183,26 +183,35 @@
 <script src="report.js"></script>
 <script src="fx.js"></script>
 
-<!-- R2U 허브로 가는 탭바 (허브와 같은 메뉴) -->
+<!-- R2U 허브로 가는 위쪽 메뉴 (허브와 같은 메뉴) -->
+<script>if (self !== top) document.documentElement.classList.add("in-hub");</script>
 <nav class="r2u-tabbar" aria-label="R2U 메뉴">
   <a href="/" data-k="home"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>홈</span></a>
   <a href="/races" data-k="races"><svg viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg><span>대회</span></a>
   <a href="/monthly" data-k="monthly"><svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M21 20H3"/></svg><span>월간기록</span></a>
   <a href="/groupbuy" data-k="groupbuy"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg><span>공구</span></a>
-  <a href="/bingo" data-k="bingo" class="on" aria-current="page"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 9.3h16M4 14.6h16M9.3 4v16M14.6 4v16"/></svg><span>11월 이벤트</span></a>
+  <a href="/bingo" data-k="bingo" class="on" aria-current="page"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 9.3h16M4 14.6h16M9.3 4v16M14.6 4v16"/></svg><span>이벤트</span></a>
   <a href="/me" data-k="me"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>내 페이지</span></a>
+  <a href="/admin" data-k="admin" hidden><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg><span>운영진</span></a>
 </nav>
 <style>
-  .r2u-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; justify-content: space-around;
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); background: rgba(20, 28, 22, .86);
-    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-top: .5px solid rgba(255,255,255,.14); }
+  .r2u-tabbar { position: fixed; left: 0; right: 0; top: 0; z-index: 40; display: flex; justify-content: space-around;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 4px 6px; background: rgba(20, 28, 22, .86);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom: .5px solid rgba(255,255,255,.14); }
   .r2u-tabbar a { flex: 1; min-width: 0; display: grid; justify-items: center; gap: 2px; padding: 2px 0; color: rgba(255,255,255,.62);
     font: 600 10px/1.2 -apple-system, "Pretendard", "Apple SD Gothic Neo", sans-serif; text-decoration: none; -webkit-tap-highlight-color: transparent; }
   .r2u-tabbar a span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .r2u-tabbar a.on { color: #ffd23f; }
   .r2u-tabbar a:active { opacity: .55; }
   .r2u-tabbar svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  body { padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
+  body { padding-top: calc(52px + env(safe-area-inset-top, 0px)); }
+  /* 허브 안(iframe)에서 열릴 때는 허브 메뉴가 이미 위에 있으니 이 메뉴는 숨긴다 */
+  html.in-hub .r2u-tabbar { display: none; }
+  html.in-hub body { padding-top: 0; }
+  /* 허브 안에서는 허브 로그인으로 자동 입장하니 "다른 사람" 버튼은 필요 없다 */
+  html.in-hub #logout { display: none; }
+  html.in-hub .toast { top: 12px; transform: translate(-50%, -200%); opacity: 0; transition: transform .25s, opacity .25s; }
+  html.in-hub .toast.on { transform: translate(-50%, 0); opacity: 1; }
 </style>
 <script>
   // 운영진이 바꾼 메뉴 이름을 허브에서 받아 온다
@@ -212,6 +221,14 @@
       const el = document.querySelector('.r2u-tabbar [data-k="' + k + '"] span');
       if (el && m[k]) el.textContent = m[k];
     }
+  }).catch(() => {});
+  // 내 페이지 칸은 내 닉네임으로, 운영진이면 운영진 메뉴도 보여 준다
+  fetch('/api/me', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j) return;
+    const me = document.querySelector('.r2u-tabbar [data-k="me"]'), ad = document.querySelector('.r2u-tabbar [data-k="admin"]');
+    if (j.nick) me.querySelector('span').textContent = [...j.nick].slice(0, 4).join('') + '님'; // 4글자까지만
+    if (j.staff) me.hidden = true;
+    if (j.admin || j.staff) ad.hidden = false;
   }).catch(() => {});
 </script>
 </body>

@@ -1254,6 +1254,7 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 .weather-meta .dust-0 { color: var(--good); }
 .weather-meta .dust-2 { color: #f59e0b; }
 .weather-meta .dust-3 { color: var(--bad); }
-.weather-place { color: var(--muted); overflow: hidden; text-overflow: ellipsis; max-width: 84px; }
+.weather-locate { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.weather-place { color: var(--muted); overflow: hidden; text-overflow: ellipsis; max-width: 110px; white-space: nowrap; }
 @media (max-width: 400px) { .weather-range { display: none; } }
 @media (max-width: 340px) { .weather-meta > span:nth-child(1) { display: none; } }

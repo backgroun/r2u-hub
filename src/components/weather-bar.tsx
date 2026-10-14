@@ -24,29 +24,41 @@ function Icon({ kind }: { kind: WeatherKind }) {
 export default function WeatherBar({ initial }: { initial: Weather | null }) {
   const [w, setW] = useState<Weather | null>(initial);
   const [place, setPlace] = useState("울산");
+  const [located, setLocated] = useState(false);
 
-  useEffect(() => {
-    let dead = false;
-    const load = async (lat: number, lon: number) => {
-      const [nw, name] = await Promise.all([fetchWeather(lat, lon), placeName(lat, lon)]);
-      if (dead) return;
-      if (nw) setW(nw);
-      if (name) setPlace(name);
-    };
-    try {
-      const saved = JSON.parse(localStorage.getItem(KEY) ?? "null") as { lat: number; lon: number } | null;
-      if (saved) load(saved.lat, saved.lon);
-    } catch { /* 저장소 막힘 */ }
-    navigator.geolocation?.getCurrentPosition(
+  const load = async (lat: number, lon: number) => {
+    const [nw, name] = await Promise.all([fetchWeather(lat, lon), placeName(lat, lon)]);
+    if (nw) setW(nw);
+    if (name) setPlace(name);
+    setLocated(true);
+  };
+  // 위치 가져오기. 사용자가 직접 눌렀을 때(manual)만 안내 문구를 띄운다
+  const locate = (manual: boolean) => {
+    if (!window.isSecureContext || !navigator.geolocation) { if (manual) window.alert("https 주소(보안 연결)에서만 내 위치를 쓸 수 있어요."); return; }
+    navigator.geolocation.getCurrentPosition(
       (p) => {
         const lat = Math.round(p.coords.latitude * 100) / 100, lon = Math.round(p.coords.longitude * 100) / 100;
         try { localStorage.setItem(KEY, JSON.stringify({ lat, lon })); } catch { /* 저장소 막힘 */ }
         load(lat, lon);
       },
-      () => { /* 거부·실패하면 울산 기준 그대로 */ },
-      { maximumAge: 30 * 60_000, timeout: 8000 },
+      (e) => { if (manual) window.alert(e.code === 1 ? "위치 권한이 꺼져 있어요. 주소창 왼쪽 자물쇠(설정)에서 ‘위치’를 허용해 주세요." : "내 위치를 가져오지 못했어요. 잠시 후 다시 눌러 주세요."); },
+      { maximumAge: 30 * 60_000, timeout: 10_000 },
     );
-    return () => { dead = true; };
+  };
+
+  useEffect(() => {
+    // 예전에 허용한 적이 있으면 조용히 내 위치로, 아니면 ‘내 위치’ 버튼을 눌러 허용을 받는다
+    (async () => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(KEY) ?? "null") as { lat: number; lon: number } | null;
+        if (saved) load(saved.lat, saved.lon);
+      } catch { /* 저장소 막힘 */ }
+      try {
+        const st = await navigator.permissions?.query({ name: "geolocation" });
+        if (st?.state === "granted") locate(false);
+      } catch { /* 권한 조회를 지원하지 않는 브라우저 */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!w) return null;
@@ -60,7 +72,9 @@ export default function WeatherBar({ initial }: { initial: Weather | null }) {
       <span className="weather-meta">
         <span>강수 <b className="num">{w.rain}%</b></span>
         {dust && <span>미세먼지 <b className={`dust-${dust.level}`}>{dust.text}</b></span>}
-        <span className="weather-place">{place}</span>
+        {located
+          ? <span className="weather-place">{place}</span>
+          : <button type="button" className="weather-place weather-locate" onClick={() => locate(true)}>{place} · 내 위치</button>}
       </span>
     </section>
   );

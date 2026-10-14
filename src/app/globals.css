@@ -1242,3 +1242,18 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 
 /* 공구 종류 선택 (일반 공구 / R2U 단체 제작) */
 .seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+/* 홈 상단 날씨 (인사말 아래, 한 줄) */
+.weather-card { padding: 2px 2px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.weather-icon { flex: none; color: var(--muted); }
+.weather-temp { font-size: 17px; font-weight: 800; line-height: 1.1; white-space: nowrap; }
+.weather-temp small { font-size: 12px; font-weight: 600; color: var(--muted); font-family: inherit; }
+.weather-range { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.weather-meta { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px; white-space: nowrap; min-width: 0; }
+.weather-meta b { font-weight: 700; margin-left: 1px; }
+.weather-meta .dust-0 { color: var(--good); }
+.weather-meta .dust-2 { color: #f59e0b; }
+.weather-meta .dust-3 { color: var(--bad); }
+.weather-place { color: var(--muted); overflow: hidden; text-overflow: ellipsis; max-width: 84px; }
+@media (max-width: 400px) { .weather-range { display: none; } }
+@media (max-width: 340px) { .weather-meta > span:nth-child(1) { display: none; } }

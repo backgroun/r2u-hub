@@ -8,6 +8,7 @@ import { getNotices, noticeState } from "@/lib/notice";
 import { rankMonth, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
 import { listNews, timeAgo } from "@/lib/news";
+import WeatherCard from "@/components/weather-card";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,8 @@ export default async function Home() {
           <span className="logo-mark hub-logo shrink-0" role="img" aria-label="R2U Run To Ulsan" />
         </div>
       </header>
+
+      <WeatherCard />
 
       <section className={`panel ${notice ? "panel-alert p-4" : "px-4 py-2.5"}`}>
         {/* 새 공지가 있으면 펼친 채로, 없으면 접어서 보여 준다 */}
@@ -180,6 +183,7 @@ export default async function Home() {
           </div>
         </section>
       )}
+
     </main>
   );
 }

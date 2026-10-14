@@ -24,6 +24,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (body.round) Object.assign(r, parseRoundInput(body.round));
     if (typeof body.password === "string") {
       if (body.password.length < 4 || body.password.length > 30) throw new BadInput("관리 비밀번호는 4자 이상으로 정해 주세요.");
+      if (!/^[a-z0-9]+$/.test(body.password)) throw new BadInput("관리 비밀번호는 영문 소문자와 숫자만 사용할 수 있어요.");
       r.pwHash = hashPassword(body.password);
     }
     await saveRound(r);

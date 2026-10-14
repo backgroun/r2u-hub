@@ -7,7 +7,7 @@ const COURSES = ["5K", "10K", "Half", "Full", "기타", "DNF", "DNS"];
 
 /** 내 대회 기록 입력. 대회를 고르면 내가 신청한 코스가 자동 선택되고, DNF·DNS(미완주·불참)는 기록 칸이 꺼진다. */
 export default function RaceRecordForm({ races }: { races: { id: string; label: string; course: string }[] }) {
-  const [course, setCourse] = useState("Half");
+  const [course, setCourse] = useState("");
   const [t, setT] = useState({ h: "", m: "", s: "" });
   const mRef = useRef<HTMLInputElement>(null), sRef = useRef<HTMLInputElement>(null);
   const num = (v: string, max: number) => { const d = v.replace(/\D/g, "").slice(0, 2); return d !== "" && Number(d) > max ? String(max) : d; };
@@ -22,7 +22,9 @@ export default function RaceRecordForm({ races }: { races: { id: string; label: 
         </select>
       </label>
       <label className="field"><span className="label">코스</span>
-        <select name="course" className="input" value={course} onChange={(e) => setCourse(e.target.value)}>
+        <select name="course" className="input" value={course} required onChange={(e) => setCourse(e.target.value)}>
+          <option value="" disabled>대회를 먼저 골라 주세요</option>
+          {course && !COURSES.includes(course) && <option value={course}>{course}</option>}
           {COURSES.map((c) => <option key={c} value={c}>{c === "DNF" ? "DNF (미완주)" : c === "DNS" ? "DNS (불참)" : c}</option>)}
         </select>
       </label>

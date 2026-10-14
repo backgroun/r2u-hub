@@ -3,11 +3,14 @@ import { listRounds } from "@/lib/db";
 import { fmtDeadline, isPastRound, roundStatus, type PublicSummary, type Round } from "@/lib/types";
 import { Countdown, PayBadges, StatusChip } from "@/components/ui";
 import MyRounds from "./my-rounds";
+import { getMembers } from "@/lib/hub";
+import { knownMemberLabel } from "@/lib/member-label";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const rounds = await listRounds(100);
+  const [rounds, members] = await Promise.all([listRounds(100), getMembers()]);
+  const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const now = Date.now();
   const past = rounds.filter((x) => isPastRound(x.round.deadline, now));
   const current = rounds.filter((x) => !past.includes(x));
@@ -28,7 +31,7 @@ export default async function Home() {
             아직 열린 공구가 없어요. 위의 ‘새 공구 열기’로 첫 공구를 만들어 보세요.
           </div>
         )}
-        {current.map((x) => <RoundCard key={x.round.id} {...x} />)}
+        {current.map((x) => <RoundCard key={x.round.id} {...x} names={names} />)}
       </section>
 
       {past.length > 0 && (
@@ -37,7 +40,7 @@ export default async function Home() {
             <span className="past-caret inline-block transition-transform">▸</span> 지난 공구 {past.length}개
           </summary>
           <div className="grid gap-3 mt-3 opacity-80">
-            {past.map((x) => <RoundCard key={x.round.id} {...x} />)}
+            {past.map((x) => <RoundCard key={x.round.id} {...x} names={names} />)}
           </div>
         </details>
       )}
@@ -46,7 +49,7 @@ export default async function Home() {
   );
 }
 
-function RoundCard({ round: r, summary: s }: { round: Round; summary: PublicSummary }) {
+function RoundCard({ round: r, summary: s, names }: { round: Round; summary: PublicSummary; names: Record<string, string> }) {
   const status = roundStatus(r, s.totalQty);
   return (
     <Link href={`/groupbuy/r/${r.id}`} className="panel p-4 grid gap-1.5 hover:border-[var(--lane)]">
@@ -58,7 +61,7 @@ function RoundCard({ round: r, summary: s }: { round: Round; summary: PublicSumm
         <span className="num text-muted text-sm">{r.minQty > 0 ? `${s.totalQty}/${r.minQty}개` : `${s.totalQty}개 · 수량 무관`}</span>
       </div>
       <h3 className="font-bold text-lg leading-snug">{r.title}</h3>
-      <p className="text-sm text-muted">공구 오픈자 {r.opener} · 마감 {fmtDeadline(r.deadline)}</p>
+      <p className="text-sm text-muted">공구 오픈자 {knownMemberLabel(r.opener, names)} · 마감 {fmtDeadline(r.deadline)}</p>
       <PayBadges total={s.participants} paid={s.paidCount} delivered={status === "open" ? undefined : s.deliveredCount} />
     </Link>
   );

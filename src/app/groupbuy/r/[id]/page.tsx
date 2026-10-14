@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { getOrders, getRound, listOrder, publicRound, summarize } from "@/lib/db";
 import { fmtDeadline, minLabel } from "@/lib/types";
 import OrderView from "./order-view";
-import { currentUser } from "@/lib/hub";
+import { currentUser, getMembers, isStaffNick } from "@/lib/hub";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +22,9 @@ export default async function RoundPage({ params }: Props) {
   const { id } = await params;
   const r = await getRound(id);
   if (!r) notFound();
-  const [orders, u] = await Promise.all([getOrders(id), currentUser()]);
+  const [orders, u, members] = await Promise.all([getOrders(id), currentUser(), getMembers()]);
   // 로그인한 크루원 닉네임을 주문서에 미리 채운다 (관리용 ‘운영진’ 계정은 제외)
-  const me = u && u.nick !== "운영진" ? u.nick : "";
-  return <OrderView round={publicRound(r)} initialSummary={summarize(r, orders)} initialOrders={orders.map(listOrder)} me={me} />;
+  const me = u && !isStaffNick(u.nick) ? u.nick : "";
+  const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
+  return <OrderView round={publicRound(r)} initialSummary={summarize(r, orders)} initialOrders={orders.map(listOrder)} me={me} names={names} />;
 }

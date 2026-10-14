@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { makeTitle, type Item, type Round } from "@/lib/types";
+import { normalizePassword } from "@/components/password-input";
 
 export type RoundDraft = Omit<Round, "id" | "createdAt" | "closed">;
 
@@ -74,7 +75,7 @@ export default function RoundForm({
             <label className="field min-w-0">
               <span className="label">관리 비밀번호</span>
               <div className="relative">
-                <input id="f-password" type={showPw ? "text" : "password"} autoComplete="new-password" className="input pr-11" placeholder="4자 이상" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <input id="f-password" type={showPw ? "text" : "password"} autoComplete="new-password" autoCapitalize="none" spellCheck={false} className="input pr-11" placeholder="영문·숫자 4자 이상" value={password} onChange={(e) => setPassword(normalizePassword(e.target.value))} />
                 <button type="button" aria-label={showPw ? "비밀번호 숨기기" : "비밀번호 보기"} className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted" onClick={() => setShowPw((v) => !v)}>{showPw ? "숨김" : "보기"}</button>
               </div>
             </label>

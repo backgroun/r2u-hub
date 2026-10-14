@@ -2,19 +2,28 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
-  K, redis, checkPw, hashPw, currentUser, startSession, endSession, getMember, saveMember, getMembers,
-  getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type SheetKind,
+  K, redis, checkPw, hashPw, currentUser, startSession, endSession, getMember, saveMember, getMembers, getAllVs, isStaffNick,
+  getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type SheetKind,
 } from "@/lib/hub";
 import { syncMembers } from "@/lib/sheet";
-import { appendMemberToSheet, getJoin, listJoins, newJoinId, saveJoin } from "@/lib/join";
-import { addNotice, deleteNotice, sendPushAll } from "@/lib/notice";
-import { bingoRpc, EVENT_PERIOD_KEY, resetEventCache } from "@/lib/event";
+import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoinId, queueMemberNameForSheet, renameMemberInSheet, saveJoin, updateMemberNameInSheet } from "@/lib/join";
+import { addNotice, deleteNotice, getPushEnabledNicks, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
+import { EVENT_PERIOD_KEY, resetEventCache } from "@/lib/event";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
+import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
 
 export type Result = { ok: boolean; msg?: string } | null;
 const ok = (msg?: string): Result => ({ ok: true, msg });
 const fail = (msg: string): Result => ({ ok: false, msg });
 const str = (fd: FormData, k: string, max = 200) => String(fd.get(k) ?? "").trim().slice(0, max);
+const registrationUrl = (fd: FormData): string | null => {
+  const raw = str(fd, "regUrl", 500);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    return ["http:", "https:"].includes(url.protocol) && url.hostname && !url.username && !url.password ? url.toString() : null;
+  } catch { return null; }
+};
 
 async function me() {
   const u = await currentUser();
@@ -46,6 +55,7 @@ export async function login(_: Result, fd: FormData): Promise<Result> {
   if (await loginBlocked(nick)) return fail("비밀번호를 너무 많이 틀렸어요. 10분 뒤에 다시 시도해 주세요.");
   if (!m.pw) {
     if (pw.length < 4) return fail("비밀번호는 4자 이상으로 정해 주세요.");
+    if (!isStaffNick(nick) && !/^[a-z0-9]+$/.test(pw)) return fail("비밀번호는 영문 소문자와 숫자만 사용할 수 있어요.");
     if (pw2 === null) return fail("처음 로그인이에요. 비밀번호를 한 번 더 입력해 주세요.");
     if (pw !== String(pw2)) return fail("두 비밀번호가 달라요. 다시 입력해 주세요.");
     await saveMember({ ...m, pw: hashPw(pw) });
@@ -68,6 +78,7 @@ export async function changePassword(_: Result, fd: FormData): Promise<Result> {
   if (!checkPw(String(fd.get("cur") ?? ""), m.pw)) return fail("지금 비밀번호가 맞지 않아요.");
   const pw = String(fd.get("pw") ?? "");
   if (pw.length < 4) return fail("새 비밀번호는 4자 이상이어야 해요.");
+  if (!/^[a-z0-9]+$/.test(pw)) return fail("새 비밀번호는 영문 소문자와 숫자만 사용할 수 있어요.");
   await saveMember({ ...m, pw: hashPw(pw) });
   return ok("비밀번호를 바꿨어요.");
 }
@@ -77,6 +88,7 @@ export async function addMembers(_: Result, fd: FormData): Promise<Result> {
   await admin();
   const names = str(fd, "names", 2000).split(/[,\n]/).map((s) => s.trim().slice(0, 20)).filter(Boolean);
   if (!names.length) return fail("추가할 닉네임을 입력해 주세요.");
+  if (names.some(isStaffNick)) return fail("관리용 계정 이름은 크루원으로 추가할 수 없어요.");
   const existing = new Set((await getMembers()).map((m) => m.nick));
   const fresh = names.filter((n) => !existing.has(n));
   for (const n of fresh) await saveMember({ nick: n, role: "member", pw: null });
@@ -90,11 +102,135 @@ export async function memberAction(fd: FormData) {
   const act = str(fd, "act");
   const m = await getMember(nick);
   if (!m) return;
-  if (nick === "운영진") return; // 관리용 계정은 회원 목록에서 초기화·삭제하지 않는다
-  if (act === "reset") await saveMember({ ...m, pw: null });
-  if (act === "role" && nick !== u.nick) await saveMember({ ...m, role: m.role === "admin" ? "member" : "admin" });
+  if (isStaffNick(nick)) return; // 관리용 계정은 회원 목록에서 초기화·삭제하지 않는다
   if (act === "delete" && nick !== u.nick) await redis.hdel(K.members, nick);
   revalidatePath("/admin");
+}
+
+export async function setMemberRole(_: Result, fd: FormData): Promise<Result> {
+  const u = await admin();
+  const nick = str(fd, "nick", 30);
+  const role = str(fd, "role", 10);
+  if (!nick || isStaffNick(nick)) return fail("변경할 회원을 다시 선택해 주세요.");
+  const member = await getMember(nick);
+  if (!member) return fail("회원 목록에서 찾을 수 없어요.");
+  if (!["member", "admin", "manager"].includes(role)) return fail("권한을 다시 선택해 주세요.");
+  if (nick === u.nick && role === "member") return fail("본인의 운영진 권한은 해제할 수 없어요.");
+  const next = role === "manager"
+    ? { ...member, role: "admin" as const, manager: true, managerPreviousRole: member.manager ? member.managerPreviousRole : member.role }
+    : { ...member, role: role as "admin" | "member", manager: false, managerPreviousRole: undefined };
+  await saveMember(next);
+  revalidatePath("/", "layout");
+  return ok(`${nick}님의 권한을 ${role === "manager" ? "관리자" : role === "admin" ? "운영진" : "크루원"}(으)로 설정했어요.`);
+}
+
+export async function resetMemberPassword(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const nick = str(fd, "nick", 30);
+  if (!nick || isStaffNick(nick)) return fail("회원을 다시 선택해 주세요.");
+  const member = await getMember(nick);
+  if (!member) return fail("회원 목록에서 찾을 수 없어요.");
+  await saveMember({ ...member, pw: null });
+  revalidatePath("/admin");
+  return ok(`${nick}님의 비밀번호를 초기화했어요. 다음 로그인 때 새 비밀번호를 정합니다.`);
+}
+
+export async function editMemberByAdmin(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const oldNick = str(fd, "oldNick", 30);
+  const kind = str(fd, "kind", 10);
+  if (!oldNick || isStaffNick(oldNick)) return fail("수정할 회원을 다시 확인해 주세요.");
+  const member = await getMember(oldNick);
+  if (!member) return fail("회원 목록에서 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.");
+  if (kind === "name") {
+    const name = str(fd, "name", 30) || "없음";
+    if ((member.name?.trim() || "없음") === name) return fail("현재 이름과 같아요.");
+    const sheet = await updateMemberNameInSheet(oldNick, name === "없음" ? "" : name);
+    await saveMember({ ...member, name });
+    if (sheet === "ok") await clearQueuedMemberName(oldNick);
+    else await queueMemberNameForSheet(oldNick, name === "없음" ? "" : name);
+    revalidatePath("/", "layout");
+    return ok(sheet === "ok" ? `${oldNick}님의 이름과 구글시트 B열을 수정했어요.` : `${oldNick}님의 이름을 수정했어요. 구글시트 반영은 대기 중이며 다음 동기화 때 다시 시도해요.`);
+  }
+  if (kind !== "nick") return fail("수정 항목을 다시 확인해 주세요.");
+  const newNick = str(fd, "newNick", 21);
+  if (!validNick(newNick)) return fail("닉네임은 2~20자, 공백·쉼표·슬래시 없이 적어 주세요.");
+  if (newNick === oldNick) return fail("현재 닉네임과 같아요.");
+  if (!(await nickAvailable(oldNick, newNick))) return fail("이미 사용 중이거나 신청된 닉네임이에요.");
+  try {
+    const { eventWarning } = await approveNickChange(oldNick, newNick);
+    const sheet = await renameMemberInSheet(oldNick, newNick, member.name && member.name !== "없음" ? member.name : "");
+    revalidatePath("/", "layout");
+    return ok(`${oldNick} → ${newNick} 변경 완료.${sheet === "ok" ? " 구글시트 A열도 반영했어요." : " 구글시트 자동 반영에 실패했어요. 회원 시트 A열을 확인해 주세요."}${eventWarning ? " 이벤트 명단 이름 변경은 실패했으니 빙고 운영진 화면에서 확인해 주세요." : ""} 변경된 회원은 새 닉네임으로 다시 로그인해 주세요.`);
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "닉네임을 바꾸지 못했어요.");
+  }
+}
+
+export async function editMyName(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  if (isStaffNick(u.nick)) return fail("관리용 계정의 이름은 바꿀 수 없어요.");
+  const member = await getMember(u.nick);
+  if (!member) return fail("회원 정보를 찾을 수 없어요. 다시 로그인해 주세요.");
+  const name = str(fd, "name", 30) || "없음";
+  if ((member.name?.trim() || "없음") === name) return fail("현재 이름과 같아요.");
+  await saveMember({ ...member, name });
+  const sheet = await updateMemberNameInSheet(u.nick, name === "없음" ? "" : name);
+  if (sheet === "ok") await clearQueuedMemberName(u.nick);
+  else await queueMemberNameForSheet(u.nick, name === "없음" ? "" : name);
+  revalidatePath("/", "layout");
+  return ok(sheet === "ok" ? "이름을 변경하고 구글시트에도 반영했어요." : "이름을 변경했어요. 구글시트 반영은 대기 중이며 다음 동기화 때 다시 시도해요.");
+}
+
+/* ---------- 닉네임 변경 요청 → 운영진 승인 ---------- */
+export async function requestNickChange(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  if (isStaffNick(u.nick)) return fail("관리용 계정의 닉네임은 바꿀 수 없어요.");
+  const newNick = str(fd, "newNick", 21);
+  if (!validNick(newNick)) return fail("닉네임은 2~20자, 공백·쉼표·슬래시 없이 적어 주세요.");
+  if (newNick === u.nick) return fail("지금 쓰는 닉네임과 같아요.");
+  if (!(await nickAvailable(u.nick, newNick))) return fail("이미 사용 중이거나 신청된 닉네임이에요.");
+  await saveNickChangeRequest({ oldNick: u.nick, newNick, status: "pending", at: Date.now() });
+  revalidatePath("/me");
+  revalidatePath("/admin");
+  return ok("닉네임 변경을 신청했어요. 운영진 승인 후 새 닉네임으로 다시 로그인해 주세요.");
+}
+
+export async function cancelNickChange(_state: Result): Promise<Result> {
+  void _state;
+  const u = await me();
+  const request = await getNickChangeRequest(u.nick);
+  if (!request || request.status !== "pending") return fail("대기 중인 신청이 없어요.");
+  await cancelNickChangeRequest(u.nick);
+  revalidatePath("/me");
+  revalidatePath("/admin");
+  return ok("닉네임 변경 신청을 취소했어요.");
+}
+
+export async function decideNickChange(_: Result, fd: FormData): Promise<Result> {
+  const u = await admin();
+  const oldNick = str(fd, "oldNick", 30);
+  const request = await getNickChangeRequest(oldNick);
+  if (!request || request.status !== "pending") return fail("이미 처리된 신청이에요.");
+  if (u.nick === oldNick) return fail("본인의 닉네임 변경은 다른 운영진이 승인해 주세요.");
+  if (str(fd, "act") === "reject") {
+    const reason = str(fd, "reason", 300);
+    if (!reason) return fail("거절 사유를 입력해 주세요.");
+    await saveNickChangeRequest({ ...request, status: "rejected", decidedAt: Date.now(), by: u.nick, reason });
+    revalidatePath("/admin");
+    revalidatePath("/me");
+    return ok("닉네임 변경을 거절했어요.");
+  }
+  if (!validNick(request.newNick) || !(await nickAvailable(oldNick, request.newNick))) return fail("새 닉네임이 이미 사용 중이에요.");
+  try {
+    const member = await getMember(oldNick);
+    const { eventWarning } = await approveNickChange(oldNick, request.newNick);
+    const sheet = await renameMemberInSheet(oldNick, request.newNick, member?.name && member.name !== "없음" ? member.name : "");
+    revalidatePath("/", "layout");
+    return ok(`${oldNick} → ${request.newNick} 변경 완료.${sheet === "ok" ? " 구글시트 A열 닉네임과 B열 이름도 반영했어요." : " 구글시트 자동 반영에 실패했어요. 회원 시트 A열 닉네임과 B열 이름을 확인해 주세요."}${eventWarning ? " 이벤트 명단 이름 변경은 실패했으니 빙고 운영진 화면에서 확인해 주세요." : ""}`);
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "닉네임을 바꾸지 못했어요.");
+  }
 }
 
 /* ---------- 링크 (운영진) ---------- */
@@ -129,6 +265,8 @@ export async function linkAction(fd: FormData) {
 /* ---------- 대회 ---------- */
 export async function saveRace(_: Result, fd: FormData): Promise<Result> {
   await admin();
+  const regUrl = registrationUrl(fd);
+  if (regUrl === null) return fail("접수 페이지 주소는 http:// 또는 https://로 시작하는 주소를 입력해 주세요.");
   const id = str(fd, "id");
   const prev = id ? ((await redis.hget<Race>(K.races, id)) ?? undefined) : undefined;
   const dt = (k: string) => { const v = str(fd, k, 16); return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? v : undefined; };
@@ -136,12 +274,14 @@ export async function saveRace(_: Result, fd: FormData): Promise<Result> {
   const regStart = dt("regStart"), regEnd = dt("regEnd");
   const race: Race = {
     ...(typeof prev === "string" ? JSON.parse(prev) : prev ?? {}),
-    id: id || newId(), name: str(fd, "name", 60), date: str(fd, "date", 10), place: str(fd, "place", 60), note: str(fd, "note", 200),
+    id: id || newId(), name: str(fd, "name", 60), date: str(fd, "date", 10), place: str(fd, "place", 60),
+    address: str(fd, "address", 150), placeUrl: str(fd, "placeUrl", 200), note: str(fd, "note", 200),
     time: /^\d{2}:\d{2}$/.test(time) ? time : undefined,
-    regStart, regEnd,
+    regStart, regEnd, regUrl: regUrl || undefined,
     // 접수 날짜를 고르면 예전 글자 표기는 지운다
     reg: regStart || regEnd ? "" : str(fd, "reg", 60),
   };
+  if (!/^https?:\/\/place\.map\.kakao\.com\/\d+\/?$/.test(race.placeUrl ?? "")) { race.address = ""; race.placeUrl = ""; }
   if (!race.name || !/^\d{4}-\d{2}-\d{2}$/.test(race.date)) return fail("대회명과 대회 날짜를 입력해 주세요.");
   if (regStart && regEnd && regStart > regEnd) return fail("접수 마감이 접수 시작보다 빨라요.");
   await redis.hset(K.races, { [race.id]: JSON.stringify(race) });
@@ -152,13 +292,17 @@ export async function saveRace(_: Result, fd: FormData): Promise<Result> {
 /** 대회 찾기에서 못 찾은 대회를 직접 적어 우리 일정에 넣는다. 크루원 누구나 가능. */
 export async function addManualRace(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
+  const regUrl = registrationUrl(fd);
+  if (regUrl === null) return fail("접수 페이지 주소는 http:// 또는 https://로 시작하는 주소를 입력해 주세요.");
   const dt = (k: string) => { const v = str(fd, k, 16); return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? v : undefined; };
   const time = str(fd, "time", 5);
   const regStart = dt("regStart"), regEnd = dt("regEnd");
   const race: Race = {
-    id: newId(), name: str(fd, "name", 60), date: str(fd, "date", 10), place: str(fd, "place", 60), note: str(fd, "note", 200),
-    time: /^\d{2}:\d{2}$/.test(time) ? time : undefined, regStart, regEnd, reg: "", addedBy: u.nick,
+    id: newId(), name: str(fd, "name", 60), date: str(fd, "date", 10), place: str(fd, "place", 60),
+    address: str(fd, "address", 150), placeUrl: str(fd, "placeUrl", 200), note: str(fd, "note", 200),
+    time: /^\d{2}:\d{2}$/.test(time) ? time : undefined, regStart, regEnd, regUrl: regUrl || undefined, reg: "", addedBy: u.nick,
   };
+  if (!/^https?:\/\/place\.map\.kakao\.com\/\d+\/?$/.test(race.placeUrl ?? "")) { race.address = ""; race.placeUrl = ""; }
   if (!race.name || !/^\d{4}-\d{2}-\d{2}$/.test(race.date)) return fail("대회명과 대회 날짜를 입력해 주세요.");
   if (regStart && regEnd && regStart > regEnd) return fail("접수 마감이 접수 시작보다 빨라요.");
   const existing = Object.values((await redis.hgetall<Record<string, Race>>(K.races)) ?? {}).map((v) => (typeof v === "string" ? JSON.parse(v) : v) as Race);
@@ -211,7 +355,7 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   revalidatePath("/races");
   revalidatePath("/admin");
   revalidatePath("/");
-  return ok(`${who} · ${course} 참가로 기록했어요.`);
+  return ok(`${who} · ${course} 크루 참가로 표시했어요. 대회 접수는 주최 측 페이지에서 별도로 확인해 주세요.`);
 }
 
 /* ---------- 응원 참석 ---------- */
@@ -248,14 +392,15 @@ export async function addAfter(_: Result, fd: FormData): Promise<Result> {
   if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
   const kind = (["photo", "carpool", "after"].includes(str(fd, "kind")) ? str(fd, "kind") : "after") as AfterKind;
   const seats = Math.round(Number(fd.get("seats")) || 0);
-  const a: AfterParty = { id: newId(), kind, place: str(fd, "place", 60), time: str(fd, "time", 30), memo: str(fd, "memo", 200), by: u.nick, at: Date.now() };
+  const a: AfterParty = { id: newId(), kind, place: str(fd, "place", 60), address: str(fd, "address", 150), placeUrl: str(fd, "placeUrl", 200), time: str(fd, "time", 30), memo: str(fd, "memo", 200), by: u.nick, at: Date.now() };
+  if (!/^https?:\/\/place\.map\.kakao\.com\/\d+\/?$/.test(a.placeUrl ?? "")) { a.address = ""; a.placeUrl = ""; }
   if (kind === "carpool") {
     if (!(seats >= 1 && seats <= 10)) return fail("태울 수 있는 자리 수(1~10)를 적어 주세요.");
     a.seats = seats;
     // 운전자는 올리는 사람이 아니어도 된다(크루원 중에서 고른다). 비우면 올리는 사람.
     const driver = str(fd, "driver", 30);
     if (driver && driver !== u.nick) {
-      if (driver === "운영진" || !(await getMember(driver))) return fail("운전자는 크루원 중에서 골라 주세요.");
+      if (isStaffNick(driver) || !(await getMember(driver))) return fail("운전자는 크루원 중에서 골라 주세요.");
       a.driver = driver;
     }
   }
@@ -266,6 +411,44 @@ export async function addAfter(_: Result, fd: FormData): Promise<Result> {
   revalidatePath("/races");
   revalidatePath("/admin");
   return ok(kind === "photo" ? "단사시간을 올렸어요." : kind === "carpool" ? "카풀을 올렸어요." : "뒷풀이를 올렸어요.");
+}
+
+/** 시간 있는 일정의 참석자 또는 운영진이 알림을 보낸다. 각 일정당 1시간에 한 번만 허용. */
+export async function sendScheduleNotice(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  const raceId = str(fd, "id", 30), itemId = str(fd, "after", 30);
+  const [raceRaw, itemRaw, participants, cheers, rsvps] = await Promise.all([
+    redis.hget(K.races, raceId), itemId ? redis.hget(K.after(raceId), itemId) : Promise.resolve(null),
+    redis.hkeys(K.raceP(raceId)), redis.hkeys(K.cheer(raceId)),
+    itemId ? redis.hgetall<Record<string, string>>(K.rsvp(itemId)) : Promise.resolve(null),
+  ]);
+  if (!raceRaw || (itemId && !itemRaw)) return fail("일정을 찾을 수 없어요.");
+  const race = (typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race;
+  const item = itemRaw ? (typeof itemRaw === "string" ? JSON.parse(itemRaw) : itemRaw) as AfterParty : null;
+  const kind = item?.kind ?? (item ? "after" : "race");
+  const time = item?.time ?? race.time ?? "";
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return fail("시간이 정해진 일정에서만 보낼 수 있어요.");
+  const startsAt = Date.parse(`${race.date}T${time}:00+09:00`);
+  if (!Number.isFinite(startsAt) || startsAt <= Date.now()) return fail("이미 지난 일정이에요.");
+  const raceAttendees = [...(participants ?? []), ...(cheers ?? [])];
+  const yes = Object.entries(rsvps ?? {}).filter(([, value]) => value === "yes").map(([nick]) => nick);
+  const attendees = new Set((kind === "carpool" ? [...yes, item?.driver || item?.by || ""] : kind === "after" ? yes : raceAttendees).filter((nick) => nick && !isStaffNick(nick)));
+  if (!u.admin && !attendees.has(u.nick)) return fail("이 일정의 참석자나 운영진만 알림을 보낼 수 있어요.");
+  if (!pushReady()) return fail("알림 발송 설정이 아직 준비되지 않았어요.");
+  const subscribed = await getPushEnabledNicks();
+  const recipients = new Set([...attendees].filter((nick) => subscribed.has(nick)));
+  if (!recipients.size) return fail("알림을 켠 참석자가 없어요.");
+  const marker = `r2u:scheduleNotice:${raceId}:${itemId || "race"}`;
+  if (await redis.set(marker, "1", { nx: true, ex: 3600 }) !== "OK") return fail("이 일정의 알림은 1시간에 한 번만 보낼 수 있어요.");
+  try {
+    const title = { race: "🏁 대회 알림", photo: "📷 단체사진 알림", carpool: "🚗 카풀 알림", after: "🍽️ 뒷풀이 알림" }[kind] || "일정 알림";
+    const result = await sendPushToNicks(recipients, title, `${race.name} · ${time}${item?.place ? ` · ${item.place}` : race.place ? ` · ${race.place}` : ""}`, `/races#${raceId}`);
+    if (!result.sent) { await redis.del(marker); return fail("알림 발송에 실패했어요. 잠시 후 다시 시도해 주세요."); }
+    return ok(`알림을 보냈어요. (${result.sent}개 기기)`);
+  } catch {
+    await redis.del(marker);
+    return fail("알림 발송에 실패했어요. 잠시 후 다시 시도해 주세요.");
+  }
 }
 
 export async function rsvpAfter(fd: FormData) {
@@ -382,6 +565,7 @@ export async function syncMembersAction(_: Result, fd: FormData): Promise<Result
     const r = await syncMembers(await sheetUrl(fd, "members"));
     revalidatePath("/", "layout");
     const parts = [`시트 ${r.total}명 확인`, r.added.length ? `새 회원 ${r.added.length}명 추가 (${r.added.join(", ")})` : "새 회원 없음"];
+    if (r.renamed.length) parts.push(`이름 갱신 ${r.renamed.length}명`);
     if (r.promoted.length) parts.push(`운영진 지정: ${r.promoted.join(", ")}`);
     if (r.missing.length) parts.push(`시트에 없는 회원 ${r.missing.length}명: ${r.missing.join(", ")} (필요하면 아래에서 삭제하세요)`);
     parts.push(`이벤트 참가자 ${r.eventNicks.length}명 확인`);
@@ -403,7 +587,8 @@ export async function updateAfter(_: Result, fd: FormData): Promise<Result> {
   const a = (typeof raw === "string" ? JSON.parse(raw) : raw) as AfterParty;
   // 올린 사람, 카풀 운전자, 운영진이 고칠 수 있다
   if (!u.admin && a.by !== u.nick && (a.driver || a.by) !== u.nick) return fail("올린 사람만 고칠 수 있어요.");
-  const next: AfterParty = { ...a, place: str(fd, "place", 60), time: str(fd, "time", 30), memo: str(fd, "memo", 200) };
+  const next: AfterParty = { ...a, place: str(fd, "place", 60), address: str(fd, "address", 150), placeUrl: str(fd, "placeUrl", 200), time: str(fd, "time", 30), memo: str(fd, "memo", 200) };
+  if (!/^https?:\/\/place\.map\.kakao\.com\/\d+\/?$/.test(next.placeUrl ?? "")) { next.address = ""; next.placeUrl = ""; }
   if (a.kind === "carpool") {
     const seats = Math.round(Number(fd.get("seats")) || 0);
     if (!(seats >= 1 && seats <= 10)) return fail("자리 수는 1~10이에요.");
@@ -412,7 +597,7 @@ export async function updateAfter(_: Result, fd: FormData): Promise<Result> {
     next.seats = seats;
     const driver = str(fd, "driver", 30);
     if (driver) {
-      if (driver === "운영진" || !(await getMember(driver))) return fail("운전자는 크루원 중에서 골라 주세요.");
+      if (isStaffNick(driver) || !(await getMember(driver))) return fail("운전자는 크루원 중에서 골라 주세요.");
       next.driver = driver === a.by ? undefined : driver;
       // 운전자는 탑승자 명단에서 뺀다
       await redis.hdel(K.rsvp(afterId), driver);
@@ -488,8 +673,16 @@ export async function postNotice(_: Result, fd: FormData): Promise<Result> {
   if ((from && !re.test(from)) || (to && !re.test(to))) return fail("날짜를 다시 골라 주세요.");
   if (from && to && to < from) return fail("노출 종료일이 시작일보다 빠를 수 없어요.");
   if (to && to < kstToday()) return fail("노출 종료일이 이미 지났어요.");
-  await addNotice({ title, body, by: u.nick, ...(from ? { from } : {}), ...(to ? { to } : {}) });
+  const file = fd.get("image");
+  let image: { type: string; data: string } | undefined;
+  if (file instanceof File && file.size > 0) {
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) return fail("JPG, PNG, WebP, GIF 이미지만 올릴 수 있어요.");
+    if (file.size > 3_000_000) return fail("이미지는 3MB 이하로 올려 주세요.");
+    image = { type: file.type, data: Buffer.from(await file.arrayBuffer()).toString("base64") };
+  }
+  await addNotice({ title, body, by: u.nick, ...(from ? { from } : {}), ...(to ? { to } : {}) }, image);
   revalidatePath("/", "layout");
+  revalidatePath("/notices");
   if (from && from > kstToday()) return ok(`공지를 올렸어요. ${from}부터 홈에 보여요. (알림은 보내지 않았어요)`);
   if (fd.get("push") !== "on") return ok("공지를 올렸어요. (알림은 보내지 않았어요)");
   const r = await sendPushAll(`📢 ${title}`, body.slice(0, 120) || "새 공지가 올라왔어요.", "/");
@@ -500,13 +693,14 @@ export async function removeNotice(fd: FormData) {
   await admin();
   await deleteNotice(str(fd, "id", 40));
   revalidatePath("/", "layout");
+  revalidatePath("/notices");
 }
 
 /* ---------- 닉네임 생성 요청 (신규 크루원) → 링크를 카톡방에 전달 → 운영진 승인 ---------- */
 export async function requestJoin(_: Result, fd: FormData): Promise<Result> {
   const nick = str(fd, "nick", 20);
   if (nick.length < 2) return fail("닉네임은 2글자 이상으로 적어 주세요.");
-  if (/[\s,\n]/.test(nick) || nick === "운영진") return fail("사용할 수 없는 닉네임이에요. (공백·쉼표 없이 적어 주세요)");
+  if (/[\s,\n]/.test(nick) || isStaffNick(nick)) return fail("사용할 수 없는 닉네임이에요. (공백·쉼표 없이 적어 주세요)");
   const lower = nick.toLowerCase();
   if ((await getMembers()).some((m) => m.nick.toLowerCase() === lower)) return fail("이미 있는 닉네임이에요. 로그인 화면에서 골라 주세요.");
   const all = await listJoins();
@@ -523,7 +717,9 @@ export async function decideJoin(fd: FormData) {
   const r = await getJoin(str(fd, "id", 60));
   if (!r || r.status !== "pending") return;
   if (str(fd, "act") === "reject") {
-    await saveJoin({ ...r, status: "rejected", by: u.nick });
+    const reason = str(fd, "reason", 300);
+    if (!reason) return;
+    await saveJoin({ ...r, status: "rejected", by: u.nick, reason });
   } else {
     // 그 사이 같은 닉네임이 생겼으면 새로 만들지 않는다
     if (!(await getMember(r.nick))) await saveMember({ nick: r.nick, role: "member", pw: null });
@@ -539,7 +735,7 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   const id = str(fd, "id", 20);
   const race = await redis.hget(K.races, id);
   if (!race) return fail("대회를 골라 주세요.");
-  if (!(await redis.hget(K.raceP(id), u.nick))) return fail("참가 신청한 대회만 기록할 수 있어요.");
+  if (!(await redis.hget(K.raceP(id), u.nick))) return fail("크루 참가로 표시한 대회만 기록할 수 있어요.");
   const course = str(fd, "course", 20) || "기타";
   // DNF(미완주)·DNS(불참)는 기록 시간 없이 저장한다
   if (course === "DNF" || course === "DNS") {
@@ -562,19 +758,107 @@ export async function deleteRaceRecord(fd: FormData) {
 }
 
 /* ---------- 크루 현황: 한 명 골라 대결하기 ---------- */
-export async function setVersus(fd: FormData) {
+export async function setVersus(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
   const ym = str(fd, "ym", 7), opp = str(fd, "opp", 30);
-  if (!/^\d{4}-\d{2}$/.test(ym) || !opp || opp === u.nick || opp === "운영진") return;
-  if (!(await getMember(opp))) return;
-  await redis.hset(K.vs(ym), { [u.nick]: opp });
+  if (!/^\d{4}-\d{2}$/.test(ym) || !opp || opp === u.nick || isStaffNick(opp)) return fail("대결 상대를 다시 골라 주세요.");
+  if (ym !== kstToday().slice(0, 7)) return fail("대결은 이번 달에만 시작할 수 있어요.");
+  if (!(await getMember(opp))) return fail("회원 명단에 없는 상대예요.");
+  const lock = `r2u:vs:${ym}:lock`;
+  const token = newId();
+  if (await redis.set(lock, token, { nx: true, ex: 10 }) !== "OK") return fail("대결을 처리 중이에요. 잠시 후 다시 눌러 주세요.");
+  try {
+    const pairs = await getAllVs(ym);
+    if (pairs[u.nick]) return fail(`${u.nick}님은 이미 ${pairs[u.nick]}님과 대결 중이에요. 기존 대결을 끝내 주세요.`);
+    if (pairs[opp]) return fail(`${opp}님은 이미 다른 크루원과 대결 중이에요.`);
+    pairs[u.nick] = opp;
+    pairs[opp] = u.nick;
+    const tx = redis.multi();
+    tx.del(K.vs(ym));
+    tx.hset(K.vs(ym), pairs);
+    tx.expireat(K.vs(ym), vsExpiry(ym));
+    tx.hdel(K.vsEnd(ym), u.nick, opp);
+    await tx.exec();
+  } finally {
+    if (await redis.get(lock) === token) await redis.del(lock);
+  }
   revalidatePath("/crew");
-  redirect(`/crew?m=${ym}`);
+  return ok(`${opp}님과 1:1 대결을 시작했어요.`);
 }
-export async function clearVersus(fd: FormData) {
+export async function manageVersusEnd(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
   const ym = str(fd, "ym", 7);
-  if (/^\d{4}-\d{2}$/.test(ym)) await redis.hdel(K.vs(ym), u.nick);
+  const act = str(fd, "act", 10);
+  if (!/^\d{4}-\d{2}$/.test(ym)) return fail("대결 기간을 다시 확인해 주세요.");
+  if (ym !== kstToday().slice(0, 7)) return fail("지난달 대결은 이미 종료됐어요.");
+  if (!["request", "approve", "reject", "cancel"].includes(act)) return fail("종료 요청을 다시 확인해 주세요.");
+  const lock = `r2u:vs:${ym}:lock`;
+  const token = newId();
+  if (await redis.set(lock, token, { nx: true, ex: 10 }) !== "OK") return fail("대결을 처리 중이에요. 잠시 후 다시 눌러 주세요.");
+  try {
+    const pairs = await getAllVs(ym);
+    const opp = pairs[u.nick];
+    if (!opp) return fail("진행 중인 대결이 없어요.");
+    const [outgoing, incoming] = await Promise.all([
+      redis.hget<string>(K.vsEnd(ym), u.nick),
+      redis.hget<string>(K.vsEnd(ym), opp),
+    ]);
+    if (act === "request") {
+      if (incoming === u.nick) return fail("상대방이 이미 종료를 요청했어요. 승인하거나 거절해 주세요.");
+      if (outgoing === opp) return ok("상대방의 승인을 기다리고 있어요.");
+      await redis.hset(K.vsEnd(ym), { [u.nick]: opp });
+      await redis.expireat(K.vsEnd(ym), vsExpiry(ym));
+      revalidatePath("/crew");
+      return ok("대결 종료를 요청했어요. 상대방이 승인하면 대결이 끝나요.");
+    }
+    if (act === "cancel") {
+      if (outgoing !== opp) return fail("취소할 종료 요청이 없어요.");
+      await redis.hdel(K.vsEnd(ym), u.nick);
+      revalidatePath("/crew");
+      return ok("대결 종료 요청을 취소했어요.");
+    }
+    if (incoming !== u.nick) return fail("상대방의 종료 요청이 없어요.");
+    if (act === "reject") {
+      await redis.hdel(K.vsEnd(ym), opp);
+      revalidatePath("/crew");
+      return ok("대결 종료 요청을 거절했어요. 대결은 계속돼요.");
+    }
+    delete pairs[u.nick];
+    delete pairs[opp];
+    const tx = redis.multi();
+    tx.del(K.vs(ym));
+    if (Object.keys(pairs).length) { tx.hset(K.vs(ym), pairs); tx.expireat(K.vs(ym), vsExpiry(ym)); }
+    tx.hdel(K.vsEnd(ym), u.nick, opp);
+    await tx.exec();
+  } finally {
+    if (await redis.get(lock) === token) await redis.del(lock);
+  }
   revalidatePath("/crew");
-  redirect(`/crew?m=${ym}`);
+  return ok("상대방의 종료 요청을 승인해 1:1 대결을 끝냈어요.");
+}
+
+export async function cancelVersusByAdmin(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const ym = str(fd, "ym", 7);
+  const a = str(fd, "a", 30), b = str(fd, "b", 30);
+  if (ym !== kstToday().slice(0, 7) || !a || !b || a === b) return fail("취소할 대결을 다시 확인해 주세요.");
+  const lock = `r2u:vs:${ym}:lock`;
+  const token = newId();
+  if (await redis.set(lock, token, { nx: true, ex: 10 }) !== "OK") return fail("대결을 처리 중이에요. 잠시 후 다시 눌러 주세요.");
+  try {
+    const pairs = await getAllVs(ym);
+    if (pairs[a] !== b || pairs[b] !== a) return fail("이미 종료됐거나 다른 대결로 변경됐어요.");
+    delete pairs[a];
+    delete pairs[b];
+    const tx = redis.multi();
+    tx.del(K.vs(ym));
+    if (Object.keys(pairs).length) { tx.hset(K.vs(ym), pairs); tx.expireat(K.vs(ym), vsExpiry(ym)); }
+    tx.hdel(K.vsEnd(ym), a, b);
+    await tx.exec();
+  } finally {
+    if (await redis.get(lock) === token) await redis.del(lock);
+  }
+  revalidatePath("/admin");
+  revalidatePath("/crew");
+  return ok(`${a}님과 ${b}님의 대결을 취소했어요.`);
 }

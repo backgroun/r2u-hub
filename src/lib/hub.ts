@@ -11,6 +11,9 @@ export const redis = new Redis({
 
 export const K = {
   members: "r2u:members", // hash nick -> Member
+  lastSeen: "r2u:lastSeen", // hash nick -> 마지막 접속 시각(ms)
+  seenThrottle: (nick: string) => `r2u:seenThrottle:${nick}`,
+  nickAliases: "r2u:nickAliases", // 시트에 남은 예전 닉네임 -> 현재 닉네임
   links: "r2u:links", // Link[]
   races: "r2u:races", // hash id -> Race
   raceP: (id: string) => `r2u:race:${id}:p`, // hash nick -> course
@@ -19,6 +22,7 @@ export const K = {
   rsvp: (afterId: string) => `r2u:after:${afterId}`, // hash nick -> "yes" | "no"
   raceRec: (nick: string) => `r2u:racerec:${nick}`, // hash raceId -> RaceRec (내 대회 기록)
   vs: (ym: string) => `r2u:vs:${ym}`, // hash 내 닉네임 -> 이번 달 대결 상대 닉네임
+  vsEnd: (ym: string) => `r2u:vsEnd:${ym}`, // hash 종료 요청자 -> 승인할 상대
   month: (ym: string) => `r2u:month:${ym}`, // hash nick -> MonthRec
   fails: (nick: string) => `r2u:fails:${nick}`,
 };
@@ -38,19 +42,22 @@ export async function getRaceRecs(nick: string): Promise<Record<string, RaceRec>
   return Object.fromEntries(Object.entries(h).map(([id, v]) => [id, parse<RaceRec>(v)]));
 }
 
-export type Member = { nick: string; role: "admin" | "member"; pw: string | null };
+export type Member = { nick: string; name?: string; role: "admin" | "member"; pw: string | null; manager?: boolean; managerPreviousRole?: "admin" | "member" };
+export const memberLabel = (m: Pick<Member, "nick" | "name">) => `${m.nick}/${m.name?.trim() || "없음"}`;
 export type Link = { id: string; title: string; url: string; desc: string; tag: string };
 export type Race = {
   id: string; no?: number; name: string; date: string; place: string; note: string;
+  address?: string; placeUrl?: string; // 카카오맵에서 선택한 대회 장소
   time?: string; // 출발 시각 HH:MM (새로 입력한 대회부터)
   regStart?: string; regEnd?: string; // 접수 시작·마감 YYYY-MM-DDTHH:MM (한국 시간)
+  regUrl?: string; // 주최 측 접수 페이지 (크루 참가 표시와 별개)
   reg: string; // 예전 시트에서 옮긴 접수기간 글자 (접수 날짜를 고르면 비운다)
   src?: string; // 마라톤온라인 대회 번호 (대회 찾기로 추가한 경우)
   addedBy?: string; // 대회 찾기로 추가한 크루원
 };
 /** 대회 아래 함께하기 글: 단체사진(photo) · 카풀(carpool) · 뒷풀이(after, 예전 글은 kind 없음) */
 export type AfterKind = "photo" | "carpool" | "after";
-export type AfterParty = { id: string; kind?: AfterKind; place: string; time: string; memo: string; seats?: number; driver?: string; by: string; at: number }; // by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
+export type AfterParty = { id: string; kind?: AfterKind; place: string; address?: string; placeUrl?: string; time: string; memo: string; seats?: number; driver?: string; by: string; at: number }; // by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
 export const driverOf = (a: { driver?: string; by: string }) => a.driver || a.by;
 export type AfterFull = AfterParty & { yes: string[]; no: string[] };
 export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; afters: AfterFull[] };
@@ -58,7 +65,8 @@ export type MonthRec = { goal: number; days: Record<string, number>; goalEdits?:
 export const GOAL_EDIT_LIMIT = 2;
 export type User = { nick: string; admin: boolean };
 /** 운영진 모드(관리용 ‘운영진’ 계정): 개인 기록·참가 입력을 하지 않는다 */
-export const isStaffAccount = (u: { nick: string } | null) => u?.nick === "운영진";
+export const isStaffNick = (nick: string | null | undefined) => nick === "운영진" || nick === "관리자";
+export const isStaffAccount = (u: { nick: string } | null) => isStaffNick(u?.nick);
 
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
 export const newId = () => randomBytes(5).toString("base64url");
@@ -70,9 +78,20 @@ export async function getMembers(): Promise<Member[]> {
     .map(([nick, v]) => ({ ...parse<Omit<Member, "nick">>(v), nick }))
     .sort((a, b) => (a.role === b.role ? a.nick.localeCompare(b.nick, "ko") : a.role === "admin" ? -1 : 1));
 }
+export async function getLastSeen(): Promise<Record<string, number>> {
+  const values = (await redis.hgetall<Record<string, number | string>>(K.lastSeen)) ?? {};
+  return Object.fromEntries(Object.entries(values).map(([nick, value]) => [nick, Number(value)]));
+}
+async function markSeen(nick: string) {
+  try {
+    if (await redis.set(K.seenThrottle(nick), "1", { nx: true, ex: 300 }) === "OK") {
+      await redis.hset(K.lastSeen, { [nick]: Date.now() });
+    }
+  } catch { /* 접속 기록 오류로 로그인을 막지 않는다 */ }
+}
 /** 운영진으로 지정된 크루원 닉네임 (왕관 표시용) */
 export async function getAdminNicks(): Promise<Set<string>> {
-  return new Set((await getMembers()).filter((m) => m.role === "admin" && m.nick !== "운영진").map((m) => m.nick));
+  return new Set((await getMembers()).filter((m) => m.role === "admin" && !isStaffNick(m.nick)).map((m) => m.nick));
 }
 
 export async function getMember(nick: string): Promise<Member | null> {
@@ -154,16 +173,40 @@ export async function getRaces(): Promise<RaceFull[]> {
 /* ---------- 월간 기록 ---------- */
 /** 이번 달 내가 고른 대결 상대 (없으면 null) */
 export async function getVs(ym: string, nick: string): Promise<string | null> {
+  if (ym !== kstToday().slice(0, 7)) return null;
   const v = await redis.hget<string>(K.vs(ym), nick);
   return typeof v === "string" && v ? v : null;
 }
 /** 이번 달 모든 크루원의 대결 상대 (닉네임 -> 상대 닉네임) */
 export async function getAllVs(ym: string): Promise<Record<string, string>> {
+  if (ym !== kstToday().slice(0, 7)) return {};
   const h = (await redis.hgetall<Record<string, unknown>>(K.vs(ym))) ?? {};
-  return Object.fromEntries(Object.entries(h).filter(([, v]) => typeof v === "string" && v).map(([k, v]) => [k, v as string]));
+  if (Object.keys(h).length) await redis.expireat(K.vs(ym), vsExpiry(ym));
+  return pairVersus(Object.fromEntries(Object.entries(h).filter(([, v]) => typeof v === "string" && v).map(([k, v]) => [k, v as string])));
+}
+/** 다음 달 1일 00:00 KST (Redis 만료 시각, Unix 초) */
+export function vsExpiry(ym: string) {
+  return Math.floor(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0, 15) / 1000);
+}
+/** 예전 단방향 대결도 서로 짝이 맞는 1:1 쌍으로 해석한다. */
+export function pairVersus(raw: Record<string, string>): Record<string, string> {
+  const pairs: Record<string, string> = {};
+  const entries = Object.entries(raw).filter(([a, b]) => a && b && a !== b && !isStaffNick(a) && !isStaffNick(b));
+  for (const [a, b] of entries.filter(([a, b]) => raw[b] === a)) {
+    if (!pairs[a] && !pairs[b]) { pairs[a] = b; pairs[b] = a; }
+  }
+  for (const [a, b] of entries.sort(([a], [b]) => a.localeCompare(b, "ko"))) {
+    if (!pairs[a] && !pairs[b]) { pairs[a] = b; pairs[b] = a; }
+  }
+  return pairs;
 }
 export async function getMonth(ym: string): Promise<Record<string, MonthRec>> {
   const h = (await redis.hgetall<Record<string, unknown>>(K.month(ym))) ?? {};
+  // 잘못 입력된 옛 닉네임의 중복 월간 기록을 저장소에서도 제거한다.
+  if (Object.hasOwn(h, "마루(정곤)")) {
+    await redis.hdel(K.month(ym), "마루(정곤)");
+    delete h["마루(정곤)"];
+  }
   return Object.fromEntries(Object.entries(h).map(([n, v]) => [n, parse<MonthRec>(v)]));
 }
 
@@ -186,6 +229,8 @@ function sign(s: string) {
   return createHmac("sha256", process.env.SESSION_SECRET!).update(s).digest("base64url");
 }
 export async function startSession(nick: string) {
+  await redis.hset(K.lastSeen, { [nick]: Date.now() });
+  await redis.set(K.seenThrottle(nick), "1", { ex: 300 });
   (await cookies()).delete(PREVIEW_COOKIE); // 이전 사람의 이벤트 미리보기 허용이 남지 않게
   const body = `${Buffer.from(nick).toString("base64url")}.${Date.now()}`;
   (await cookies()).set(SESSION_COOKIE, `${body}.${sign(body)}`, {
@@ -222,6 +267,7 @@ export async function currentUser(): Promise<User | null> {
   if (!sig || sign(`${n}.${t}`) !== sig) return null;
   const m = await getMember(Buffer.from(n, "base64url").toString());
   if (!m || !m.pw) return null;
+  await markSeen(m.nick);
   return { nick: m.nick, admin: m.role === "admin" };
 }
 

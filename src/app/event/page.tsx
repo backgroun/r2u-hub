@@ -15,7 +15,7 @@ export default async function EventPage({ searchParams }: { searchParams: Promis
     return <Frame staff={!!(await searchParams).staff} />;
   }
   if (await eventOpen()) {
-    // 이벤트 참가자 명단(회원 시트 C열)에 없는 크루원은 안내 문구만 본다. 명단이 비어 있거나 운영진이면 그대로 보여 준다.
+    // 이벤트 참가자 명단(회원 시트 D열)에 없는 크루원은 안내 문구만 본다. 명단이 비어 있거나 운영진이면 그대로 보여 준다.
     const u = await currentUser();
     const raw = await redis.get<string[] | string>(EVENT_NICKS_KEY);
     const nicks: string[] = Array.isArray(raw) ? raw : typeof raw === "string" ? (JSON.parse(raw) as string[]) : [];

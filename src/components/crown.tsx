@@ -9,12 +9,23 @@ export function CrownIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+/** 관리자 표시 */
+export function GearIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg className="crown gear" viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="관리자" role="img">
+      <path d="M10 2h4l.6 2.2 1.7.7 2-.9 2.8 2.8-.9 2 .7 1.7L23 11v2l-2.1.5-.7 1.7.9 2-2.8 2.8-2-.9-1.7.7L14 22h-4l-.6-2.2-1.7-.7-2 .9-2.8-2.8.9-2-.7-1.7L1 13v-2l2.1-.5.7-1.7-.9-2L5.7 4l2 .9 1.7-.7z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
 /** 닉네임 (운영진이면 앞에 왕관) */
-export function Nick({ n, admins }: { n: string; admins: Set<string> }) {
-  return <>{admins.has(n) && <CrownIcon />}{n}</>;
+export function Nick({ n, admins, managers, names, badgeAfter = false }: { n: string; admins: Set<string>; managers?: Set<string>; names?: Record<string, string>; badgeAfter?: boolean }) {
+  const badge = managers?.has(n) ? <GearIcon /> : admins.has(n) ? <CrownIcon /> : null;
+  return <>{!badgeAfter && badge}{n}/{names?.[n]?.trim() || "없음"}{badgeAfter && badge && <span className="badge-after">{badge}</span>}</>;
 }
 
 /** 닉네임 여러 개를 쉼표로 */
-export function Nicks({ list, admins }: { list: string[]; admins: Set<string> }) {
-  return <>{list.map((n, i) => <Fragment key={n}>{i > 0 && ", "}<Nick n={n} admins={admins} /></Fragment>)}</>;
+export function Nicks({ list, admins, managers, names }: { list: string[]; admins: Set<string>; managers?: Set<string>; names?: Record<string, string> }) {
+  return <>{list.map((n, i) => <Fragment key={n}>{i > 0 && ", "}<Nick n={n} admins={admins} managers={managers} names={names} /></Fragment>)}</>;
 }

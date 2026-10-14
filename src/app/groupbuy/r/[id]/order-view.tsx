@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
 import { bibLabel, fmtDeadline, fmtPickup, minLabel, nickKey, orderTotal, qtyOf, roundStatus, won, type Order, type PublicOrder, type PublicSummary, type Round } from "@/lib/types";
 import { Countdown, Progress, StatusChip, Stepper, useToast } from "@/components/ui";
+import { knownMemberLabel } from "@/lib/member-label";
 
 type Unlocked = { order: Order; password: string };
 
-export default function OrderView({ round, initialSummary, initialOrders, me = "" }: { round: Round; initialSummary: PublicSummary; initialOrders: PublicOrder[]; me?: string }) {
+export default function OrderView({ round, initialSummary, initialOrders, me = "", names }: { round: Round; initialSummary: PublicSummary; initialOrders: PublicOrder[]; me?: string; names: Record<string, string> }) {
+  const label = (nick: string) => knownMemberLabel(nick, names);
   const [summary, setSummary] = useState(initialSummary);
   const [orders, setOrders] = useState(initialOrders);
   const [done, setDone] = useState<Order | null>(null);
@@ -147,7 +149,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
         </div>
         <h1 className="font-display text-2xl leading-tight">{round.title}</h1>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-muted">공구 오픈자</dt><dd className="font-semibold">{round.opener}</dd>
+          <dt className="text-muted">공구 오픈자</dt><dd className="font-semibold">{label(round.opener)}</dd>
           <dt className="text-muted">접수 마감</dt><dd className="font-semibold">{fmtDeadline(round.deadline)}</dd>
           <dt className="text-muted">진행 조건</dt><dd className="font-semibold">{minLabel(round.minQty)}</dd>
           {fmtPickup(round.pickup) && (<><dt className="text-muted">배포 장소</dt><dd className="font-semibold">{fmtPickup(round.pickup)}</dd></>)}
@@ -167,7 +169,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
         <div className="panel p-4 grid gap-1 border-[var(--good)]" role="status">
           <div className="flex items-center gap-2">
             <span className="bib">{bibLabel(done.bib)}</span>
-            <b>{done.name}님 주문이 접수됐어요</b>
+            <b>{label(done.name)}님 주문이 접수됐어요</b>
           </div>
           <p className="text-sm text-muted">
             {round.items.filter((it) => done.lines[it.id]).map((it) => `${it.name} ${done.lines[it.id]}개`).join(" · ")} · <b className="num">{won(orderTotal(round.items, done.lines))}</b>
@@ -187,7 +189,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
       {isOpen && (
         <section id="order-form" className="grid gap-4 scroll-mt-4" aria-label="주문하기">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="label">{editing ? `${editing.order.name}님 주문 수정` : "주문하기"} <span className="normal-case font-normal">(<span className="text-[var(--bad)]">*</span> 필수, 수량 1개 이상)</span></h2>
+            <h2 className="label">{editing ? `${label(editing.order.name)}님 주문 수정` : "주문하기"} <span className="normal-case font-normal">(<span className="text-[var(--bad)]">*</span> 필수, 수량 1개 이상)</span></h2>
             {editing && <button className="text-sm text-muted underline underline-offset-2" onClick={() => { setEditing(null); resetForm(); }}>수정 그만두기</button>}
           </div>
           <ul className="grid gap-2.5">
@@ -251,7 +253,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
                   <div className="flex items-center gap-2.5">
                     <span className="bib text-sm">{bibLabel(o.bib)}</span>
                     <div className="min-w-0 flex-1 grid leading-snug">
-                      <span className="font-semibold truncate">{o.name}</span>
+                      <span className="font-semibold truncate">{label(o.name)}</span>
                       <span className="text-xs text-muted">
                         {round.items.filter((it) => o.lines[it.id]).map((it) => `${it.name} ${o.lines[it.id]}`).join(" · ")} · <span className="num">{qtyOf(o.lines)}개 {won(orderTotal(round.items, o.lines))}</span>
                       </span>
@@ -269,7 +271,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
 
                   {openRow === o.id && !u && (
                     <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); unlock(o); }}>
-                      <p className="text-xs text-muted">{o.name}님, 주문할 때 정한 비밀번호를 입력해 주세요.</p>
+                      <p className="text-xs text-muted">{label(o.name)}님, 주문할 때 정한 비밀번호를 입력해 주세요.</p>
                       <div className="flex gap-2">
                         <input id={`pw-${o.id}`} type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" className="input pw-mask py-2" placeholder="주문 비밀번호" value={rowPw} onChange={(e) => setRowPw(e.target.value)} autoFocus />
                         <button className="btn btn-primary shrink-0 py-2" disabled={!rowPw}>확인</button>
@@ -297,7 +299,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
                           <button className="btn btn-ghost text-sm py-1.5" onClick={() => setConfirmCancel(false)}>아니요</button>
                         </div>
                       )}
-                      {!isOpen && <p className="text-xs text-muted">마감 뒤 수정·취소는 공구 오픈자({round.opener})에게 요청해 주세요.</p>}
+                      {!isOpen && <p className="text-xs text-muted">마감 뒤 수정·취소는 공구 오픈자({label(round.opener)})에게 요청해 주세요.</p>}
                     </div>
                   )}
                   {openRow === o.id && rowErr && <p className="chip chip-failed justify-self-start text-xs">{rowErr}</p>}

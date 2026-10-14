@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   // 개발 서버 화면 왼쪽 아래의 Next.js 표시(검은 동그라미)를 숨긴다
   devIndicators: false,
   // 개발 서버(npm run dev)를 같은 와이파이의 폰에서 열 때 허용할 주소 (배포 환경에는 영향 없음)

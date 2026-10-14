@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { currentUser, getAdminNicks, isStaffAccount, getMonth, kstToday, WEEK, GOAL_EDIT_LIMIT } from "@/lib/hub";
+import { currentUser, getAdminNicks, getMembers, isStaffAccount, isStaffNick, getMonth, kstToday, WEEK, GOAL_EDIT_LIMIT } from "@/lib/hub";
 import GoalPicker from "./goal-picker";
 import { rankMonth, shiftYm, ymOf, type RankRow } from "@/lib/rank";
 import { setDay } from "@/app/actions";
@@ -21,7 +21,9 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
   const today = kstToday();
   const ym = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? sp.m! : ymOf(today);
   const sort = sp.sort === "km" ? "km" : "rate";
-  const [month, admins] = await Promise.all([getMonth(ym), getAdminNicks()]);
+  const [month, admins, members] = await Promise.all([getMonth(ym), getAdminNicks(), getMembers()]);
+  const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
+  const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const who = u.nick;
   const staff = isStaffAccount(u);
 
@@ -34,8 +36,8 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
   const daysLeft = isNow ? last - todayDay + 1 : isPast ? 0 : last;
 
   // 관리용 ‘운영진’ 계정 기록은 크루 합계·순위에서 뺀다
-  const all = rankMonth(Object.fromEntries(Object.entries(month).filter(([n]) => n !== "운영진" || n === who)));
-  const rows = all.filter((r) => (r.goal > 0 || r.km > 0) && r.nick !== "운영진");
+  const all = rankMonth(Object.fromEntries(Object.entries(month).filter(([n]) => !isStaffNick(n) || n === who)));
+  const rows = all.filter((r) => (r.goal > 0 || r.km > 0) && !isStaffNick(r.nick));
   const me: RankRow = all.find((r) => r.nick === who) ?? { nick: who, goal: 0, km: 0, rate: null, kmRank: null, rateRank: null, days: {} };
   const crewKm = r1(rows.reduce((a, r) => a + r.km, 0));
   const achieved = rows.filter((r) => (r.rate ?? 0) >= 100).length;
@@ -87,7 +89,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
         <div><span className="label">크루 합계</span><b className="num">{crewKm}<small>km</small></b></div>
         <div><span className="label">참여</span><b className="num">{ranked.length}<small>명</small></b></div>
         <div><span className="label">목표 달성</span><b className="num">{achieved}<small>명</small></b></div>
-        <div><span className="label">거리 1위</span><b className="truncate">{topKm?.km ? topKm.nick : "–"}</b></div>
+        <div><span className="label">거리 1위</span><b className="truncate">{topKm?.km ? `${topKm.nick}/${names[topKm.nick] || "없음"}` : "–"}</b></div>
       </section>
 
       {staff ? (
@@ -182,7 +184,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
               {[podium[1], podium[0], podium[2]].map((r, i) => r && (
                 <div key={r.nick} className={`pod p${[2, 1, 3][i]} ${r.nick === u.nick ? "me" : ""}`}>
                   <span className="pod-rank num">{[2, 1, 3][i]}</span>
-                  <b className="truncate"><Nick n={r.nick} admins={admins} /></b>
+                  <b className="truncate"><Nick n={r.nick} admins={admins} managers={managers} names={names} badgeAfter /></b>
                   <span className="num">{sort === "km" ? `${r.km}km` : `${r.rate ?? "–"}%`}</span>
                   <small className="num text-muted">{sort === "km" ? (r.goal ? `${r.rate}%` : "목표 없음") : `${r.km}/${r.goal}km`}</small>
                 </div>
@@ -192,7 +194,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
               {rest.map((r, i) => (
                 <li key={r.nick} className={r.nick === u.nick ? "me" : ""}>
                   <span className="num b-rank">{i + 4}</span>
-                  <span className="b-name truncate"><Nick n={r.nick} admins={admins} /></span>
+                  <span className="b-name truncate"><Nick n={r.nick} admins={admins} managers={managers} names={names} badgeAfter /></span>
                   <span className="b-bar" aria-hidden>
                     <span style={{ width: `${Math.min(100, sort === "km" ? (r.km / (ranked[0]?.km || 1)) * 100 : (r.rate ?? 0) / 1.2)}%` }} className={(r.rate ?? 0) >= 100 ? "done" : ""} />
                     {sort === "rate" && <i style={{ left: `${100 / 1.2}%` }} />}

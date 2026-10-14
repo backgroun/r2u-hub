@@ -7,7 +7,7 @@ const b64 = (s: string) => {
   return Uint8Array.from(r, (c) => c.charCodeAt(0));
 };
 
-/** 공지 알림 받기 켜기/끄기. iPhone은 홈 화면에 추가한 앱에서만 켤 수 있다. */
+/** 크루 알림 받기 켜기/끄기. iPhone은 홈 화면에 추가한 앱에서만 켤 수 있다. */
 export default function PushToggle() {
   const [state, setState] = useState<"loading" | "unsupported" | "off" | "on" | "denied">("loading");
   const [msg, setMsg] = useState("");
@@ -30,7 +30,7 @@ export default function PushToggle() {
     await navigator.serviceWorker.ready;
     const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(KEY) }));
     const r = await fetch("/api/push/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sub: sub.toJSON() }) });
-    if (r.ok) { setState("on"); setMsg("공지 알림을 켰어요."); } else setMsg("알림을 켜지 못했어요. 잠시 후 다시 시도해 주세요.");
+    if (r.ok) { setState("on"); setMsg("알림을 켰어요."); } else setMsg("알림을 켜지 못했어요. 잠시 후 다시 시도해 주세요.");
   }
   async function turnOff() {
     const reg = await navigator.serviceWorker.getRegistration("/sw.js");
@@ -48,8 +48,8 @@ export default function PushToggle() {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {state === "on"
-        ? <button type="button" className="btn text-sm" onClick={turnOff}>🔔 공지 알림 켜짐 · 끄기</button>
-        : <button type="button" className="btn btn-primary text-sm" onClick={turnOn}>🔔 공지 알림 받기</button>}
+        ? <button type="button" className="btn text-sm" onClick={turnOff}>🔔 알림 켜짐 · 끄기</button>
+        : <button type="button" className="btn btn-primary text-sm" onClick={turnOn}>🔔 알림 받기</button>}
       {msg && <span className="text-xs text-muted">{msg}</span>}
     </div>
   );

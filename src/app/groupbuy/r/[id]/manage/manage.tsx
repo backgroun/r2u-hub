@@ -6,8 +6,11 @@ import { api, copyText, MY_ROUNDS, store, type MyRound } from "@/lib/client";
 import { bibLabel, fmtDeadline, fmtPickup, minLabel, orderTotal, qtyOf, roundStatus, won, type Order, type Round } from "@/lib/types";
 import RoundForm from "@/components/round-form";
 import { Countdown, PayBadges, Progress, StatusChip, useToast } from "@/components/ui";
+import { knownMemberLabel } from "@/lib/member-label";
+import { normalizePassword } from "@/components/password-input";
 
-export default function Manage({ id }: { id: string }) {
+export default function Manage({ id, names }: { id: string; names: Record<string, string> }) {
+  const label = (nick: string) => knownMemberLabel(nick, names);
   const sp = useSearchParams();
   const router = useRouter();
   const isNew = sp.get("new") === "1";
@@ -194,7 +197,7 @@ export default function Manage({ id }: { id: string }) {
         </div>
         <h1 className="font-display text-2xl leading-tight">{round.title}</h1>
         <p className="text-sm text-muted">
-          공구 오픈자 {round.opener} · 마감 {fmtDeadline(round.deadline)} · {round.bank.bank} {round.bank.account} ({round.bank.holder})
+          공구 오픈자 {label(round.opener)} · 마감 {fmtDeadline(round.deadline)} · {round.bank.bank} {round.bank.account} ({round.bank.holder})
           {fmtPickup(round.pickup) && <><br />배포 장소 {fmtPickup(round.pickup)}</>}
         </p>
         <div className="panel p-4"><Progress count={totalQty} min={round.minQty} /></div>
@@ -245,7 +248,7 @@ export default function Manage({ id }: { id: string }) {
               <div className="flex items-center gap-3">
                 <span className="bib">{bibLabel(o.bib)}</span>
                 <span className="min-w-0 flex-1 grid leading-tight">
-                  <span className="font-bold truncate">{o.name}</span>
+                  <span className="font-bold truncate">{label(o.name)}</span>
                   <span className="text-xs text-muted truncate">입금자명 {o.depositor}</span>
                 </span>
                 <span className="num font-bold">{won(orderTotal(round.items, o.lines))}</span>
@@ -297,7 +300,7 @@ export default function Manage({ id }: { id: string }) {
         </div>
         {pwOpen && (
           <form onSubmit={changePassword} className="panel p-3 flex gap-2">
-            <input id="m-new-password" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" className="input pw-mask" placeholder="새 관리 비밀번호 (4자 이상)" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
+            <input id="m-new-password" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" className="input pw-mask" placeholder="새 관리 비밀번호 (영문·숫자 4자 이상)" value={newPw} onChange={(e) => setNewPw(normalizePassword(e.target.value))} />
             <button className="btn btn-primary shrink-0" disabled={newPw.length < 4}>저장</button>
           </form>
         )}

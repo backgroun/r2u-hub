@@ -1,11 +1,13 @@
 import Link from "next/link";
+import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
-import { WEEK, currentUser, getAdminNicks, isStaffAccount, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, deleteAfter, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
+import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
+import { addAfter, deleteAfter, updateAfter, joinRace, leaveRace, toggleCheer, sendScheduleNotice } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { Nick } from "@/components/crown";
 import { cache } from "react";
 import RsvpButtons from "@/components/rsvp-buttons";
+import { viewUrl } from "@/lib/roadrun";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "대회 일정" };
@@ -20,7 +22,9 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
   const { view: v, m: mParam, d: dParam } = await searchParams;
   const view: View = v && v in VIEWS ? (v as View) : "upcoming";
   const today = kstToday();
-  const [all, admins] = await Promise.all([getRaces(), getAdminNicks()]);
+  const [all, admins, members] = await Promise.all([getRaces(), getAdminNicks(), getMembers()]);
+  const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
+  const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const list = all.filter((r) =>
     view === "reg" ? (r.regStart || r.regEnd) && regInfo(r, kstNow()).status !== "closed"
     : view === "upcoming" ? r.date >= today
@@ -48,7 +52,7 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
             </div>
           </details>
         </div>
-        <p className="text-sm text-muted">나갈 대회에 코스를 골라 참가하세요.</p>
+        <p className="text-sm text-muted">크루 참가 표시는 우리 명단용이에요. 실제 대회 접수는 주최 측에서 별도로 진행해 주세요.</p>
       </header>
 
       <nav className="tabs" aria-label="보기">
@@ -59,7 +63,7 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
       </nav>
 
 
-      {view === "cal" && <RaceCalendar races={all} u={u} admins={admins} today={today} ym={/^\d{4}-\d{2}$/.test(mParam ?? "") ? mParam! : today.slice(0, 7)} day={dParam} />}
+      {view === "cal" && <RaceCalendar races={all} u={u} admins={admins} managers={managers} names={names} today={today} ym={/^\d{4}-\d{2}$/.test(mParam ?? "") ? mParam! : today.slice(0, 7)} day={dParam} />}
 
       {view !== "cal" && list.length === 0 && <p className="text-sm text-muted">{view === "reg" ? "접수 중이거나 접수 예정인 대회가 없어요. 대회 정보에 접수 시작·마감을 넣으면 여기에 보여요." : "해당하는 대회가 없어요."}</p>}
 
@@ -67,7 +71,7 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
         <section key={ym} className="grid gap-2">
           <h2 className="label">{ym.slice(0, 4)}년 {Number(ym.slice(5))}월</h2>
           <div className="grid gap-3">
-            {races.map((r) => <RaceCard key={r.id} r={r} u={u} admins={admins} past={r.date < today} />)}
+            {races.map((r) => <RaceCard key={r.id} r={r} u={u} admins={admins} managers={managers} names={names} past={r.date < today} />)}
           </div>
         </section>
       ))}
@@ -76,7 +80,7 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
 }
 
 /** 달력 보기: 한 달 칸마다 대회 이름, 날짜를 누르면 그날 대회 카드가 아래에 열린다 */
-function RaceCalendar({ races, u, admins, today, ym, day }: { races: RaceFull[]; u: User; admins: Set<string>; today: string; ym: string; day?: string }) {
+function RaceCalendar({ races, u, admins, managers, names, today, ym, day }: { races: RaceFull[]; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; today: string; ym: string; day?: string }) {
   const [y, m] = ym.split("-").map(Number);
   const last = new Date(y, m, 0).getDate();
   const first = new Date(y, m - 1, 1).getDay();
@@ -113,12 +117,12 @@ function RaceCalendar({ races, u, admins, today, ym, day }: { races: RaceFull[];
           );
         })}
       </div>
-      <p className="text-xs text-muted">진하게 칠한 대회는 내가 참가 신청한 대회예요.</p>
+      <p className="text-xs text-muted">진하게 칠한 대회는 내가 크루 참가로 표시한 대회예요.</p>
       {sel > 0 && (
         <div className="grid gap-3">
           <h3 className="label">{m}월 {sel}일 대회</h3>
           {picked.length === 0 && <p className="text-sm text-muted">이날은 대회가 없어요.</p>}
-          {picked.map((r) => <RaceCard key={r.id} r={r} u={u} admins={admins} past={r.date < today} />)}
+          {picked.map((r) => <RaceCard key={r.id} r={r} u={u} admins={admins} managers={managers} names={names} past={r.date < today} />)}
         </div>
       )}
     </section>
@@ -141,11 +145,12 @@ function groupByCourse(ps: RaceFull["participants"]) {
   return [...map.values()].sort((a, b) => rank(a.key) - rank(b.key));
 }
 
-function RaceCard({ r, u, admins, past }: { r: RaceFull; u: User; admins: Set<string>; past: boolean }) {
+function RaceCard({ r, u, admins, managers, names, past }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; past: boolean }) {
   // 대회까지 남은 날(오늘 = 0, 지났으면 음수), 한국 날짜 기준
   const dd = Math.round((Date.parse(`${r.date}T00:00:00Z`) - Date.parse(`${kstToday()}T00:00:00Z`)) / 86400000);
   const d = fmtRaceDate(r.date);
   const me = r.participants.find((p) => p.nick === u.nick);
+  const raceAttendee = !!me || r.cheers.includes(u.nick);
   const reg = regInfo(r);
   return (
     <article id={r.id} className={`panel p-4 grid gap-3 ${dd >= 0 && dd <= 3 ? "race-gold keep-motion" : ""}`} style={past ? { opacity: 0.8 } : undefined}>
@@ -158,7 +163,7 @@ function RaceCard({ r, u, admins, past }: { r: RaceFull; u: User; admins: Set<st
             <span className="chip count-badge" aria-label={`크루 참가 ${r.participants.length}명`}>👥 {r.participants.length}명</span>
           </h3>
           <p className="text-sm text-muted flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            <span>{r.time ? `${r.time} 출발 · ` : ""}{r.place || "장소 미정"}</span>
+            <span>{r.time ? `${r.time} 출발 · ` : ""}{r.placeUrl ? <a href={r.placeUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--lane)] underline">{r.place || "장소 보기"}</a> : r.place || "장소 미정"}</span>
             {reg.text && (
               <>
                 <span aria-hidden>·</span>
@@ -169,10 +174,16 @@ function RaceCard({ r, u, admins, past }: { r: RaceFull; u: User; admins: Set<st
               </>
             )}
           </p>
+          {r.address && <p className="text-xs text-muted">📍 {r.address}</p>}
           {r.note && <p className="text-sm break-all"><Linkify text={r.note} /></p>}
+          {(r.regUrl || r.src) && <div className="flex flex-wrap gap-2 pt-1">
+            {r.regUrl && <a href={r.regUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary text-xs py-1.5 px-2.5">주최 측 접수 페이지 ↗</a>}
+            {r.src && <a href={viewUrl(r.src)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost text-xs py-1.5 px-2.5">대회 정보 ↗</a>}
+          </div>}
+          {(u.admin || raceAttendee) && r.time && Date.parse(`${r.date}T${r.time}:00+09:00`) > Date.now() && <ScheduleNoticeButton raceId={r.id} />}
         </div>
         {!past && !isStaffAccount(u) && (
-          <Submit form={`join-${r.id}`} className="btn btn-primary text-sm py-1.5 px-4 shrink-0">{me ? "코스 변경" : "참가 신청"}</Submit>
+          <Submit form={`join-${r.id}`} className="btn btn-primary text-sm py-1.5 px-4 shrink-0">{me ? "코스 변경" : "크루 참가 표시"}</Submit>
         )}
       </div>
 
@@ -185,7 +196,7 @@ function RaceCard({ r, u, admins, past }: { r: RaceFull; u: User; admins: Set<st
               <div className="flex flex-wrap gap-1.5">
                 {g.list.map((p) => (
                   <span key={p.nick} className={`pchip ${p.nick === u.nick ? "me" : ""}`}>
-                    <Nick n={p.nick} admins={admins} />
+                    <Nick n={p.nick} admins={admins} managers={managers} names={names} />
                     {p.nick === u.nick && !past && (
                       <form action={leaveRace} className="inline">
                         <input type="hidden" name="id" value={r.id} />
@@ -221,10 +232,10 @@ function RaceCard({ r, u, admins, past }: { r: RaceFull; u: User; admins: Set<st
         <span className="label">📣 응원 {r.cheers.length}명</span>
         {[...r.cheers].sort((a, b) => a.localeCompare(b, "ko")).map((n) => (
           <span key={n} className={`pchip cheer ${n === u.nick ? "me" : ""}`}>
-            <Nick n={n} admins={admins} />
+            <Nick n={n} admins={admins} managers={managers} names={names} />
           </span>
         ))}
-        {!past && u.nick !== "운영진" && (
+        {!past && !isStaffNick(u.nick) && (
           <form action={toggleCheer} className="ml-auto">
             <input type="hidden" name="id" value={r.id} />
             <input type="hidden" name="nick" value={u.nick} />
@@ -235,7 +246,7 @@ function RaceCard({ r, u, admins, past }: { r: RaceFull; u: User; admins: Set<st
         )}
       </div>
 
-      <AfterParties r={r} u={u} admins={admins} />
+      <AfterParties r={r} u={u} admins={admins} managers={managers} names={names} />
 
     </article>
   );
@@ -258,7 +269,7 @@ const KINDS: { kind: AfterKind; add: string; tag: string }[] = [
 ];
 const kindOf = (a: AfterFull): AfterKind => a.kind ?? "after";
 
-const crewNicks = cache(async () => (await getMembers()).map((m) => m.nick).filter((n) => n !== "운영진").sort((a, b) => a.localeCompare(b, "ko")));
+const crewNicks = cache(async () => (await getMembers()).filter((m) => !isStaffNick(m.nick)).sort((a, b) => a.nick.localeCompare(b.nick, "ko")));
 
 /** 카풀 운전자 고르기: 기본은 올리는 나, 다른 크루원도 고를 수 있다 */
 async function DriverSelect({ me, value }: { me: string; value?: string }) {
@@ -266,7 +277,7 @@ async function DriverSelect({ me, value }: { me: string; value?: string }) {
   return (
     <label className="field full"><span className="label">운전자</span>
       <select name="driver" className="input" defaultValue={value ?? me}>
-        {nicks.map((n) => <option key={n} value={n}>{n}{n === me ? " (나)" : ""}</option>)}
+        {nicks.map((m) => <option key={m.nick} value={m.nick}>{m.nick}/{m.name?.trim() || "없음"}{m.nick === me ? " (나)" : ""}</option>)}
       </select>
     </label>
   );
@@ -278,16 +289,16 @@ function AfterFields({ kind, me, a }: { kind: AfterKind; me: string; a?: AfterFu
     <>
               {kind === "photo" && <>
                 <label className="field"><span className="label">시간</span><input name="time" type="time" className="input" defaultValue={a?.time} /></label>
-                <label className="field"><span className="label">장소</span><input name="place" className="input" defaultValue={a?.place} maxLength={60} placeholder="예: 출발선 왼쪽 R2U 깃발" /></label>
+                <KakaoPlaceField label="장소" place={a?.place} address={a?.address} placeUrl={a?.placeUrl} placeholder="예: 출발선 왼쪽 R2U 깃발" />
               </>}
               {kind === "carpool" && <>
                 <DriverSelect me={me} value={a ? driverOf(a) : undefined} />
-                <label className="field"><span className="label">출발지</span><input name="place" className="input" defaultValue={a?.place} maxLength={60} placeholder="예: 삼산 롯데백화점 앞" /></label>
+                <KakaoPlaceField label="출발지" place={a?.place} address={a?.address} placeUrl={a?.placeUrl} placeholder="예: 삼산 롯데백화점 앞" />
                 <label className="field"><span className="label">출발 시간</span><input name="time" type="time" className="input" defaultValue={a?.time} /></label>
                 <label className="field"><span className="label">태울 수 있는 자리</span><input name="seats" type="number" defaultValue={a?.seats} inputMode="numeric" min={1} max={10} className="input" placeholder="예: 3" required /></label>
               </>}
               {kind === "after" && <>
-                <label className="field"><span className="label">장소</span><input name="place" className="input" defaultValue={a?.place} maxLength={60} placeholder="예: 태화강 국밥집" /></label>
+                <KakaoPlaceField label="장소" place={a?.place} address={a?.address} placeUrl={a?.placeUrl} placeholder="예: 태화강 국밥집" />
                 <label className="field"><span className="label">시간</span><input name="time" type="time" className="input" defaultValue={a?.time} /></label>
               </>}
               <label className="field full"><span className="label">내용</span><input name="memo" className="input" defaultValue={a?.memo} maxLength={200} placeholder="기타 공유 사항" /></label>
@@ -295,12 +306,12 @@ function AfterFields({ kind, me, a }: { kind: AfterKind; me: string; a?: AfterFu
   );
 }
 
-function AfterParties({ r, u, admins }: { r: RaceFull; u: User; admins: Set<string> }) {
+function AfterParties({ r, u, admins, managers, names }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string> }) {
   const order: AfterKind[] = ["photo", "carpool", "after"];
   const items = [...r.afters].sort((a, b) => order.indexOf(kindOf(a)) - order.indexOf(kindOf(b)) || a.at - b.at);
   return (
     <div className="after-wrap">
-      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} admins={admins} />)}
+      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} raceDate={r.date} raceAttendee={r.participants.some((p) => p.nick === u.nick) || r.cheers.includes(u.nick)} u={u} admins={admins} managers={managers} names={names} />)}
       <div className="after-adds">
         {KINDS.map((k) => (
           <details key={k.kind} className="after-add">
@@ -318,13 +329,15 @@ function AfterParties({ r, u, admins }: { r: RaceFull; u: User; admins: Set<stri
   );
 }
 
-function AfterItem({ a, raceId, u, admins }: { a: AfterFull; raceId: string; u: User; admins: Set<string> }) {
+function AfterItem({ a, raceId, raceDate, raceAttendee, u, admins, managers, names }: { a: AfterFull; raceId: string; raceDate: string; raceAttendee: boolean; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string> }) {
   const kind = kindOf(a);
   const mine = a.yes.includes(u.nick) ? "yes" : a.no.includes(u.nick) ? "no" : "";
   const tag = KINDS.find((k) => k.kind === kind)!.tag;
   const full = kind === "carpool" && (a.seats ?? 0) > 0 && a.yes.length >= (a.seats ?? 0);
   const title = kind === "carpool" ? `${a.place || "출발지 미정"} 출발` : a.place || a.time || tag;
   const canEdit = u.admin || a.by === u.nick || driverOf(a) === u.nick;
+  const scheduleAttendee = kind === "photo" ? raceAttendee : kind === "carpool" ? a.yes.includes(u.nick) || driverOf(a) === u.nick : a.yes.includes(u.nick);
+  const canSendNotice = (u.admin || scheduleAttendee) && /^\d{2}:\d{2}$/.test(a.time) && Date.parse(`${raceDate}T${a.time}:00+09:00`) > Date.now();
   const actions = canEdit ? (
     <>
       <details className="after-add after-edit ml-auto">
@@ -349,21 +362,34 @@ function AfterItem({ a, raceId, u, admins }: { a: AfterFull; raceId: string; u: 
       <div className="flex items-start gap-2">
         <span className={`chip k-tag`}>{tag}</span>
         <div className="min-w-0 grid gap-0.5" style={{ flex: 1 }}>
-          <b className="leading-snug">{title}{a.time && title !== a.time && <span className="text-muted font-normal"> · {a.time}</span>}</b>
-          {kind === "carpool" && <span className="text-sm" title="운전자"><span aria-label="운전자">🚗</span> <Nick n={driverOf(a)} admins={admins} /></span>}
+          <b className="leading-snug">{a.placeUrl ? <a href={a.placeUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--lane)] underline">{title}</a> : title}{a.time && title !== a.time && <span className="text-muted font-normal"> · {a.time}</span>}</b>
+          {a.address && <span className="text-xs text-muted">📍 {a.address}</span>}
+          {kind === "carpool" && <span className="text-sm" title="운전자"><span aria-label="운전자">🚗</span> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} /></span>}
           {a.memo && <span className="text-sm">{a.memo}</span>}
         </div>
-        <span className="text-xs text-muted text-right shrink-0 ml-auto self-start leading-snug"><><Nick n={a.by} admins={admins} /> 님이 올림</></span>
+        <span className="text-xs text-muted text-right shrink-0 ml-auto self-start leading-snug"><><Nick n={a.by} admins={admins} managers={managers} names={names} /> 님이 올림</></span>
       </div>
       {kind !== "photo" && (
         <div className="flex flex-wrap items-center gap-1.5">
           <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
-          {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><Nick n={n} admins={admins} /></span>)}
-          {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><Nick n={n} admins={admins} /></span>)}
+          {canSendNotice && <ScheduleNoticeButton raceId={raceId} itemId={a.id} />}
+          {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><Nick n={n} admins={admins} managers={managers} names={names} /></span>)}
+          {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><Nick n={n} admins={admins} managers={managers} names={names} /></span>)}
           {actions}
         </div>
       )}
-      {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}
+      {kind === "photo" && (actions || canSendNotice) && <div className="flex flex-wrap items-center gap-1.5">
+        {canSendNotice && <ScheduleNoticeButton raceId={raceId} itemId={a.id} />}
+        {actions}
+      </div>}
     </div>
   );
+}
+
+function ScheduleNoticeButton({ raceId, itemId }: { raceId: string; itemId?: string }) {
+  return <ActionForm action={sendScheduleNotice} className="inline-flex flex-wrap items-center gap-1.5" keep>
+    <input type="hidden" name="id" value={raceId} />
+    {itemId && <input type="hidden" name="after" value={itemId} />}
+    <Submit className="btn text-xs py-1 px-2">🔔 알림 발송</Submit>
+  </ActionForm>;
 }

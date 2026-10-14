@@ -57,7 +57,8 @@ export default function Toaster() {
         const isAction = h instanceof Headers ? h.has("next-action") : !!h && Object.keys(h).some((k) => k.toLowerCase() === "next-action");
         if (isAction && pending && Date.now() - pending.at < 15000) {
           const p = pending; pending = null;
-          if (res.ok) push(doneText(p.label), "ok"); else push("처리하지 못했어요. 잠시 후 다시 시도해 주세요.", "err");
+          // Server Action의 redirect는 303 응답이다. 정상 이동을 실패로 알리지 않는다.
+          if (res.ok || (res.status >= 300 && res.status < 400)) push(doneText(p.label), "ok"); else push("처리하지 못했어요. 잠시 후 다시 시도해 주세요.", "err");
         }
       } catch { /* 알림 실패는 무시 */ }
       return res;

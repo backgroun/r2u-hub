@@ -2,6 +2,7 @@ import Link from "next/link";
 import { currentUser, getMenu, isStaffAccount } from "@/lib/hub";
 import { eventOpen } from "@/lib/event";
 import { pendingJoinCount } from "@/lib/join";
+import { listNickChangeRequests } from "@/lib/nickname";
 
 // iOS 탭바 아이콘 (선 아이콘, currentColor)
 const ICONS: Record<string, React.ReactNode> = {
@@ -20,8 +21,9 @@ const Icon = ({ href }: { href: string }) => (
 export default async function HubNav() {
   const u = await currentUser();
   if (!u) return null;
-  const [menu, open, todo] = await Promise.all([getMenu(), eventOpen(), u.admin ? pendingJoinCount() : Promise.resolve(0)]);
-  // 운영진이 처리할 일(지금은 닉네임 생성 요청)의 개수. 운영진 메뉴에 뱃지로 보인다
+  const [menu, open, joinTodo, nickTodo] = await Promise.all([getMenu(), eventOpen(), u.admin ? pendingJoinCount() : Promise.resolve(0), u.admin ? listNickChangeRequests() : Promise.resolve([])]);
+  const todo = joinTodo + nickTodo.length;
+  // 운영진이 처리할 닉네임 생성·변경 요청 개수
   const TABS = [
     { href: "/", label: "홈" },
     { href: "/races", label: menu.races },
@@ -31,7 +33,7 @@ export default async function HubNav() {
     { href: "/bingo", label: menu.bingo },
     // 운영진 모드(관리용 계정)는 개인 페이지 대신 운영진 화면, 크루원은 내 페이지
     // 운영진으로 지정된 크루원은 내 페이지와 운영진 메뉴를 모두 본다 (PC·휴대폰 동일)
-    ...(isStaffAccount(u) ? [{ href: "/admin", label: "운영진" }] : [{ href: "/me", label: `${[...u.nick].slice(0, 4).join("")}님` }, ...(u.admin ? [{ href: "/admin", label: "운영진" }] : [])]),
+    ...(isStaffAccount(u) ? [{ href: "/admin", label: "운영진" }] : [{ href: "/me", label: `${u.nick}님` }, ...(u.admin ? [{ href: "/admin", label: "운영진" }] : [])]),
   ];
   const tab = (t: { href: string; label: string }) => {
     const badge = t.href === "/admin" && todo > 0 ? <b className="tab-badge" aria-label={`처리할 일 ${todo}건`}>{todo > 9 ? "9+" : todo}</b> : null;

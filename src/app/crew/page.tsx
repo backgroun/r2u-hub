@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { currentUser, getAdminNicks, getAllVs, getMembers, getMonth, isStaffAccount, kstToday } from "@/lib/hub";
+import { K, currentUser, getAdminNicks, getAllVs, getMembers, getMonth, isStaffAccount, isStaffNick, kstToday, redis } from "@/lib/hub";
 import { rankMonth, shiftYm, ymOf, type RankRow } from "@/lib/rank";
-import { clearVersus, setVersus } from "@/app/actions";
+import { manageVersusEnd, setVersus } from "@/app/actions";
 import { Nick } from "@/components/crown";
+import { ActionForm, Submit } from "@/components/action-form";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "크루 현황" };
@@ -27,14 +28,23 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const today = kstToday();
   const ym = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? sp.m! : ymOf(today);
+  const currentMonth = ym === ymOf(today);
   const sort = sp.sort === "km" ? "km" : sp.sort === "goal" ? "goal" : "rate";
   const staff = isStaffAccount(u);
   const [month, members, admins, allVs] = await Promise.all([getMonth(ym), getMembers(), getAdminNicks(), getAllVs(ym)]);
+  const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
+  const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
+  const label = (nick: string) => `${nick}/${names[nick] || "없음"}`;
   const vsNick = staff ? null : (allVs[u.nick] ?? null);
+  const [outgoingEnd, incomingEnd] = vsNick ? await Promise.all([
+    redis.hget<string>(K.vsEnd(ym), u.nick),
+    redis.hget<string>(K.vsEnd(ym), vsNick),
+  ]) : [null, null];
+  const endRequest = incomingEnd === u.nick ? "incoming" : outgoingEnd === vsNick ? "outgoing" : null;
 
   // 모든 크루원(관리용 ‘운영진’ 계정 제외). 기록이 없는 사람은 ‘미정’으로 보인다.
   const ranked = new Map(rankMonth(month).map((r) => [r.nick, r]));
-  const rows = members.filter((m) => m.nick !== "운영진").map((m) => ranked.get(m.nick) ?? blank(m.nick));
+  const rows = members.filter((m) => !isStaffNick(m.nick)).map((m) => ranked.get(m.nick) ?? blank(m.nick));
   const sorted = [...rows].sort((a, b) =>
     sort === "km" ? b.km - a.km || b.goal - a.goal
     : sort === "goal" ? b.goal - a.goal || b.km - a.km
@@ -58,7 +68,7 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
         <Link href={q({ m: shiftYm(ym, 1) })} className="btn btn-ghost px-3" aria-label="다음 달">→</Link>
       </header>
 
-      {!staff && opp && <Versus me={me} opp={opp} today={today} ym={ym} admins={admins} />}
+      {!staff && opp && <Versus me={me} opp={opp} today={today} ym={ym} admins={admins} managers={managers} names={names} endRequest={endRequest} />}
 
       <section className="grid gap-2">
         <div className="sec-head">
@@ -78,11 +88,11 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
                 <span className="crew-rank num">{i + 1}</span>
                 <div className="min-w-0 grid gap-1">
                   <div className="flex items-center gap-2">
-                    <b className="truncate"><Nick n={r.nick} admins={admins} /></b>
+                    <b className="truncate"><Nick n={r.nick} admins={admins} managers={managers} names={names} badgeAfter /></b>
                     {isMe && <span className="chip chip-open">나</span>}
                     {isOpp && <span className="chip chip-failed">⚔️ 내 상대</span>}
-                    {allVs[r.nick] && !isMe && (allVs[r.nick] === u.nick ? <span className="chip chip-warn">⚔️ 나와 대결</span> : <span className="chip vs-chip">⚔️ vs {allVs[r.nick]}</span>)}
-                    {isMe && vsNick && <span className="chip vs-chip">⚔️ vs {vsNick}</span>}
+                    {allVs[r.nick] && !isMe && (allVs[r.nick] === u.nick ? <span className="chip chip-warn">⚔️ 나와 대결</span> : <span className="chip vs-chip">⚔️ vs {label(allVs[r.nick])}</span>)}
+                    {isMe && vsNick && <span className="chip vs-chip">⚔️ vs {label(vsNick)}</span>}
                   </div>
                   <div className="b-bar" aria-hidden><span className={rate >= 100 ? "done" : ""} style={{ width: `${Math.min(100, rate)}%` }} /></div>
                   <span className="text-xs text-muted num">
@@ -90,23 +100,23 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
                   </span>
                 </div>
                 <b className="num crew-rate" style={{ color: rate >= 100 ? "var(--good)" : undefined }}>{r.rate != null ? `${r.rate}%` : "–"}</b>
-                {!staff && !isMe && (
-                  <form action={setVersus}>
+                {!staff && currentMonth && !isMe && !vsNick && !allVs[r.nick] && (
+                  <ActionForm action={setVersus}>
                     <input type="hidden" name="ym" value={ym} /><input type="hidden" name="opp" value={r.nick} />
-                    <button className="btn text-xs py-1 px-2" aria-label={`${r.nick} 님과 대결`}>{isOpp ? "대결 중" : "⚔️ 대결"}</button>
-                  </form>
+                    <Submit className="btn text-xs py-1 px-2">⚔️ 대결</Submit>
+                  </ActionForm>
                 )}
               </li>
             );
           })}
         </ol>
-        <p className="text-xs text-muted">달성율 = 이번 달 달린 거리 ÷ 내가 정한 목표. 목표를 정하지 않은 크루원은 달성율이 “–”로 나와요. 이름 옆 ⚔️ 대결을 누르면 그 사람과 한 달 대결이 시작돼요.</p>
+        <p className="text-xs text-muted">달성율 = 이번 달 달린 거리 ÷ 내가 정한 목표. 목표를 정하지 않은 크루원은 달성율이 “–”로 나와요. 이번 달의 ⚔️ 대결은 다음 달 1일 0시에 자동으로 종료돼요.</p>
       </section>
     </main>
   );
 }
 
-function Versus({ me, opp, today, ym, admins }: { me: RankRow; opp: RankRow; today: string; ym: string; admins: Set<string> }) {
+function Versus({ me, opp, today, ym, admins, managers, names, endRequest }: { me: RankRow; opp: RankRow; today: string; ym: string; admins: Set<string>; managers: Set<string>; names: Record<string, string>; endRequest: "incoming" | "outgoing" | null }) {
   const a = stats(me, today, ym), b = stats(opp, today, ym);
   const gap = r1(me.km - opp.km);
   const lead = gap > 0 ? "me" : gap < 0 ? "opp" : "tie";
@@ -123,16 +133,22 @@ function Versus({ me, opp, today, ym, admins }: { me: RankRow; opp: RankRow; tod
     <section className="panel panel-alert p-4 grid gap-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-bold">⚔️ 이번 달 대결</h2>
-        <form action={clearVersus}><input type="hidden" name="ym" value={ym} /><button className="btn btn-ghost text-xs py-1 px-2">대결 끝내기</button></form>
+        {!endRequest && <ActionForm action={manageVersusEnd}><input type="hidden" name="ym" value={ym} /><input type="hidden" name="act" value="request" /><Submit className="btn btn-ghost text-xs py-1 px-2">대결 끝내기</Submit></ActionForm>}
       </div>
+      {endRequest === "outgoing" && <div className="flex items-center justify-between gap-2 text-sm"><p>상대방의 대결 종료 승인을 기다리고 있어요.</p><ActionForm action={manageVersusEnd}><input type="hidden" name="ym" value={ym} /><input type="hidden" name="act" value="cancel" /><Submit className="btn btn-ghost text-xs py-1 px-2">요청 취소</Submit></ActionForm></div>}
+      {endRequest === "incoming" && <div className="vs-end-request">
+        <p><b>{opp.nick}</b>님이 대결 종료 요청! 이분과</p>
+        <ActionForm action={manageVersusEnd}><input type="hidden" name="ym" value={ym} /><input type="hidden" name="act" value="approve" /><Submit className="btn btn-primary">종료승인</Submit></ActionForm>
+        <ActionForm action={manageVersusEnd}><input type="hidden" name="ym" value={ym} /><input type="hidden" name="act" value="reject" /><Submit className="btn btn-ghost">거절</Submit></ActionForm>
+      </div>}
       <div className="vs-head">
-        <b className={`truncate ${lead === "me" ? "win" : ""}`}><Nick n={me.nick} admins={admins} /></b>
+        <b className={`truncate ${lead === "me" ? "win" : ""}`}><Nick n={me.nick} admins={admins} managers={managers} names={names} /></b>
         <span className="vs-x">VS</span>
-        <b className={`truncate text-right ${lead === "opp" ? "win" : ""}`}><Nick n={opp.nick} admins={admins} /></b>
+        <b className={`truncate text-right ${lead === "opp" ? "win" : ""}`}><Nick n={opp.nick} admins={admins} managers={managers} names={names} /></b>
       </div>
       <div className="vs-bar" aria-hidden><span style={{ width: `${(me.km / total) * 100}%` }} /></div>
       <p className="text-center text-sm font-bold">
-        {lead === "tie" ? "지금은 동점이에요! 🔥" : lead === "me" ? `${opp.nick} 님보다 ${Math.abs(gap)}km 앞서 있어요 💪` : `${opp.nick} 님이 ${Math.abs(gap)}km 앞서 있어요. 따라잡아요! 🏃`}
+        {lead === "tie" ? "지금은 동점이에요! 🔥" : lead === "me" ? `${opp.nick}/${names[opp.nick] || "없음"} 님보다 ${Math.abs(gap)}km 앞서 있어요 💪` : `${opp.nick}/${names[opp.nick] || "없음"} 님이 ${Math.abs(gap)}km 앞서 있어요. 따라잡아요! 🏃`}
       </p>
       <div className="vs-table">
         {rows.map((r) => (

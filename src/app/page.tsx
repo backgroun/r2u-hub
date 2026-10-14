@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { CrownIcon } from "@/components/crown";
+import { CrownIcon, GearIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { currentUser, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, kstNow, kstToday, regInfo } from "@/lib/hub";
+import { currentUser, getMember, getMembers, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, kstNow, kstToday, memberLabel, regInfo } from "@/lib/hub";
+import { knownMemberLabel } from "@/lib/member-label";
 import PushToggle from "@/components/push-toggle";
 import { getNotices, noticeState } from "@/lib/notice";
 import { rankMonth, ymOf } from "@/lib/rank";
@@ -13,7 +14,8 @@ export default async function Home() {
   if (!u) redirect("/login");
   const today = kstToday();
   const ym = ymOf(today);
-  const [races, month, links] = await Promise.all([getRaces(), getMonth(ym), getLinks()]);
+  const [races, month, links, member, members] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers()]);
+  const names = Object.fromEntries(members.map((entry) => [entry.nick, entry.name || "없음"]));
   const notice = (await getNotices()).find((n) => noticeState(n, today) === "live");
   const upcoming = races.filter((r) => r.date >= today).slice(0, 4);
   // 접수 마감 전인 대회: 접수중 먼저(마감 임박 순), 그다음 접수예정(시작 순)
@@ -28,24 +30,53 @@ export default async function Home() {
     .slice(0, 4);
   const mine = rankMonth(month).find((r) => r.nick === u.nick);
   const pct = mine?.rate ?? 0;
+  const myNextRace = races.filter((r) => r.date >= today && r.participants.some((p) => p.nick === u.nick)).sort((a, b) => a.date.localeCompare(b.date))[0];
+  const closingRace = races.filter((r) => r.date >= today && r.regEnd && regInfo(r, now).status === "open").sort((a, b) => (a.regEnd ?? "").localeCompare(b.regEnd ?? ""))[0];
+  const todayKm = Number(month[u.nick]?.days[Number(today.slice(8))] ?? 0);
 
   return (
     <main className="hub-wrap">
       <header className="flex items-center gap-4 pt-2">
         <span className="logo-mark lg" role="img" aria-label="R2U Run To Ulsan" />
         <div className="min-w-0">
-          <h1 className="hub-h1">{u.admin && !isStaffAccount(u) && <CrownIcon size={22} />}{u.nick} 님, 안녕하세요</h1>
+          <h1 className="hub-h1">{member?.manager ? <GearIcon size={22} /> : u.admin && !isStaffAccount(u) ? <CrownIcon size={22} /> : null}{memberLabel(member ?? u)} 님, 안녕하세요</h1>
         </div>
       </header>
 
-      {notice && (
-        <section className="panel panel-alert p-4 grid gap-1.5">
-          <p className="label">📢 공지</p>
+      <section className="grid gap-2">
+        <div className="sec-head"><h2 className="label">📢 공지</h2><Link href="/notices">공지 전체 보기 →</Link></div>
+        {notice ? <div className="panel panel-alert p-4 grid gap-1.5">
           <h2 className="font-bold">{notice.title}</h2>
           {notice.body && <p className="text-sm whitespace-pre-wrap">{notice.body}</p>}
-          <p className="text-xs text-muted">{new Date(notice.at + 9 * 3600e3).toISOString().slice(5, 10).replace("-", "/")} · {notice.by}</p>
-        </section>
-      )}
+          {notice.image && (
+            // Uploaded notices have different aspect ratios; keep the original ratio.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={`/api/notices/${notice.id}/image`} alt={`${notice.title} 공지 이미지`} className="w-full h-auto rounded-lg" />
+          )}
+          <p className="text-xs text-muted">{new Date(notice.at + 9 * 3600e3).toISOString().slice(5, 10).replace("-", "/")} · {knownMemberLabel(notice.by, names)}</p>
+        </div> : <p className="text-sm text-muted">새 공지가 없어요. 지난 안내는 공지 전체 보기에서 확인할 수 있어요.</p>}
+      </section>
+
+      {!isStaffAccount(u) && <section className="grid gap-2">
+        <h2 className="label">내 다음 일정</h2>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Link href={myNextRace ? `/races#${myNextRace.id}` : "/races"} className="panel p-3 grid gap-1 hover:border-[var(--lane)]">
+            <span className="text-xs text-muted">내 다음 대회</span>
+            <b className="leading-snug">{myNextRace?.name ?? "참가할 대회 찾기"}</b>
+            <span className="text-xs text-muted">{myNextRace ? `${fmtRaceDate(myNextRace.date).md} · ${myNextRace.participants.find((p) => p.nick === u.nick)?.course || "코스 미정"}` : "대회 일정 보기"} →</span>
+          </Link>
+          <Link href={closingRace ? `/races#${closingRace.id}` : "/races?view=reg"} className="panel p-3 grid gap-1 hover:border-[var(--lane)]">
+            <span className="text-xs text-muted">가장 가까운 접수 마감</span>
+            <b className="leading-snug">{closingRace?.name ?? "접수 일정 보기"}</b>
+            <span className="text-xs text-muted">{closingRace?.regEnd ? `${closingRace.regEnd.slice(5).replace("-", "/").replace("T", " ")} 마감` : "예정된 접수 마감 없음"} →</span>
+          </Link>
+          <Link href={`/monthly?day=${Number(today.slice(8))}`} className="panel p-3 grid gap-1 hover:border-[var(--lane)]">
+            <span className="text-xs text-muted">오늘의 러닝</span>
+            <b className="leading-snug">{todayKm ? `${todayKm}km 기록됨` : "달린 거리 기록하기"}</b>
+            <span className="text-xs text-muted">{todayKm ? "오늘 기록 확인·수정" : "오늘 기록 입력"} →</span>
+          </Link>
+        </div>
+      </section>}
       <PushToggle />
 
       {!isStaffAccount(u) && (
@@ -110,7 +141,7 @@ export default async function Home() {
                   <span className="font-bold truncate">{r.name}</span>
                   <span className="text-sm text-muted truncate">{r.time ? `${r.time} 출발 · ` : ""}{r.place || "장소 미정"} · 크루 {r.participants.length}명</span>
                 </span>
-                {me && <span className="chip chip-confirmed ml-auto shrink-0">참가 {me.course}</span>}
+                {me && <span className="chip chip-confirmed ml-auto shrink-0">크루 참가 {me.course}</span>}
               </Link>
             );
           })}

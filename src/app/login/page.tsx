@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { currentUser, getMembers } from "@/lib/hub";
+import { currentUser, getMembers, isStaffNick } from "@/lib/hub";
 import LoginForm from "./login-form";
 
 export const dynamic = "force-dynamic";
@@ -29,10 +29,10 @@ const QUOTES: { q: string; by?: string }[] = [
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const { next = "/" } = await searchParams;
   if (await currentUser()) redirect(next.startsWith("/") ? next : "/");
-  const members = (await getMembers()).map((m) => ({ nick: m.nick, hasPw: !!m.pw, admin: m.role === "admin" }));
+  const members = (await getMembers()).map((m) => ({ nick: m.nick, name: m.name?.trim() || "없음", hasPw: !!m.pw, admin: m.role === "admin", manager: !!m.manager }));
   members.sort((a, b) => a.nick.localeCompare(b.nick, "ko"));
   // ‘운영진’ 관리 계정은 닉네임 목록에서 빼고, 아래 ‘운영진 모드’로 따로 들어간다
-  const crew = members.filter((m) => m.nick !== "운영진");
+  const crew = members.filter((m) => !isStaffNick(m.nick));
   const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
   return (
     <main className="wrap grid gap-7" style={{ maxWidth: 420 }}>
@@ -48,7 +48,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <LoginForm members={crew} next={next}>
         <p className="text-center"><Link href="/join" className="btn btn-ghost text-sm">처음이세요? 닉네임 만들기 요청</Link></p>
         <div className="login-help">
-          <p>닉네임을 고르고 비밀번호를 입력하세요.</p>
+          <p>닉넴/이름을 확인하고 비밀번호를 입력하세요.</p>
           <p>처음이라면 지금 정하는 비밀번호가 내 비밀번호가 돼요.</p>
           <p>명단에 닉네임이 없거나 비밀번호를 잊었다면 운영진에게 말해 주세요.</p>
         </div>

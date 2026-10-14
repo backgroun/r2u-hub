@@ -1,14 +1,19 @@
 import Link from "next/link";
-import { CrownIcon } from "@/components/crown";
+import { CrownIcon, GearIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { driverOf, currentUser, isStaffAccount, fmtRaceDate, getMonth, getRaceRecs, getRaces, kstToday, type RaceFull } from "@/lib/hub";
+import { driverOf, currentUser, getMember, isStaffAccount, fmtRaceDate, getMonth, getRaceRecs, getRaces, kstToday, memberLabel, type RaceFull } from "@/lib/hub";
 import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
 import { getOrders, listRounds } from "@/lib/db";
 import { nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/types";
-import { changePassword, deleteRaceRecord } from "@/app/actions";
+import { cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
+import { getNickChangeRequest } from "@/lib/nickname";
 import RaceRecordForm from "@/components/race-record-form";
+import RaceRecordChart from "@/components/race-record-chart";
+import ActivitySummary from "@/components/activity-summary";
+import { activityStats } from "@/lib/activity-stats";
 import { ActionForm, Submit } from "@/components/action-form";
 import LogoutButton from "@/components/logout-button";
+import PasswordInput from "@/components/password-input";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "내 페이지" };
@@ -29,22 +34,24 @@ export default async function MyPage() {
   const START_YM = "2026-10";
   const months = Array.from({ length: 6 }, (_, i) => shiftYm(ym, -i)).filter((m) => m >= START_YM);
 
-  const [races, monthRecs, rounds, recs] = await Promise.all([
+  const [races, monthRecs, rounds, recs, nickRequest, member] = await Promise.all([
     getRaces(),
     Promise.all(months.map((m) => getMonth(m))),
     listRounds(100),
     getRaceRecs(u.nick),
+    getNickChangeRequest(u.nick),
+    getMember(u.nick),
   ]);
 
   // 대회
   const joined = races.filter((r) => r.participants.some((p) => p.nick === u.nick));
   const cheering = races.filter((r) => r.cheers.includes(u.nick) && r.date >= today);
   const upcoming = joined.filter((r) => r.date >= today);
-  const past = joined.filter((r) => r.date < today).reverse();
 
-  // 내 대회 기록: 코스별 최고 기록(PB)과 기록 목록, 기록을 넣을 수 있는 지난 대회(내가 참가 신청한 대회만)
+  // 내 대회 기록: 코스별 최고 기록(PB)과 기록 목록, 기록을 넣을 수 있는 지난 대회(크루 참가로 표시한 대회만)
   const raceById = new Map(races.map((r) => [r.id, r]));
   const recList = Object.entries(recs).map(([id, rec]) => ({ id, rec, race: raceById.get(id) })).filter((x): x is { id: string; rec: typeof x.rec; race: RaceFull } => !!x.race).sort((a, b) => b.race.date.localeCompare(a.race.date));
+  const activity = activityStats(races, u.nick, Object.keys(recs));
   const pb = new Map<string, { sec: number; time: string }>();
   for (const { rec } of recList) { if (!rec.sec) continue; const cur = pb.get(rec.course); if (!cur || rec.sec < cur.sec) pb.set(rec.course, { sec: rec.sec, time: rec.time }); }
   const pastAll = races.filter((r) => r.date <= today && r.participants.some((p) => p.nick === u.nick)).sort((a, b) => b.date.localeCompare(a.date));
@@ -67,9 +74,38 @@ export default async function MyPage() {
   return (
     <main className="hub-wrap">
       <header className="grid gap-1">
-        <h1 className="hub-h1">{u.admin && <CrownIcon size={22} />}{u.nick} 님</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="hub-h1">{member?.manager ? <GearIcon size={22} /> : u.admin ? <CrownIcon size={22} /> : null}{memberLabel(member ?? u)}</h1>
+        </div>
         <p className="text-sm text-muted">내 대회, 월간 기록, 공구 내역을 모아 봤어요.</p>
       </header>
+
+      <div className="profile-edit-grid">
+      <details id="nickname-change" className="panel p-4">
+        <summary className="font-bold">닉네임 바꾸기</summary>
+        <div className="grid gap-3 mt-3">
+          <p className="text-sm text-muted">현재 닉넴/이름: <b>{memberLabel(member ?? u)}</b> · 새 닉네임은 운영진 승인 후 적용돼요. 승인되면 새 닉네임으로 다시 로그인해 주세요.</p>
+          {nickRequest?.status === "pending" && <p className="text-sm">승인 대기: <b>{nickRequest.newNick}</b></p>}
+          {nickRequest?.status === "rejected" && <p className="text-sm text-[var(--bad)]">이전 신청({nickRequest.newNick})이 거절됐어요.{nickRequest.reason ? ` 운영진 메시지: ${nickRequest.reason}` : ""} 다른 닉네임으로 다시 신청할 수 있어요.</p>}
+          <ActionForm action={requestNickChange} className="grid gap-3">
+            <label className="field"><span className="label">새 닉네임 (2~20자)</span><input name="newNick" className="input" required minLength={2} maxLength={20} defaultValue={nickRequest?.status === "pending" ? nickRequest.newNick : ""} /></label>
+            <div><Submit>{nickRequest?.status === "pending" ? "신청 내용 바꾸기" : "변경 신청"}</Submit></div>
+          </ActionForm>
+          {nickRequest?.status === "pending" && <ActionForm action={cancelNickChange} className="grid gap-2"><div><Submit className="btn btn-ghost btn-danger">신청 취소</Submit></div></ActionForm>}
+        </div>
+      </details>
+
+      <details id="name-change" className="panel p-4">
+        <summary className="font-bold">이름 바꾸기</summary>
+        <div className="grid gap-3 mt-3">
+          <p className="text-sm text-muted">현재 이름: <b>{member?.name?.trim() || "없음"}</b> · 이름은 저장하면 바로 적용돼요. 비워 두면 ‘없음’으로 표시해요.</p>
+          <ActionForm action={editMyName} className="grid gap-3" keep>
+            <label className="field"><span className="label">새 이름 (30자 이하)</span><input name="name" className="input" maxLength={30} defaultValue={member?.name === "없음" ? "" : member?.name || ""} /></label>
+            <div><Submit>이름 저장</Submit></div>
+          </ActionForm>
+        </div>
+      </details>
+      </div>
 
       <section className="stat-strip">
         <div><span className="label">이번 달</span><b className="num">{thisMonth.km}<small>km</small></b></div>
@@ -78,28 +114,33 @@ export default async function MyPage() {
         <div><span className="label">공구</span><b className="num">{myOrders.length + opened.length}<small>건</small></b></div>
       </section>
 
+      <ActivitySummary stats={activity} />
+
       {/* 대회 */}
       <section className="grid gap-2">
         <div className="sec-head"><h2 className="label">참가 예정 대회</h2><Link href="/races?view=mine">대회에서 보기 →</Link></div>
         <div className="row-list">
-          {upcoming.length === 0 && <p className="py-4 text-sm text-muted">참가 신청한 대회가 없어요.</p>}
+          {upcoming.length === 0 && <p className="py-4 text-sm text-muted">크루 참가로 표시한 대회가 없어요.</p>}
           {upcoming.map((r) => <RaceRow key={r.id} r={r} nick={u.nick} />)}
         </div>
         {cheering.length > 0 && (
           <p className="text-sm text-muted">📣 응원 예정: {cheering.map((r) => `${fmtRaceDate(r.date).md} ${r.name}`).join(", ")}</p>
         )}
-        {past.length > 0 && (
-          <details className="panel p-4">
-            <summary className="font-bold">지난 참가 대회 {past.length}개</summary>
-            <div className="grid mt-2">
-              {past.map((r) => {
-                const d = fmtRaceDate(r.date);
-                const c = r.participants.find((p) => p.nick === u.nick)?.course;
-                return <div key={r.id} className="flex justify-between gap-2 py-1.5 text-sm"><span className="truncate">{d.y}.{d.md} {r.name}</span><span className="text-muted shrink-0">{c}</span></div>;
-              })}
-            </div>
-          </details>
-        )}
+      </section>
+
+      {/* 월간 기록 */}
+      <section className="grid gap-2">
+        <div className="sec-head"><h2 className="label">월간 기록</h2><Link href="/monthly">기록하기 →</Link></div>
+        <ol className="board">
+          {monthly.map((m) => (
+            <li key={m.ym} style={{ gridTemplateColumns: "56px 1fr 92px" }}>
+              <span className="b-name">{Number(m.ym.slice(5))}월</span>
+              <span className="b-bar" aria-hidden><span className={(m.rate ?? 0) >= 100 ? "done" : ""} style={{ width: `${Math.min(100, m.rate ?? 0)}%` }} /></span>
+              <span className="num b-val">{m.km}<span className="text-muted font-normal">/{m.goal || "–"}km</span></span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-xs text-muted">이번 달 {thisMonth.days}일 기록{thisMonth.rateRank ? ` · 달성율 ${thisMonth.rateRank}위` : ""}</p>
       </section>
 
       {/* 내 대회 기록 */}
@@ -110,9 +151,10 @@ export default async function MyPage() {
             {[...pb.entries()].map(([c, v]) => <span key={c} className="chip count-badge">🏅 {c} 최고 {v.time}</span>)}
           </div>
         )}
+        <RaceRecordChart records={recList.map(({ id, rec, race }) => ({ id, race: race.name, date: race.date, course: rec.course, sec: rec.sec, time: rec.time }))} />
         <details className="panel p-4">
           <summary className="font-bold">+ 대회 기록 추가</summary>
-          {pastAll.length === 0 ? <p className="mt-2 text-sm text-muted">기록을 남길 수 있는 대회가 아직 없어요. 참가 신청한 대회가 끝나면 여기서 기록을 적을 수 있어요.</p> : (
+          {pastAll.length === 0 ? <p className="mt-2 text-sm text-muted">기록을 남길 수 있는 대회가 아직 없어요. 크루 참가로 표시한 대회가 끝나면 여기서 기록을 적을 수 있어요.</p> : (
             <RaceRecordForm races={pastAll.map((r) => ({ id: r.id, label: `${fmtRaceDate(r.date).md} ${r.name}`, course: courseOf(r.participants.find((p) => p.nick === u.nick)?.course) }))} />
           )}
         </details>
@@ -134,21 +176,6 @@ export default async function MyPage() {
             );
           })}
         </div>
-      </section>
-
-      {/* 월간 기록 */}
-      <section className="grid gap-2">
-        <div className="sec-head"><h2 className="label">월간 기록</h2><Link href="/monthly">기록하기 →</Link></div>
-        <ol className="board">
-          {monthly.map((m) => (
-            <li key={m.ym} style={{ gridTemplateColumns: "56px 1fr 92px" }}>
-              <span className="b-name">{Number(m.ym.slice(5))}월</span>
-              <span className="b-bar" aria-hidden><span className={(m.rate ?? 0) >= 100 ? "done" : ""} style={{ width: `${Math.min(100, m.rate ?? 0)}%` }} /></span>
-              <span className="num b-val">{m.km}<span className="text-muted font-normal">/{m.goal || "–"}km</span></span>
-            </li>
-          ))}
-        </ol>
-        <p className="text-xs text-muted">이번 달 {thisMonth.days}일 기록{thisMonth.rateRank ? ` · 달성율 ${thisMonth.rateRank}위` : ""}</p>
       </section>
 
       {/* 공구 */}
@@ -200,7 +227,7 @@ export default async function MyPage() {
         <summary className="font-bold">비밀번호 바꾸기</summary>
         <ActionForm action={changePassword} className="grid gap-3 mt-3">
           <label className="field"><span className="label">지금 비밀번호</span><input name="cur" type="text" className="input pw-mask" required autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
-          <label className="field"><span className="label">새 비밀번호 (4자 이상)</span><input name="pw" type="text" className="input pw-mask" required minLength={4} autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
+          <label className="field"><span className="label">새 비밀번호 (4자 이상)</span><PasswordInput name="pw" className="input pw-mask" required minLength={4} data-lpignore="true" /></label>
           <div><Submit>변경</Submit></div>
         </ActionForm>
       </details>

@@ -48,16 +48,18 @@ export default function PushToggle({ compact = false }: { compact?: boolean }) {
   if (state === "unsupported") return <p className="text-xs text-muted">알림은 홈 화면에 추가한 앱에서 받을 수 있어요. (iPhone: 공유 → 홈 화면에 추가)</p>;
   if (state === "denied") return <p className="text-xs text-muted">알림이 차단돼 있어요. 기기 설정에서 R2U 알림을 허용해 주세요.</p>;
   if (compact) {
-    // 상단 버튼: 흰색 테두리에 글자만 (이모지·채움 없음)
-    const outline = { background: "transparent", color: "var(--ink)", border: "1.2px solid var(--ink)", boxShadow: "none" } as const;
+    // 상단 버튼: 켜짐은 녹색 테두리, 꺼짐은 회색 테두리 (이모지·채움 없음)
+    const base = { background: "transparent", boxShadow: "none" } as const;
+    const on = { ...base, color: "var(--good)", border: "1.4px solid var(--good)" } as const;
+    const off = { ...base, color: "var(--muted)", border: "1.2px solid var(--muted)" } as const;
     return state === "on"
-      ? <button type="button" className="btn text-xs !py-1 !px-2.5" style={outline} title="눌러서 알림 끄기" onClick={turnOff}>알림 켜짐</button>
-      : <button type="button" className="btn text-xs !py-1 !px-2.5" style={outline} onClick={turnOn}>알림설정</button>;
+      ? <button type="button" className="btn text-xs !py-1 !px-2.5" style={on} title="눌러서 알림 끄기" onClick={turnOff}>알림 켜짐</button>
+      : <button type="button" className="btn text-xs !py-1 !px-2.5" style={off} title="눌러서 알림 켜기" onClick={turnOn}>알림 꺼짐</button>;
   }
   return (
     <div className="flex flex-wrap items-center gap-2">
       {state === "on"
-        ? <button type="button" className="btn text-sm" onClick={turnOff}>🔔 알림 켜짐 · 끄기</button>
+        ? <button type="button" className="btn text-sm" style={{ background: "transparent", color: "var(--good)", border: "1.4px solid var(--good)", boxShadow: "none" }} onClick={turnOff}>🔔 알림 켜짐 · 끄기</button>
         : <button type="button" className="btn btn-primary text-sm" onClick={turnOn}>🔔 알림 받기</button>}
       {msg && <span className="text-xs text-muted">{msg}</span>}
     </div>

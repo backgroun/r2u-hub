@@ -21,9 +21,9 @@ function Icon({ kind }: { kind: WeatherKind }) {
 }
 
 /** 홈 상단 날씨 한 줄. 처음엔 울산 기준으로 보여 주고, 위치를 허용하면 내 위치 기준으로 바뀐다. */
-export default function WeatherBar({ initial }: { initial: Weather | null }) {
+export default function WeatherBar({ initial, initialPlace }: { initial: Weather | null; initialPlace: string | null }) {
   const [w, setW] = useState<Weather | null>(initial);
-  const [place, setPlace] = useState("울산");
+  const [place, setPlace] = useState(initialPlace ?? "울산");
   const [located, setLocated] = useState(false);
 
   const load = async (lat: number, lon: number) => {
@@ -47,7 +47,7 @@ export default function WeatherBar({ initial }: { initial: Weather | null }) {
         // 홈 화면에 추가한 앱은 주소창이 없어서 자물쇠가 없다 → 휴대폰 설정 앱에서 허용해야 한다
         const app = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
         window.alert(app
-          ? "위치 권한이 꺼져 있어요.\n휴대폰 설정 앱 → 개인정보 보호 및 보안 → 위치 서비스 → ‘Safari 웹사이트’(또는 R2U)에서 ‘앱을 사용하는 동안’으로 바꿔 주세요."
+          ? "정확한 위치를 쓸 수 없어서 접속 지역 기준으로 보여드려요.\n\n위치 권한이 꺼져 있어요.\n휴대폰 설정 앱 → 개인정보 보호 및 보안 → 위치 서비스 → ‘Safari 웹사이트’(또는 R2U)에서 ‘앱을 사용하는 동안’으로 바꿔 주세요."
           : "위치 권한이 꺼져 있어요. 주소창 왼쪽 자물쇠(설정)에서 ‘위치’를 허용해 주세요.");
       },
       { maximumAge: 30 * 60_000, timeout: 10_000 },
@@ -82,7 +82,7 @@ export default function WeatherBar({ initial }: { initial: Weather | null }) {
         {dust && <span>미세먼지 <b className={`dust-${dust.level}`}>{dust.text}</b></span>}
         {located
           ? <span className="weather-place">{place}</span>
-          : <button type="button" className="weather-place weather-locate" onClick={() => locate(true)}>{place} · 내 위치</button>}
+          : <button type="button" className="weather-place weather-locate" onClick={() => locate(true)}>{place} · {initialPlace ? "정확히" : "내 위치"}</button>}
       </span>
     </section>
   );

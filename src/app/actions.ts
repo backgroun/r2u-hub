@@ -1,15 +1,20 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
-  K, redis, checkPw, hashPw, currentUser, startSession, endSession, getMember, saveMember, getMembers, getAllVs, isStaffNick,
+  K, redis, checkPw, hashPw, currentUser, currentRealUser, VIEW_COOKIE, startSession, endSession, getMember, saveMember, getMembers, getAllVs, isStaffNick,
   getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type SheetKind,
 } from "@/lib/hub";
 import { syncMembers } from "@/lib/sheet";
 import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoinId, queueMemberNameForSheet, renameMemberInSheet, saveJoin, updateMemberNameInSheet } from "@/lib/join";
 import { addNotice, deleteNotice, getPushEnabledNicks, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
 import { EVENT_PERIOD_KEY, resetEventCache } from "@/lib/event";
+import { clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
+import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive } from "@/lib/event-blocks";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
+import { collectNews, patchNews } from "@/lib/news";
+import { detachGarminDay } from "@/lib/runs";
 import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
 
 export type Result = { ok: boolean; msg?: string } | null;
@@ -143,7 +148,9 @@ export async function editMemberByAdmin(_: Result, fd: FormData): Promise<Result
   const member = await getMember(oldNick);
   if (!member) return fail("회원 목록에서 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.");
   if (kind === "name") {
-    const name = str(fd, "name", 30) || "없음";
+    const name = str(fd, "name", 30);
+    if (!name) return fail("이름은 비울 수 없어요.");
+    if ([...name].length > 4) return fail("이름은 4글자까지만 쓸 수 있어요.");
     if ((member.name?.trim() || "없음") === name) return fail("현재 이름과 같아요.");
     const sheet = await updateMemberNameInSheet(oldNick, name === "없음" ? "" : name);
     await saveMember({ ...member, name });
@@ -153,8 +160,8 @@ export async function editMemberByAdmin(_: Result, fd: FormData): Promise<Result
     return ok(sheet === "ok" ? `${oldNick}님의 이름과 구글시트 B열을 수정했어요.` : `${oldNick}님의 이름을 수정했어요. 구글시트 반영은 대기 중이며 다음 동기화 때 다시 시도해요.`);
   }
   if (kind !== "nick") return fail("수정 항목을 다시 확인해 주세요.");
-  const newNick = str(fd, "newNick", 21);
-  if (!validNick(newNick)) return fail("닉네임은 2~20자, 공백·쉼표·슬래시 없이 적어 주세요.");
+  const newNick = str(fd, "newNick", 30);
+  if (!validNick(newNick)) return fail("닉네임은 2~5자, 공백·쉼표·슬래시 없이 적어 주세요.");
   if (newNick === oldNick) return fail("현재 닉네임과 같아요.");
   if (!(await nickAvailable(oldNick, newNick))) return fail("이미 사용 중이거나 신청된 닉네임이에요.");
   try {
@@ -172,7 +179,9 @@ export async function editMyName(_: Result, fd: FormData): Promise<Result> {
   if (isStaffNick(u.nick)) return fail("관리용 계정의 이름은 바꿀 수 없어요.");
   const member = await getMember(u.nick);
   if (!member) return fail("회원 정보를 찾을 수 없어요. 다시 로그인해 주세요.");
-  const name = str(fd, "name", 30) || "없음";
+  const name = str(fd, "name", 30);
+  if (!name) return fail("이름은 비울 수 없어요.");
+  if ([...name].length > 4) return fail("이름은 4글자까지만 쓸 수 있어요.");
   if ((member.name?.trim() || "없음") === name) return fail("현재 이름과 같아요.");
   await saveMember({ ...member, name });
   const sheet = await updateMemberNameInSheet(u.nick, name === "없음" ? "" : name);
@@ -186,8 +195,8 @@ export async function editMyName(_: Result, fd: FormData): Promise<Result> {
 export async function requestNickChange(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
   if (isStaffNick(u.nick)) return fail("관리용 계정의 닉네임은 바꿀 수 없어요.");
-  const newNick = str(fd, "newNick", 21);
-  if (!validNick(newNick)) return fail("닉네임은 2~20자, 공백·쉼표·슬래시 없이 적어 주세요.");
+  const newNick = str(fd, "newNick", 30);
+  if (!validNick(newNick)) return fail("닉네임은 2~5자, 공백·쉼표·슬래시 없이 적어 주세요.");
   if (newNick === u.nick) return fail("지금 쓰는 닉네임과 같아요.");
   if (!(await nickAvailable(u.nick, newNick))) return fail("이미 사용 중이거나 신청된 닉네임이에요.");
   await saveNickChangeRequest({ oldNick: u.nick, newNick, status: "pending", at: Date.now() });
@@ -200,11 +209,11 @@ export async function cancelNickChange(_state: Result): Promise<Result> {
   void _state;
   const u = await me();
   const request = await getNickChangeRequest(u.nick);
-  if (!request || request.status !== "pending") return fail("대기 중인 신청이 없어요.");
+  if (!request) return fail("신청 내역이 없어요.");
   await cancelNickChangeRequest(u.nick);
   revalidatePath("/me");
   revalidatePath("/admin");
-  return ok("닉네임 변경 신청을 취소했어요.");
+  return ok(request.status === "rejected" ? "거절 내역을 지웠어요." : "닉네임 변경 신청을 취소했어요.");
 }
 
 export async function decideNickChange(_: Result, fd: FormData): Promise<Result> {
@@ -349,7 +358,7 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   const id = str(fd, "id");
   const who = u.admin ? str(fd, "nick", 30) || u.nick : u.nick;
   const course = str(fd, "courseEtc", 20) || str(fd, "course", 20);
-  if (!course) return fail("코스를 고르거나 직접 입력해 주세요.");
+  if (!course) return fail("코스를 선택해 주세요.");
   if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
   await redis.hset(K.raceP(id), { [who]: course });
   revalidatePath("/races");
@@ -414,9 +423,33 @@ export async function addAfter(_: Result, fd: FormData): Promise<Result> {
 }
 
 /** 시간 있는 일정의 참석자 또는 운영진이 알림을 보낸다. 각 일정당 1시간에 한 번만 허용. */
-export async function sendScheduleNotice(_: Result, fd: FormData): Promise<Result> {
+/** 한 대회에서 고른 종류(대회·단사·카풀·뒷풀이)의 아직 안 지난 일정 전부에 알림을 보낸다 */
+export async function sendScheduleNotices(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
-  const raceId = str(fd, "id", 30), itemId = str(fd, "after", 30);
+  const raceId = str(fd, "id", 30);
+  const kinds = new Set(fd.getAll("k").map(String));
+  if (!kinds.size) return fail("알림 종류를 선택해 주세요.");
+  const [raceRaw, afterRaw] = await Promise.all([redis.hget(K.races, raceId), redis.hgetall<Record<string, unknown>>(K.after(raceId))]);
+  if (!raceRaw) return fail("대회를 찾을 수 없어요.");
+  const race = (typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race;
+  const okTime = (t?: string) => !!t && /^([01]\d|2[0-3]):[0-5]\d$/.test(t) && Date.parse(`${race.date}T${t}:00+09:00`) > Date.now();
+  const targets: string[] = [];
+  if (kinds.has("race") && okTime(race.time)) targets.push("race");
+  for (const [id, v] of Object.entries(afterRaw ?? {})) {
+    const item = (typeof v === "string" ? JSON.parse(v) : v) as AfterParty;
+    if (kinds.has(item.kind ?? "after") && okTime(item.time)) targets.push(id);
+  }
+  if (!targets.length) return fail("선택한 종류에 알림을 보낼 수 있는 일정이 없어요.");
+  const done: string[] = [], failed: string[] = [];
+  for (const t of targets.slice(0, 12)) {
+    const r = await sendNoticeOne(u, raceId, t === "race" ? "" : t);
+    (r?.ok ? done : failed).push(r?.msg ?? "");
+  }
+  if (!done.length) return fail(failed[0] || "알림을 보내지 못했어요.");
+  return ok(`${done.length}개 일정에 알림을 보냈어요.${failed.length ? ` (${failed.length}개는 못 보냈어요: ${[...new Set(failed)].join(" / ")})` : ""}`);
+}
+
+async function sendNoticeOne(u: { nick: string; admin: boolean }, raceId: string, itemId: string): Promise<Result> {
   const [raceRaw, itemRaw, participants, cheers, rsvps] = await Promise.all([
     redis.hget(K.races, raceId), itemId ? redis.hget(K.after(raceId), itemId) : Promise.resolve(null),
     redis.hkeys(K.raceP(raceId)), redis.hkeys(K.cheer(raceId)),
@@ -542,8 +575,10 @@ export async function setDay(_: Result, fd: FormData): Promise<Result> {
   const days = { ...rec.days };
   const total = add ? Math.round(((Number(days[day]) || 0) + km) * 100) / 100 : km;
   if (total > 0) days[day] = total; else delete days[day];
-  await redis.hset(K.month(ym), { [nick]: JSON.stringify({ ...rec, days }) });
+  // 가민으로 합산된 날을 손으로 고치면 그 값을 그대로 쓴다 (다음 가민 업로드 때 다시 물어본다)
+  await redis.hset(K.month(ym), { [nick]: JSON.stringify({ ...detachGarminDay(rec, day), days }) });
   revalidatePath("/monthly");
+  revalidatePath("/me/runs");
   revalidatePath("/");
   const md = `${Number(ym.slice(5))}월 ${day}일`;
   if (add) return ok(`${md} +${km}km 더했어요. 이날 합계 ${total}km`);
@@ -568,12 +603,6 @@ export async function syncMembersAction(_: Result, fd: FormData): Promise<Result
     if (r.renamed.length) parts.push(`이름 갱신 ${r.renamed.length}명`);
     if (r.promoted.length) parts.push(`운영진 지정: ${r.promoted.join(", ")}`);
     if (r.missing.length) parts.push(`시트에 없는 회원 ${r.missing.length}명: ${r.missing.join(", ")} (필요하면 아래에서 삭제하세요)`);
-    parts.push(`이벤트 참가자 ${r.eventNicks.length}명 확인`);
-    if (r.bingo?.noSecret) parts.push("이벤트 운영진 비밀 문장을 저장하면 이벤트 명단에도 자동으로 들어가요");
-    else if (r.bingo) {
-      if (r.bingo.pushed.length) parts.push(`이벤트 명단에 추가 (${r.bingo.pushed.join(", ")})`);
-      if (r.bingo.failed.length) parts.push(`빙고 명단 추가 실패 (${r.bingo.failed.join(", ")})`);
-    }
     return ok(parts.join(" · "));
   } catch (e) { return errMsg(e); }
 }
@@ -639,16 +668,6 @@ export async function saveMenu(_: Result, fd: FormData): Promise<Result> {
 }
 
 /* ---------- 빙고 비밀 문장 (운영진) ---------- */
-export async function saveBingoSecret(_: Result, fd: FormData): Promise<Result> {
-  await admin();
-  const s = str(fd, "secret", 200);
-  if (!s) return fail("이벤트 운영진 비밀 문장을 입력해 주세요.");
-  await redis.set("r2u:bingoSecret", s);
-  revalidatePath("/admin");
-  return ok("저장했어요. 이제 버튼 한 번으로 이벤트 운영진 모드에 들어가요.");
-}
-
-
 /* ---------- 이벤트 오픈일·종료일 (운영진) ---------- */
 export async function saveEventPeriod(_: Result, fd: FormData): Promise<Result> {
   await admin();
@@ -661,6 +680,132 @@ export async function saveEventPeriod(_: Result, fd: FormData): Promise<Result> 
   resetEventCache();
   revalidatePath("/", "layout");
   return ok("이벤트 기간을 저장했어요. (반영까지 최대 1분)");
+}
+
+/* ---------- 빙고 운영 설정 (운영진): 명단·미션·안내/기간을 허브에서 바로 ---------- */
+export async function bingoMember(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const act = str(fd, "act", 12), name = str(fd, "name", 30), newName = str(fd, "newName", 30);
+  if (!["add", "rename", "reset_data", "delete"].includes(act)) return fail("알 수 없는 동작이에요.");
+  if (!name) return fail("이름을 입력해 주세요.");
+  const roster = await getBingoRoster();
+  const has = roster.some((n) => n.toLowerCase() === name.toLowerCase());
+  revalidatePath("/admin"); revalidatePath("/event");
+  if (act === "add") {
+    if (has) return fail("이미 명단에 있어요.");
+    if (!(await getMember(name))) return fail("허브에 없는 닉네임이에요. 회원 탭에서 먼저 추가해 주세요.");
+    await setBingoRoster([...roster, name]);
+    return ok(`'${name}' 님을 추가했어요.`);
+  }
+  if (!has) return fail("명단에 없는 이름이에요.");
+  if (act === "rename") {
+    if (!newName) return fail("새 이름을 입력해 주세요.");
+    if (roster.some((n) => n.toLowerCase() === newName.toLowerCase())) return fail("이미 있는 이름이에요.");
+    await renameBingoMember(name, newName);
+    return ok(`'${name}' → '${newName}' 이름을 바꿨어요.`);
+  }
+  if (act === "reset_data") return ok(`${name} 님의 인증 기록 ${await clearBingoRecords(name)}칸을 초기화했어요.`);
+  await clearBingoRecords(name);
+  await setBingoRoster(roster.filter((n) => n.toLowerCase() !== name.toLowerCase()));
+  return ok(`'${name}' 님을 명단에서 뺐어요. (인증 기록도 함께 지웠어요)`);
+}
+export async function bingoMission(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const no = Number(fd.get("no"));
+  if (!Number.isInteger(no) || no < 1 || no > 25) return fail("미션 번호가 올바르지 않아요.");
+  const e = str(fd, "e", 8), t = str(fd, "t", 30), d = str(fd, "d", 100);
+  if (!t) return fail("미션 이름을 입력해 주세요.");
+  await saveBingoMission(no, e, t, d);
+  revalidatePath("/admin");
+  return ok(`${no}번 미션을 저장했어요.`);
+}
+export async function bingoInfo(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const title = str(fd, "title", 60), start = str(fd, "start", 10), end = str(fd, "end", 10);
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  if (!re.test(start) || !re.test(end)) return fail("시작일·종료일을 골라 주세요.");
+  if (end < start) return fail("종료일이 시작일보다 빠를 수 없어요.");
+  await saveBingoInfo({ title, items: [], start, end }); // 설명 문구는 쓰지 않는다 (기간·제목만)
+  // 허브의 오픈 판단(이벤트 탭·메뉴)도 같은 기간을 쓰도록 함께 저장한다
+  await redis.set(EVENT_PERIOD_KEY, JSON.stringify({ start, end }));
+  resetEventCache();
+  revalidatePath("/", "layout");
+  return ok("안내·기간을 저장했어요. (반영까지 최대 1분)");
+}
+
+/* ---------- 보기 모드 (운영진 전용): 운영자 보기 ↔ 크루 보기 ---------- */
+export async function setViewMode(fd: FormData) {
+  const u = await currentRealUser();
+  if (!u?.admin) return; // 실제 운영진·관리자만
+  const jar = await cookies();
+  if (fd.get("mode") === "crew") jar.set(VIEW_COOKIE, "crew", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 30 * 86400 });
+  else jar.delete(VIEW_COOKIE);
+  revalidatePath("/", "layout");
+}
+
+/* ---------- 이벤트 블록 (운영진): 만들어 두고, 월마다 하나를 골라 본문에 세팅 ---------- */
+export async function createEventBlock(_: Result, fd: FormData): Promise<Result> {
+  const u = await admin();
+  const type = str(fd, "type", 10) === "poll" ? "poll" : "bingo";
+  const title = str(fd, "title", 40), ym = str(fd, "ym", 7);
+  if (!title) return fail("이벤트 이름을 입력해 주세요.");
+  if (!/^\d{4}-\d{2}$/.test(ym)) return fail("월을 골라 주세요.");
+  let poll: { question: string; options: string[] } | undefined;
+  if (type === "poll") {
+    const question = str(fd, "question", 100);
+    const options = [...new Set(String(fd.get("options") ?? "").split("\n").map((o) => o.trim().slice(0, 40)).filter(Boolean))];
+    if (!question) return fail("투표 질문을 입력해 주세요.");
+    if (options.length < 2 || options.length > 8) return fail("선택지는 줄바꿈으로 2~8개 적어 주세요.");
+    poll = { question, options };
+  }
+  await createBlock({ type, title, ym, by: u.nick, ...(poll ? { poll } : {}) });
+  revalidatePath("/event"); revalidatePath("/admin");
+  return ok("이벤트 블록을 만들었어요. 아래 목록에서 ‘본문에 세팅’을 누르면 이벤트 탭에 보여요.");
+}
+export async function activateEventBlock(fd: FormData) {
+  await admin();
+  const id = str(fd, "id", 20);
+  const block = (await getBlocks()).find((b) => b.id === id);
+  const ym = str(fd, "ym", 7) || block?.ym || "";
+  if (!block || !/^\d{4}-\d{2}$/.test(ym)) return;
+  await setActive(ym, fd.get("off") ? null : id);
+  revalidatePath("/", "layout");
+}
+export async function removeEventBlock(fd: FormData) {
+  await admin();
+  await deleteBlock(str(fd, "id", 20));
+  revalidatePath("/", "layout");
+}
+
+/* ---------- 이벤트 참가 신청 (크루원 본인) ---------- */
+export async function joinEvent(): Promise<Result> {
+  const u = await me();
+  const block = await displayBlock();
+  if (block?.type !== "bingo") return fail("지금은 참가 신청을 받는 이벤트가 없어요.");
+  await joinRoster(u.nick);
+  revalidatePath("/event");
+  return ok("참가 신청했어요! 이벤트가 열리면 이 화면에서 바로 시작할 수 있어요.");
+}
+export async function leaveEvent(): Promise<Result> {
+  const u = await me();
+  await leaveRoster(u.nick);
+  revalidatePath("/event");
+  return ok("참가 신청을 취소했어요.");
+}
+export async function removeEventMember(fd: FormData) {
+  await admin();
+  await leaveRoster(str(fd, "nick", 20));
+  revalidatePath("/event"); revalidatePath("/admin");
+}
+export async function voteEvent(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  const block = await displayBlock();
+  const option = Number(fd.get("option"));
+  if (block?.type !== "poll" || block.id !== str(fd, "id", 20)) return fail("지금 진행 중인 투표가 아니에요.");
+  if (!Number.isInteger(option) || option < 0 || option >= (block.poll?.options.length ?? 0)) return fail("선택지를 골라 주세요.");
+  await castVote(block.id, u.nick, option);
+  revalidatePath("/event");
+  return ok("투표했어요. 마감 전에는 다시 눌러 바꿀 수 있어요.");
 }
 
 /* ---------- 공지사항 (운영진) ---------- */
@@ -700,6 +845,7 @@ export async function removeNotice(fd: FormData) {
 export async function requestJoin(_: Result, fd: FormData): Promise<Result> {
   const nick = str(fd, "nick", 20);
   if (nick.length < 2) return fail("닉네임은 2글자 이상으로 적어 주세요.");
+  if ([...nick].length > 5) return fail("닉네임은 5글자까지만 쓸 수 있어요.");
   if (/[\s,\n]/.test(nick) || isStaffNick(nick)) return fail("사용할 수 없는 닉네임이에요. (공백·쉼표 없이 적어 주세요)");
   const lower = nick.toLowerCase();
   if ((await getMembers()).some((m) => m.nick.toLowerCase() === lower)) return fail("이미 있는 닉네임이에요. 로그인 화면에서 골라 주세요.");
@@ -861,4 +1007,23 @@ export async function cancelVersusByAdmin(_: Result, fd: FormData): Promise<Resu
   revalidatePath("/admin");
   revalidatePath("/crew");
   return ok(`${a}님과 ${b}님의 대결을 취소했어요.`);
+}
+
+/* ---------- 러닝 뉴스 ---------- */
+export async function collectNewsNow(): Promise<Result> {
+  await admin();
+  const log = await collectNews();
+  revalidatePath("/news");
+  if (log.error) return fail(`수집 실패: ${log.error}`);
+  return ok(`수집 ${log.fetched}건 중 새 기사 ${log.saved}건 저장 (제외 ${log.excluded}, 중복 ${log.duplicated})`);
+}
+export async function hideNews(fd: FormData) {
+  await admin();
+  await patchNews(str(fd, "id", 40), { hidden: true });
+  revalidatePath("/news");
+}
+export async function pinNews(fd: FormData) {
+  await admin();
+  await patchNews(str(fd, "id", 40), { pinned: fd.get("pinned") === "1" });
+  revalidatePath("/news");
 }

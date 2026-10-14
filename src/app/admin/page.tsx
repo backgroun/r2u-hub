@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { CrownIcon, GearIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { currentUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, redis, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, removeNotice, decideJoin, saveBingoSecret, saveEventPeriod, saveLink, saveMenu, setMemberRole, syncMembersAction } from "@/app/actions";
+import { currentUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
+import { addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, removeNotice, decideJoin, bingoInfo, bingoMember, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
-import { bingoRpc, eventStart, hubPeriod } from "@/lib/event";
+import { bingoView } from "@/lib/bingo-admin";
+import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
 import { listJoins, pendingJoinCount } from "@/lib/join";
 import { listNickChangeRequests } from "@/lib/nickname";
 import { getNotices, getPushEnabledNicks, noticeState, pushReady, subCount } from "@/lib/notice";
@@ -56,7 +57,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === "races" && <Races past={past === "1"} edit={edit} />}
       {tab === "versus" && <VersusAdmin />}
       {tab === "groupbuy" && <Groupbuy />}
-      {tab === "bingo" && <Bingo />}
+      {tab === "bingo" && <Events />}
       {tab === "me" && <Me />}
     </main>
   );
@@ -131,7 +132,7 @@ async function Members({ self }: { self: string }) {
       )}
       <SheetSync
         title="구글시트로 회원 동기화"
-        help="A열 닉네임과 B열 이름을 회원 정보로 불러와요. 이름이 비어 있으면 ‘없음’으로 표시해요. D열 ‘닉네임(이벤트)’은 이벤트 참가자 명단으로 불러옵니다. 시트에서 빠진 회원은 자동으로 지우지 않아요."
+        help="A열 닉네임과 B열 이름을 회원 정보로 불러와요. 이름이 비어 있으면 ‘없음’으로 표시해요. 시트에서 빠진 회원은 자동으로 지우지 않아요."
         url={sheets.members} action={syncMembersAction} button="회원 동기화"
       />
       <ActionForm action={addMembers} className="panel p-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
@@ -614,44 +615,96 @@ function Groupbuy() {
   );
 }
 
-async function Bingo() {
+async function Events() {
   const members = await getMembers();
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
-  const has = !!(await redis.get("r2u:bingoSecret"));
-  const snap = await bingoRpc<{ info?: { start?: string; end?: string } }>("get_snapshot");
-  const own = await hubPeriod();
-  const start = own?.start ?? snap?.info?.start ?? (await eventStart()), end = own?.end ?? snap?.info?.end ?? "2026-11-30";
-  const raw = await redis.get<string[] | string>("r2u:eventNicks");
-  const nicks: string[] = Array.isArray(raw) ? raw : typeof raw === "string" ? (JSON.parse(raw) as string[]) : [];
+  const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
+  const view = await bingoView();
+  const start = view.info.start, end = view.info.end;
+  const nowYm = kstToday().slice(0, 7);
+  const months = [...new Set([...blocks.map((b) => b.ym), ...Object.keys(active)])].sort().reverse();
   return (
     <section className="grid gap-3">
-      <div className="panel p-4 grid gap-2">
-        <h2 className="font-bold">이벤트 참가자 ({nicks.length}명)</h2>
-        <p className="text-sm text-muted">회원 시트 D열 ‘닉네임(이벤트)’의 닉네임이에요. 회원 탭의 ‘회원 동기화’를 누르면 갱신돼요.</p>
-        {nicks.length ? <div className="flex flex-wrap gap-1.5">{nicks.map((n) => <span key={n} className="chip">{n}/{names[n] || "없음"}</span>)}</div>
-          : <p className="text-sm text-muted">아직 불러온 명단이 없어요.</p>}
+      <div className="panel p-4 grid gap-1">
+        <h2 className="font-bold">이벤트 블록</h2>
+        <p className="text-sm text-muted">이벤트를 블록으로 미리 만들어 두고, 달마다 하나를 골라 ‘본문에 세팅’하면 이벤트 탭에 보여요. 같은 달에 다른 블록을 세팅하면 이전 것은 자동으로 내려가요.</p>
       </div>
-      <div className="panel p-4 grid gap-2">
-        <h2 className="font-bold">이벤트 운영진 모드</h2>
-        <p className="text-sm text-muted">
-          {has ? "저장된 비밀 문장으로 이벤트 운영진 화면에 바로 들어가요. 참가자 명단, 미션, 이벤트 기간을 거기서 관리해요."
-            : "이벤트 운영진 비밀 문장을 한 번 저장해 두면, 다음부터 버튼 한 번으로 이벤트 운영진 모드에 들어가요."}
-        </p>
-        {has && <div><a href="/api/event/preview?staff=1" className="btn btn-primary">이벤트 운영진 모드 열기</a></div>}
-      </div>
-      <ActionForm action={saveEventPeriod} className="panel p-4 event-period-form" keep>
-        <h2 className="font-bold">이벤트 오픈일·종료일</h2>
-        <label className="event-period-date"><span>시작</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
-        <label className="event-period-date"><span>종료</span><input name="end" type="date" className="input" defaultValue={end} required /></label>
-        <Submit>저장</Submit>
-      </ActionForm>
-      <ActionForm action={saveBingoSecret} className="panel p-4 grid gap-3">
-        <label className="field">
-          <span className="label">이벤트 운영진 비밀 문장 {has ? "(바꾸려면 새로 입력)" : ""}</span>
-          <input name="secret" className="input" autoComplete="off" required maxLength={200} />
-        </label>
-        <div><Submit>저장</Submit></div>
-      </ActionForm>
+
+      {months.map((ym) => (
+        <div key={ym} className="panel p-4 grid gap-2">
+          <h3 className="font-bold">{ym.slice(0, 4)}년 {Number(ym.slice(5))}월 {ym === nowYm && <span className="chip chip-open">이번 달</span>}</h3>
+          {blocks.filter((b) => b.ym === ym).map((b) => {
+            const on = active[ym] === b.id;
+            return (
+              <div key={b.id} className="grid gap-2 border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 grid">
+                  <span className="font-bold truncate">{b.title} {on && <span className="chip chip-confirmed">본문에 세팅됨</span>}</span>
+                  <span className="text-xs text-muted truncate">{BLOCK_TYPES[b.type]}{b.poll ? ` · ${b.poll.question}` : ""}</span>
+                </div>
+                <div className="ml-auto flex gap-1.5 shrink-0">
+                  <form action={activateEventBlock}>
+                    <input type="hidden" name="id" value={b.id} /><input type="hidden" name="ym" value={ym} />
+                    {on ? <><input type="hidden" name="off" value="1" /><button className="btn text-xs py-1 px-2.5">내리기</button></> : <button className="btn btn-primary text-xs py-1 px-2.5">본문에 세팅</button>}
+                  </form>
+                  <form action={removeEventBlock}><input type="hidden" name="id" value={b.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
+                </div>
+              </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+
+      <details className="panel p-4" open>
+        <summary className="font-bold cursor-pointer">이벤트 명단 ({view.members.length}명)</summary>
+        <div className="grid gap-3 pt-3">
+          {view.members.map((m, i) => (
+            <div key={m.name} className="flex items-center gap-2 border-t border-[var(--line)] pt-2">
+              <span className="num text-muted text-sm shrink-0 text-center" style={{ width: 22 }}>{i + 1}</span>
+              <div className="flex items-baseline gap-2 min-w-0"><b>{m.name}/{names[m.name] || "없음"}</b><small className="text-muted">인증 기록 {m.cnt}칸</small></div>
+              <div className="ml-auto flex flex-nowrap items-center gap-1.5 shrink-0">
+                {([["reset_data", "기록 초기화"], ["delete", "명단에서 빼기"]] as const).map(([act, label]) => (
+                  <ActionForm key={act} action={bingoMember} className="inline">
+                    <input type="hidden" name="act" value={act} /><input type="hidden" name="name" value={m.name} />
+                    <ConfirmButton className={`btn btn-ghost text-xs py-1 px-2 ${act === "delete" || act === "reset_data" ? "btn-danger" : ""}`}>{label}</ConfirmButton>
+                  </ActionForm>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      {/* 평소에는 접어 두고, 새 블록을 만들 때만 펼친다 (만들면 자동으로 다시 접힌다) */}
+      <details className="panel p-4">
+        <summary className="font-bold cursor-pointer">+ 이벤트 블록 만들기</summary>
+        <ActionForm action={createEventBlock} className="grid gap-3 pt-3" collapse>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="field"><span className="label">종류</span>
+              <select name="type" className="input" defaultValue="bingo"><option value="bingo">빙고</option><option value="poll">투표·설문</option></select></label>
+            <label className="field"><span className="label">월</span><input name="ym" type="month" className="input" defaultValue={nowYm} required /></label>
+          </div>
+          <label className="field"><span className="label">이벤트 이름</span><input name="title" className="input" maxLength={40} required placeholder="예: 11월 5×5 미션 빙고" /></label>
+          <label className="field"><span className="label">투표 질문 (투표·설문일 때)</span><input name="question" className="input" maxLength={100} placeholder="예: 다음 번개런 코스는?" /></label>
+          <label className="field"><span className="label">선택지 (투표·설문일 때, 한 줄에 하나·2~8개)</span><textarea name="options" className="input" rows={4} placeholder={"한강 10km\n남산 순환\n탄천 하프"} /></label>
+          <div><Submit>블록 만들기</Submit></div>
+        </ActionForm>
+      </details>
+
+      {/* 빙고 운영: 예전에는 빙고 화면 안의 ‘운영진 모드’에서만 가능했던 설정을 허브에서 바로 */}
+      <details className="panel p-4">
+        <summary className="font-bold cursor-pointer">이벤트 안내/기간</summary>
+        <ActionForm action={bingoInfo} keep className="event-info-form grid gap-2 pt-2">
+          <label className="field"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
+          <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
+            <label className="field"><span className="label">오픈일</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
+            <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>
+            <Submit className="btn btn-primary">저장</Submit>
+          </div>
+        </ActionForm>
+      </details>
+
     </section>
   );
 }

@@ -34,8 +34,8 @@ export default function AdminMemberRow({ m, self, pushEnabled, lastSeen }: { m: 
         <input type="hidden" name="oldNick" value={m.nick} />
         <input type="hidden" name="kind" value={edit} />
         <label className="field">
-          <span className="label">{edit === "nick" ? "새 닉네임" : "이름 (비우면 ‘없음’)"}</span>
-          <input name={edit === "nick" ? "newNick" : "name"} className="input" defaultValue={edit === "nick" ? m.nick : m.name === "없음" ? "" : m.name || ""} maxLength={edit === "nick" ? 20 : 30} autoFocus />
+          <span className="label">{edit === "nick" ? "새 닉네임" : "이름 (1~4자)"}</span>
+          <input name={edit === "nick" ? "newNick" : "name"} className="input" defaultValue={edit === "nick" ? m.nick : m.name === "없음" ? "" : m.name || ""} maxLength={edit === "nick" ? 5 : 4} required autoFocus />
         </label>
         <Submit className="btn btn-primary text-sm">저장</Submit>
         <button type="button" className="btn btn-ghost text-sm" onClick={() => setEdit(null)}>닫기</button>

@@ -6,6 +6,8 @@ import { knownMemberLabel } from "@/lib/member-label";
 import PushToggle from "@/components/push-toggle";
 import { getNotices, noticeState } from "@/lib/notice";
 import { rankMonth, ymOf } from "@/lib/rank";
+import { greeting } from "@/lib/greeting";
+import { listNews, timeAgo } from "@/lib/news";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,7 @@ export default async function Home() {
   const ym = ymOf(today);
   const [races, month, links, member, members] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers()]);
   const names = Object.fromEntries(members.map((entry) => [entry.nick, entry.name || "없음"]));
+  const news = await listNews({ limit: 3 }).catch(() => []);
   const notice = (await getNotices()).find((n) => noticeState(n, today) === "live");
   const upcoming = races.filter((r) => r.date >= today).slice(0, 4);
   // 접수 마감 전인 대회: 접수중 먼저(마감 임박 순), 그다음 접수예정(시작 순)
@@ -32,34 +35,43 @@ export default async function Home() {
   const pct = mine?.rate ?? 0;
   const myNextRace = races.filter((r) => r.date >= today && r.participants.some((p) => p.nick === u.nick)).sort((a, b) => a.date.localeCompare(b.date))[0];
   const closingRace = races.filter((r) => r.date >= today && r.regEnd && regInfo(r, now).status === "open").sort((a, b) => (a.regEnd ?? "").localeCompare(b.regEnd ?? ""))[0];
-  const todayKm = Number(month[u.nick]?.days[Number(today.slice(8))] ?? 0);
 
   return (
     <main className="hub-wrap">
-      <header className="flex items-center gap-4 pt-2">
-        <span className="logo-mark lg" role="img" aria-label="R2U Run To Ulsan" />
+      <header className="flex items-center justify-between gap-4 pt-2">
         <div className="min-w-0">
-          <h1 className="hub-h1">{member?.manager ? <GearIcon size={22} /> : u.admin && !isStaffAccount(u) ? <CrownIcon size={22} /> : null}{memberLabel(member ?? u)} 님, 안녕하세요</h1>
+          <h1 className="hub-h1 hub-greeting flex items-center gap-2.5">
+            {member?.manager ? <GearIcon size={20} /> : u.admin && !isStaffAccount(u) ? <CrownIcon size={20} /> : null}
+            <span className="min-w-0 truncate">{greeting(memberLabel(member ?? u))}</span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <PushToggle compact />
+          <span className="logo-mark hub-logo shrink-0" role="img" aria-label="R2U Run To Ulsan" />
         </div>
       </header>
 
-      <section className="grid gap-2">
-        <div className="sec-head"><h2 className="label">📢 공지</h2><Link href="/notices">공지 전체 보기 →</Link></div>
-        {notice ? <div className="panel panel-alert p-4 grid gap-1.5">
-          <h2 className="font-bold">{notice.title}</h2>
-          {notice.body && <p className="text-sm whitespace-pre-wrap">{notice.body}</p>}
-          {notice.image && (
-            // Uploaded notices have different aspect ratios; keep the original ratio.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/api/notices/${notice.id}/image`} alt={`${notice.title} 공지 이미지`} className="w-full h-auto rounded-lg" />
-          )}
-          <p className="text-xs text-muted">{new Date(notice.at + 9 * 3600e3).toISOString().slice(5, 10).replace("-", "/")} · {knownMemberLabel(notice.by, names)}</p>
-        </div> : <p className="text-sm text-muted">새 공지가 없어요. 지난 안내는 공지 전체 보기에서 확인할 수 있어요.</p>}
+      <section className={`panel ${notice ? "panel-alert p-4" : "px-4 py-2.5"}`}>
+        {/* 새 공지가 있으면 펼친 채로, 없으면 접어서 보여 준다 */}
+        <details open={!!notice} className="notice-fold">
+          <summary className="sec-head"><h2 className="label">📢 공지</h2><Link href="/notices">공지 전체 보기 →</Link></summary>
+          <div className="grid gap-1.5 pt-2.5">
+            {notice ? <>
+              <h2 className="font-bold">{notice.title}</h2>
+              {notice.body && <p className="text-sm whitespace-pre-wrap">{notice.body}</p>}
+              {notice.image && (
+                // Uploaded notices have different aspect ratios; keep the original ratio.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`/api/notices/${notice.id}/image`} alt={`${notice.title} 공지 이미지`} className="w-full h-auto rounded-lg" />
+              )}
+              <p className="text-xs text-muted">{new Date(notice.at + 9 * 3600e3).toISOString().slice(5, 10).replace("-", "/")} · {knownMemberLabel(notice.by, names)}</p>
+            </> : null}
+          </div>
+        </details>
       </section>
 
       {!isStaffAccount(u) && <section className="grid gap-2">
-        <h2 className="label">내 다음 일정</h2>
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2">
           <Link href={myNextRace ? `/races#${myNextRace.id}` : "/races"} className="panel p-3 grid gap-1 hover:border-[var(--lane)]">
             <span className="text-xs text-muted">내 다음 대회</span>
             <b className="leading-snug">{myNextRace?.name ?? "참가할 대회 찾기"}</b>
@@ -70,19 +82,13 @@ export default async function Home() {
             <b className="leading-snug">{closingRace?.name ?? "접수 일정 보기"}</b>
             <span className="text-xs text-muted">{closingRace?.regEnd ? `${closingRace.regEnd.slice(5).replace("-", "/").replace("T", " ")} 마감` : "예정된 접수 마감 없음"} →</span>
           </Link>
-          <Link href={`/monthly?day=${Number(today.slice(8))}`} className="panel p-3 grid gap-1 hover:border-[var(--lane)]">
-            <span className="text-xs text-muted">오늘의 러닝</span>
-            <b className="leading-snug">{todayKm ? `${todayKm}km 기록됨` : "달린 거리 기록하기"}</b>
-            <span className="text-xs text-muted">{todayKm ? "오늘 기록 확인·수정" : "오늘 기록 입력"} →</span>
-          </Link>
         </div>
       </section>}
-      <PushToggle />
 
       {!isStaffAccount(u) && (
       <section className="panel p-4 grid gap-2.5">
         <div className="sec-head">
-          <h2 className="label">{Number(ym.slice(5))}월 내 기록</h2>
+          <h2 className="label">{Number(ym.slice(5))}월 기록 및 목표</h2>
           <Link href="/monthly">기록하기 →</Link>
         </div>
         {mine?.goal ? (
@@ -124,6 +130,23 @@ export default async function Home() {
         </div>
       </section>
 
+      {news.length > 0 && (
+        <section className="grid gap-2">
+          <div className="sec-head">
+            <h2 className="label">오늘의 러닝 뉴스</h2>
+            <Link href="/news">더보기 →</Link>
+          </div>
+          <div className="row-list">
+            {news.map((n) => (
+              <a key={n.id} href={n.url} target="_blank" rel="noopener noreferrer" className="grid gap-0.5 py-3 px-1 hover:bg-[var(--card)]">
+                <span className="font-bold leading-snug">{n.title}</span>
+                <span className="text-xs text-muted">{n.press} · {timeAgo(n.at)}</span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="grid gap-2">
         <div className="sec-head">
           <h2 className="label">다가오는 대회</h2>
@@ -151,7 +174,7 @@ export default async function Home() {
       {links.length > 0 && (
         <section className="grid gap-2">
           <h2 className="label">바로가기</h2>
-          <div className="row-list">
+          <div className="grid grid-cols-2 gap-2">
             {links.map((l) => <Row key={l.id} title={l.title} desc={l.desc} tag={l.tag} url={l.url} />)}
           </div>
         </section>
@@ -161,15 +184,14 @@ export default async function Home() {
 }
 
 function Row({ title, desc, tag, url }: { title: string; desc: string; tag: string; url: string }) {
-  const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="row-link">
+    <a href={url} target="_blank" rel="noopener noreferrer" className="panel p-3 flex items-center justify-between gap-2 hover:border-[var(--lane)]">
       <span className="min-w-0 grid gap-0.5">
-        <span className="flex items-center gap-2 text-xs text-muted"><span className="tag">{tag}</span>{host}</span>
-        <span className="font-bold text-[17px] leading-snug">{title}</span>
-        {desc && <span className="text-sm text-muted">{desc}</span>}
+        <span className="text-xs text-muted truncate">{tag}</span>
+        <span className="font-bold leading-snug truncate">{title}</span>
+        {desc && <span className="text-xs text-muted truncate">{desc}</span>}
       </span>
-      <span className="go" aria-hidden>↗</span>
+      <span className="text-muted shrink-0" aria-hidden>↗</span>
     </a>
   );
 }

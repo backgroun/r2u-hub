@@ -19,6 +19,19 @@ export function GearIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+/** 운전자 표시: 흰 동그라미 안의 까만 핸들 (어두운 화면에서도 또렷하게) */
+export function WheelIcon({ size = 20 }: { size?: number }) {
+  return (
+    <span className="wheel-badge" style={{ width: size, height: size }} role="img" aria-label="운전자">
+      <svg viewBox="0 0 24 24" width={size - 4} height={size - 4} fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="2.2" fill="currentColor" />
+        <path d="M3.5 10.5 10 12M20.5 10.5 14 12M12 14.2v6.8" />
+      </svg>
+    </span>
+  );
+}
+
 /** 닉네임 (운영진이면 앞에 왕관) */
 export function Nick({ n, admins, managers, names, badgeAfter = false }: { n: string; admins: Set<string>; managers?: Set<string>; names?: Record<string, string>; badgeAfter?: boolean }) {
   const badge = managers?.has(n) ? <GearIcon /> : admins.has(n) ? <CrownIcon /> : null;

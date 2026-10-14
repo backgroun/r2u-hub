@@ -8,7 +8,7 @@ const b64 = (s: string) => {
 };
 
 /** 크루 알림 받기 켜기/끄기. iPhone은 홈 화면에 추가한 앱에서만 켤 수 있다. */
-export default function PushToggle() {
+export default function PushToggle({ compact = false }: { compact?: boolean }) {
   const [state, setState] = useState<"loading" | "unsupported" | "off" | "on" | "denied">("loading");
   const [msg, setMsg] = useState("");
 
@@ -43,8 +43,15 @@ export default function PushToggle() {
   }
 
   if (state === "loading") return null;
+  // compact: 상단 로고 옆에 작은 버튼만 둔다 (안내 문구가 필요한 상태는 숨김)
+  if (compact && (state === "unsupported" || state === "denied")) return null;
   if (state === "unsupported") return <p className="text-xs text-muted">알림은 홈 화면에 추가한 앱에서 받을 수 있어요. (iPhone: 공유 → 홈 화면에 추가)</p>;
   if (state === "denied") return <p className="text-xs text-muted">알림이 차단돼 있어요. 기기 설정에서 R2U 알림을 허용해 주세요.</p>;
+  if (compact) {
+    return state === "on"
+      ? <button type="button" className="btn text-xs !py-1 !px-2.5" title="알림 끄기" onClick={turnOff}>🔔 켜짐</button>
+      : <button type="button" className="btn btn-primary text-xs !py-1 !px-2.5" onClick={turnOn}>🔔 알림받기</button>;
+  }
   return (
     <div className="flex flex-wrap items-center gap-2">
       {state === "on"

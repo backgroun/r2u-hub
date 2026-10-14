@@ -79,7 +79,7 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     <main className="wrap grid gap-5">
       <Link href={`/groupbuy/r/${id}`} className="text-sm text-muted">← 주문 화면</Link>
       <form onSubmit={login} className="panel p-5 grid gap-4">
-        <h1 className="font-display text-2xl">공구 관리</h1>
+        <h1 className="hub-h1">공구 관리</h1>
         <p className="text-sm text-muted">공구를 열 때 정한 관리 비밀번호를 입력해 주세요.</p>
         <input id="m-password" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" className="input pw-mask" placeholder="관리 비밀번호" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
         {loginErr && <p className="chip chip-failed justify-self-start text-sm">{loginErr}</p>}
@@ -168,7 +168,7 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   if (editing) return (
     <main className="wrap grid gap-5">
       <button className="text-sm text-muted justify-self-start" onClick={() => setEditing(false)}>← 관리로 돌아가기</button>
-      <h1 className="font-display text-2xl">공구 내용 수정</h1>
+      <h1 className="hub-h1">공구 내용 수정</h1>
       <RoundForm initial={round} submitLabel="수정 저장" onSubmit={async (draft) => {
         const d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, round: draft } });
         setRound(d.round); setEditing(false); showToast("저장했어요");

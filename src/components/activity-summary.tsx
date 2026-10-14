@@ -19,6 +19,5 @@ export default function ActivitySummary({ stats }: { stats: ActivityStats }) {
         <b className="num">{stats[item.key]}<small>건</small></b>
       </div>)}
     </div>
-    <p className="text-xs text-muted">현재 등록된 대회 참가·응원·참석 표시를 합산했어요. 예정된 일정도 포함되며 실제 현장 참석 확인 수치는 아니에요.</p>
   </section>;
 }

@@ -1,0 +1,12 @@
+name: collect-news
+on:
+  schedule:
+    - cron: '0 */2 * * *' # UTC 기준 2시간마다
+  workflow_dispatch: {}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -fsS -X POST "${{ secrets.APP_URL }}/api/cron/collect-news" \
+               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

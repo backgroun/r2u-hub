@@ -10,8 +10,8 @@ const PHOTO_REQUIRED = true;  // 인증 사진 필수 (false 로 바꾸면 사�
 // ===== Supabase 연동 (둘 중 하나라도 비어 있으면 테스트 모드: 더미 명단, 이 폰에만 저장) =====
 // 주소: Supabase 프로젝트 주소 / 키: Project Settings > API 의 'anon public' (또는 'publishable') 키 (공개돼도 안전한 키예요)
 // 절대로 'service_role' 키를 여기에 넣지 마세요!
-const SUPABASE_URL = 'https://ofzhbmjejnydonnixlcr.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_-FMPADitf4W5uYN7eLy3_w_EOR9caky';
+const SUPABASE_URL = '/api/bingo-srv'; // 허브가 직접 처리해요 (별도 서버 없음)
+const SUPABASE_ANON_KEY = 'hub'; // 사용하지 않는 자리표시 값 (비어 있으면 테스트 모드가 켜져요)
 
 // 테스트 모드용 더미 참가자 (pw가 빈 칸이면 '처음 입장 = 비밀번호 직접 설정' 체험용)
 const DUMMY_ROSTER = [

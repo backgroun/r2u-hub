@@ -63,7 +63,7 @@ export type AfterFull = AfterParty & { yes: string[]; no: string[] };
 export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; afters: AfterFull[] };
 export type MonthRec = { goal: number; days: Record<string, number>; goalEdits?: number }; // goalEdits: 크루원이 목표를 바꾼 횟수 (월 2번까지)
 export const GOAL_EDIT_LIMIT = 2;
-export type User = { nick: string; admin: boolean };
+export type User = { nick: string; admin: boolean; realAdmin?: boolean }; // admin: 지금 보는 모드 기준 · realAdmin: 실제 운영진인가(크루 보기 중에도 true)
 /** 운영진 모드(관리용 ‘운영진’ 계정): 개인 기록·참가 입력을 하지 않는다 */
 export const isStaffNick = (nick: string | null | undefined) => nick === "운영진" || nick === "관리자";
 export const isStaffAccount = (u: { nick: string } | null) => isStaffNick(u?.nick);
@@ -259,8 +259,8 @@ export async function endSession() {
   (await cookies()).delete(PREVIEW_COOKIE);
 }
 
-/** 로그인한 크루원. 역할은 매번 DB에서 다시 읽어서, 운영진 해제·삭제가 즉시 반영된다. */
-export async function currentUser(): Promise<User | null> {
+/** 로그인한 크루원의 실제 역할. 역할은 매번 DB에서 다시 읽어서, 운영진 해제·삭제가 즉시 반영된다. */
+async function sessionUser(): Promise<User | null> {
   const raw = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!raw) return null;
   const [n, t, sig] = raw.split(".");
@@ -269,6 +269,22 @@ export async function currentUser(): Promise<User | null> {
   if (!m || !m.pw) return null;
   await markSeen(m.nick);
   return { nick: m.nick, admin: m.role === "admin" };
+}
+
+/** 실제 운영진인지 확인할 때(보기 모드 전환 등). 크루 보기 중에도 운영진으로 나온다. */
+export const currentRealUser = sessionUser;
+
+export const VIEW_COOKIE = "r2u_view"; // "crew" 이면 운영진이 일반 크루원 화면으로 보는 중
+
+/** 로그인한 크루원. 운영진이 ‘크루 보기’를 켜 두면 admin 이 false 로 나와서 화면·권한 모두 일반 크루원과 같아진다. */
+export async function currentUser(): Promise<User | null> {
+  const u = await sessionUser();
+  if (!u) return null;
+  if (u.admin) {
+    const crew = (await cookies()).get(VIEW_COOKIE)?.value === "crew";
+    return { ...u, admin: !crew, realAdmin: true };
+  }
+  return u;
 }
 
 export async function loginBlocked(nick: string) {

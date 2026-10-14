@@ -38,7 +38,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="wrap grid gap-7" style={{ maxWidth: 420 }}>
       <header className="grid justify-items-center gap-3 pt-8 text-center">
         <span className="logo-mark xl" role="img" aria-label="R2U Run To Ulsan" />
-        <h1 className="hub-h1">R2U 크루 입장</h1>
+        <h1 className="hub-h1 hub-h1-lg">R2U 크루 입장</h1>
         <blockquote className="login-quote keep-motion">
           <p>“{quote.q}”</p>
           {quote.by && <cite>— {quote.by}</cite>}

@@ -10,7 +10,7 @@ export default function NewRoundForm({ me }: { me: string }) {
   return (
     <main className="wrap grid gap-5">
       <Link href="/groupbuy" className="text-sm text-muted">← 처음으로</Link>
-      <h1 className="font-display text-2xl">새 공구 열기</h1>
+      <h1 className="hub-h1">새 공구 열기</h1>
       <RoundForm
         initial={{ ...EMPTY_DRAFT, opener: me }}
         submitLabel="공구 열기"

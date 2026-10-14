@@ -74,7 +74,7 @@ export default function GroupbuyStaff({ embedded = false }: { embedded?: boolean
     <main className="wrap grid gap-5">
       <Link href="/groupbuy" className="text-sm text-muted">← R2U 크루 공구</Link>
       <form onSubmit={login} className="panel p-5 grid gap-4">
-        <h1 className="font-display text-2xl">운영진 모드</h1>
+        <h1 className="hub-h1">운영진 모드</h1>
         <p className="text-sm text-muted">크루 운영진 비밀번호를 입력하면 모든 공구를 한곳에서 관리할 수 있어요.</p>
         <input id="s-password" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" className="input pw-mask" placeholder="운영진 비밀번호" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
         {err && <p className="chip chip-failed justify-self-start text-sm">{err}</p>}
@@ -96,7 +96,7 @@ export default function GroupbuyStaff({ embedded = false }: { embedded?: boolean
           <button className="text-sm text-muted underline underline-offset-2" onClick={() => { store.del(TOKEN); setToken(null); setRows(null); }}>운영진 모드 나가기</button>
         </div>
         <header className="grid gap-1">
-          <h1 className="font-display text-2xl">운영진 모드</h1>
+          <h1 className="hub-h1">운영진 모드</h1>
         </header>
       </>}
 

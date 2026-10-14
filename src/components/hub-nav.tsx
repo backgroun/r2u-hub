@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Fragment } from "react";
+import { ViewModeStack } from "@/components/view-mode";
 import { currentUser, getMenu, isStaffAccount } from "@/lib/hub";
 import { eventOpen } from "@/lib/event";
 import { pendingJoinCount } from "@/lib/join";
@@ -44,6 +46,16 @@ export default async function HubNav() {
   };
   // 위쪽 메뉴 한 줄만 둔다 (로고·로그인 표시 줄은 없앰, 로그아웃은 내 페이지에)
   return (
-    <nav className="tabbar" aria-label="R2U 메뉴"><div className="tabbar-in">{TABS.map(tab)}</div></nav>
+    <nav className="tabbar" aria-label="R2U 메뉴">
+      <div className="tabbar-in">
+        {TABS.map((t) => (
+          <Fragment key={t.href}>
+            {tab(t)}
+            {/* 실제 운영진이면 내 이름 탭 바로 옆에 보기 모드(운영자/크루)를 세로로 둔다 */}
+            {t.href === "/me" && u.realAdmin && <ViewModeStack crew={!u.admin} />}
+          </Fragment>
+        ))}
+      </div>
+    </nav>
   );
 }

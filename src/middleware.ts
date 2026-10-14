@@ -20,7 +20,7 @@ export async function middleware(req: NextRequest) {
   if (await valid(req.cookies.get("r2u_s")?.value)) {
     // 이벤트 오픈일 전에는 빙고 화면 대신 안내 페이지로 (운영진 미리보기 쿠키가 있으면 허용)
     const p = req.nextUrl.pathname;
-    if ((p === "/bingo" || p === "/bingo/index.html") && !((await valid(req.cookies.get("r2u_ev")?.value)) && sameNick(req.cookies.get("r2u_ev")?.value, req.cookies.get("r2u_s")?.value)) && !(await eventOpen())) {
+    if ((p === "/bingo" || p === "/bingo/index.html") && req.nextUrl.searchParams.get("preview") !== "1" && !((await valid(req.cookies.get("r2u_ev")?.value)) && sameNick(req.cookies.get("r2u_ev")?.value, req.cookies.get("r2u_s")?.value)) && !(await eventOpen())) {
       const url = req.nextUrl.clone();
       url.pathname = "/event"; url.search = "";
       return NextResponse.redirect(url);
@@ -35,5 +35,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // 로그인 화면, API, 정적 파일(빙고 css/js/이미지 포함)은 제외. 빙고 화면(/bingo, /bingo/index.html)은 보호.
-  matcher: ["/((?!login|join|api|_next|favicon\\.ico|logo\\.png|apple-touch-icon\\.png|og\\.png|sw\\.js|icon-.+\\.png|manifest\\.webmanifest|bingo/.+\\.(?:js|css|png|webmanifest)).*)"],
+  matcher: ["/((?!login|join|api|_next|favicon\\.ico|logo\\.png|apple-touch-icon\\.png|og\\.png|sw\\.js|icon-.+\\.png|manifest\\.webmanifest|bingo/.+\\.(?:js|css|png|webmanifest|woff2)).*)"],
 };

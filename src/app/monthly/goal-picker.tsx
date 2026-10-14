@@ -1,11 +1,12 @@
 "use client";
 import { useActionState, useEffect, useRef, useState, startTransition } from "react";
+import Link from "next/link";
 import { setGoal } from "@/app/actions";
 
 const PRESETS = [50, 100, 150, 200];
 
 /** 이달 목표 고르기: 저장 전에 알림창으로 ‘한 달 2번까지만 수정’을 알려 주고 확인받는다 */
-export default function GoalPicker({ ym, goal, editsLeft, limit }: { ym: string; goal: number; editsLeft: number; limit: number }) {
+export default function GoalPicker({ ym, goal, editsLeft, limit, garmin }: { ym: string; goal: number; editsLeft: number; limit: number; garmin?: { href: string; open: boolean } }) {
   const [state, run, pending] = useActionState(setGoal, null);
   const [ask, setAsk] = useState<number | null>(null); // 확인을 기다리는 목표 km
   const [notice, setNotice] = useState<string | null>(null);
@@ -34,7 +35,14 @@ export default function GoalPicker({ ym, goal, editsLeft, limit }: { ym: string;
         <span className="label">
           {goal ? (locked ? "목표 수정 횟수를 다 썼어요" : `목표 수정 ${editsLeft}번 남음`) : "이달 목표를 정해 주세요"}
         </span>
-        <button type="button" className="btn btn-primary text-sm" disabled={pending || locked} onClick={() => pick(Math.round(Number(custom.current?.value)))}>직접입력 저장</button>
+        <span className="flex items-center gap-2">
+          {garmin && (
+            <Link href={garmin.href} scroll={garmin.open ? false : undefined} className={`btn text-sm ${garmin.open ? "btn-primary" : ""}`} aria-pressed={garmin.open}>
+              {garmin.open ? "가민 분석 닫기" : "가민 분석"}
+            </Link>
+          )}
+          <button type="button" className="btn btn-primary text-sm" disabled={pending || locked} onClick={() => pick(Math.round(Number(custom.current?.value)))}>직접입력 저장</button>
+        </span>
       </div>
       <div className="course-row">
         {PRESETS.map((g) => (

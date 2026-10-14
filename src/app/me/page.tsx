@@ -3,6 +3,7 @@ import { CrownIcon, GearIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { driverOf, currentUser, getMember, isStaffAccount, fmtRaceDate, getMonth, getRaceRecs, getRaces, kstToday, memberLabel, type RaceFull } from "@/lib/hub";
 import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
+import { greeting } from "@/lib/greeting";
 import { getOrders, listRounds } from "@/lib/db";
 import { nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/types";
 import { cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
@@ -74,21 +75,26 @@ export default async function MyPage() {
   return (
     <main className="hub-wrap">
       <header className="grid gap-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="hub-h1">{member?.manager ? <GearIcon size={22} /> : u.admin ? <CrownIcon size={22} /> : null}{memberLabel(member ?? u)}</h1>
-        </div>
+        <h1 className="hub-h1 hub-greeting flex items-center gap-2.5">
+          {member?.manager ? <GearIcon size={20} /> : u.admin ? <CrownIcon size={20} /> : null}
+          <span className="min-w-0 truncate">{greeting(memberLabel(member ?? u))}</span>
+        </h1>
         <p className="text-sm text-muted">내 대회, 월간 기록, 공구 내역을 모아 봤어요.</p>
       </header>
 
       <div className="profile-edit-grid">
       <details id="nickname-change" className="panel p-4">
-        <summary className="font-bold">닉네임 바꾸기</summary>
+        <summary className="font-bold">닉네임 변경</summary>
         <div className="grid gap-3 mt-3">
-          <p className="text-sm text-muted">현재 닉넴/이름: <b>{memberLabel(member ?? u)}</b> · 새 닉네임은 운영진 승인 후 적용돼요. 승인되면 새 닉네임으로 다시 로그인해 주세요.</p>
           {nickRequest?.status === "pending" && <p className="text-sm">승인 대기: <b>{nickRequest.newNick}</b></p>}
-          {nickRequest?.status === "rejected" && <p className="text-sm text-[var(--bad)]">이전 신청({nickRequest.newNick})이 거절됐어요.{nickRequest.reason ? ` 운영진 메시지: ${nickRequest.reason}` : ""} 다른 닉네임으로 다시 신청할 수 있어요.</p>}
+          {nickRequest?.status === "rejected" && (
+            <ActionForm action={cancelNickChange} className="flex items-center justify-between gap-2 text-sm text-[var(--bad)]">
+              <span className="min-w-0">‘{nickRequest.newNick}’ 신청 거절{nickRequest.reason ? ` · ${nickRequest.reason}` : ""}</span>
+              <Submit className="btn btn-ghost px-2">✓</Submit>
+            </ActionForm>
+          )}
           <ActionForm action={requestNickChange} className="grid gap-3">
-            <label className="field"><span className="label">새 닉네임 (2~20자)</span><input name="newNick" className="input" required minLength={2} maxLength={20} defaultValue={nickRequest?.status === "pending" ? nickRequest.newNick : ""} /></label>
+            <label className="field"><span className="label">새 닉네임 (2~5자)</span><input name="newNick" className="input" required minLength={2} maxLength={5} defaultValue={nickRequest?.status === "pending" ? nickRequest.newNick : u.nick} /></label>
             <div><Submit>{nickRequest?.status === "pending" ? "신청 내용 바꾸기" : "변경 신청"}</Submit></div>
           </ActionForm>
           {nickRequest?.status === "pending" && <ActionForm action={cancelNickChange} className="grid gap-2"><div><Submit className="btn btn-ghost btn-danger">신청 취소</Submit></div></ActionForm>}
@@ -96,11 +102,10 @@ export default async function MyPage() {
       </details>
 
       <details id="name-change" className="panel p-4">
-        <summary className="font-bold">이름 바꾸기</summary>
+        <summary className="font-bold">이름 변경</summary>
         <div className="grid gap-3 mt-3">
-          <p className="text-sm text-muted">현재 이름: <b>{member?.name?.trim() || "없음"}</b> · 이름은 저장하면 바로 적용돼요. 비워 두면 ‘없음’으로 표시해요.</p>
           <ActionForm action={editMyName} className="grid gap-3" keep>
-            <label className="field"><span className="label">새 이름 (30자 이하)</span><input name="name" className="input" maxLength={30} defaultValue={member?.name === "없음" ? "" : member?.name || ""} /></label>
+            <label className="field"><span className="label">새 이름 (1~4자)</span><input name="name" className="input" required maxLength={4} defaultValue={member?.name === "없음" ? "" : member?.name || ""} /></label>
             <div><Submit>이름 저장</Submit></div>
           </ActionForm>
         </div>
@@ -130,7 +135,7 @@ export default async function MyPage() {
 
       {/* 월간 기록 */}
       <section className="grid gap-2">
-        <div className="sec-head"><h2 className="label">월간 기록</h2><Link href="/monthly">기록하기 →</Link></div>
+        <div className="sec-head"><h2 className="label">월간 기록</h2><span className="flex gap-3"><Link href="/me/runs">가민 기록 올리기 →</Link><Link href="/monthly">기록하기 →</Link></span></div>
         <ol className="board">
           {monthly.map((m) => (
             <li key={m.ym} style={{ gridTemplateColumns: "56px 1fr 92px" }}>
@@ -178,11 +183,11 @@ export default async function MyPage() {
         </div>
       </section>
 
-      {/* 공구 */}
+      {/* 공구 내역: 주문한 공구가 있을 때만 보인다 */}
+      {myOrders.length > 0 && (
       <section className="grid gap-2">
         <div className="sec-head"><h2 className="label">공구 내역</h2><Link href="/groupbuy">공구 보기 →</Link></div>
         <div className="row-list">
-          {myOrders.length === 0 && <p className="py-4 text-sm text-muted">주문한 공구가 없어요.</p>}
           {myOrders.map(({ round, summary, o }) => {
             const open = roundStatus(round, summary.totalQty) === "open";
             return (
@@ -204,6 +209,7 @@ export default async function MyPage() {
           })}
         </div>
       </section>
+      )}
 
       {opened.length > 0 && (
         <section className="grid gap-2">

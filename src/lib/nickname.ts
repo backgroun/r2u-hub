@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "crypto";
 import { K, getMember, getMembers, isStaffNick, redis, type AfterParty, type Member, type Race } from "./hub";
-import { bingoRpc } from "./event";
+import { renameBingoRecords } from "./bingo-store";
 import { makeTitle, type StoredOrder, type StoredRound } from "./types";
 
 const REQUESTS = "r2u:nickChangeRequests";
@@ -20,7 +20,7 @@ export type NickChangeRequest = {
   reason?: string;
 };
 
-export const validNick = (nick: string) => nick.length >= 2 && nick.length <= 20 && !/[\s,/\\]/u.test(nick) && !isStaffNick(nick);
+export const validNick = (nick: string) => nick.length >= 2 && [...nick].length <= 5 && !/[\s,/\\]/u.test(nick) && !isStaffNick(nick);
 
 export async function getNickChangeRequest(nick: string): Promise<NickChangeRequest | null> {
   const raw = await redis.hget(REQUESTS, nick);
@@ -199,18 +199,9 @@ export async function approveNickChange(oldNick: string, newNick: string): Promi
     tx.hdel(REQUESTS, oldNick);
     await tx.exec();
 
-    // 빙고 서버에는 별도 명단이 있으므로, 이벤트 참가자인 경우 이름도 맞춘다.
+    // 빙고 기록(칸 인증·사진)도 허브 안에 있으므로 새 닉네임으로 옮긴다. (명단은 위에서 이미 바뀌었다)
     let eventWarning = false;
-    if (eventNicks.includes(oldNick)) {
-      const secret = await redis.get<string>("r2u:bingoSecret");
-      if (secret) {
-        const snapshot = await bingoRpc<{ names?: string[] }>("get_snapshot");
-        if (snapshot?.names?.some((name) => name.toLowerCase() === oldNick.toLowerCase())) {
-          const result = await bingoRpc<{ ok?: boolean }>("admin_member", { p_secret: secret, p_action: "rename", p_name: oldNick, p_new_name: newNick });
-          eventWarning = !result?.ok;
-        }
-      }
-    }
+    try { await renameBingoRecords(oldNick, newNick); } catch { eventWarning = true; }
     return { eventWarning };
   } finally {
     if (await redis.get(LOCK) === token) await redis.del(LOCK);

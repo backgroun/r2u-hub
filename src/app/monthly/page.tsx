@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser, getAdminNicks, getMembers, isStaffAccount, isStaffNick, getMonth, kstToday, WEEK, GOAL_EDIT_LIMIT } from "@/lib/hub";
 import GoalPicker from "./goal-picker";
+import RunAnalysis from "@/app/me/runs/run-analysis";
+import { getRuns } from "@/lib/runs";
 import { rankMonth, shiftYm, ymOf, type RankRow } from "@/lib/rank";
 import { setDay } from "@/app/actions";
 import { ActionForm, Submit } from "@/components/action-form";
@@ -14,14 +16,17 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 /** 달력 칸 진하기: 0 / ~5 / ~10 / ~15 / 15km+ */
 const heat = (km: number) => (km <= 0 ? 0 : km < 5 ? 1 : km < 10 ? 2 : km < 15 ? 3 : 4);
 
-export default async function MonthlyPage({ searchParams }: { searchParams: Promise<{ m?: string; sort?: string; who?: string; day?: string }> }) {
+export default async function MonthlyPage({ searchParams }: { searchParams: Promise<{ m?: string; sort?: string; who?: string; day?: string; view?: string }> }) {
   const u = await currentUser();
   if (!u) redirect("/login");
   const sp = await searchParams;
   const today = kstToday();
   const ym = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? sp.m! : ymOf(today);
   const sort = sp.sort === "km" ? "km" : "rate";
-  const [month, admins, members] = await Promise.all([getMonth(ym), getAdminNicks(), getMembers()]);
+  const [month, admins, members, myRuns] = await Promise.all([getMonth(ym), getAdminNicks(), getMembers(), isStaffAccount(u) ? Promise.resolve([]) : getRuns(u.nick)]);
+  // 이 달에 가민으로 올린 러닝 (의심 기록 제외): 있으면 ‘가민 분석’ 버튼을 보여 준다
+  const garminRuns = myRuns.filter((r) => !r.flagged && r.date.startsWith(ym));
+  const showGarmin = sp.view === "garmin" && garminRuns.length > 0;
   const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const who = u.nick;
@@ -62,27 +67,15 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
   const mine = who === u.nick;
 
   return (
-    <main className="hub-wrap" style={{ gap: 22 }}>
+    <main className="hub-wrap" style={{ gap: 22, paddingBlockStart: 16 }}>
       {/* 월 이동 */}
-      <header className="flex items-center justify-between gap-3">
-        <Link href={q({ m: shiftYm(ym, -1) })} className="btn btn-ghost px-3" aria-label="이전 달">←</Link>
+      <header className="flex items-center justify-between gap-3 -mb-2">
+        <Link href={q({ m: shiftYm(ym, -1) })} className="btn btn-ghost px-3 py-1" style={{ minHeight: 32 }} aria-label="이전 달">←</Link>
         <div className="text-center">
-          <h1 className="hub-h1">{y}년 {m}월</h1>
+          <h1 className="hub-h1 leading-none" style={{ fontSize: "clamp(16px, 4.6vw, 19px)" }}>{y}년 {m}월</h1>
         </div>
-        <Link href={q({ m: shiftYm(ym, 1) })} className="btn btn-ghost px-3" aria-label="다음 달">→</Link>
+        <Link href={q({ m: shiftYm(ym, 1) })} className="btn btn-ghost px-3 py-1" style={{ minHeight: 32 }} aria-label="다음 달">→</Link>
       </header>
-
-      {/* 크루 전체 목표·달성율, 한 명과 대결 */}
-      <Link href={`/crew?m=${ym}`} className="vs-banner keep-motion" aria-label="크루 현황 보기, 한 명과 대결하기">
-        <span className="vs-bgL" aria-hidden /><span className="vs-bgR" aria-hidden />
-        <span className="vs-grit" aria-hidden />
-        <span className="vs-bolt" aria-hidden />
-        <span className="vs-burst" aria-hidden />
-        <span className="vs-side vs-l" data-text="크루 현황"><b>크루 현황</b></span>
-        <span className="vs-badge" aria-hidden><i>VS</i></span>
-        <span className="vs-side vs-r" data-text="한판 붙자"><b>한판 붙자</b></span>
-        <span className="vs-flash" aria-hidden />
-      </Link>
 
       {/* 크루 요약 */}
       <section className="stat-strip">
@@ -122,15 +115,14 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
           </p>
         )}
 
-        <GoalPicker ym={ym} goal={me.goal} editsLeft={GOAL_EDIT_LIMIT - (month[who]?.goalEdits ?? 0)} limit={GOAL_EDIT_LIMIT} />
+        <GoalPicker ym={ym} goal={me.goal} editsLeft={GOAL_EDIT_LIMIT - (month[who]?.goalEdits ?? 0)} limit={GOAL_EDIT_LIMIT}
+          garmin={garminRuns.length ? { href: showGarmin ? q({}) : `${q({ view: "garmin" })}#garmin-analysis`, open: showGarmin } : undefined} />
       </section>
 
       {/* 달력 */}
-      <section className="grid gap-2">
-        <div className="sec-head">
-          <h2 className="label">{mine ? "내 달력" : `${who} 님 달력`}</h2>
-          <span className="text-xs text-muted">날짜를 누르고 그날 달린 거리를 입력하세요</span>
-        </div>
+      <section className="grid gap-2 mt-2">
+        {/* 내 달력이면 제목 없이, 다른 크루원의 달력을 볼 때만 이름을 보여 준다 */}
+        {!mine && <div className="sec-head"><h2 className="label">{who} 님 달력</h2></div>}
         <div className="cal cal-head" aria-hidden>{WEEK.map((w) => <span key={w}>{w}</span>)}</div>
         <div className="cal">
           {Array.from({ length: firstDow }, (_, i) => <span key={`b${i}`} />)}
@@ -149,24 +141,39 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
             );
           })}
         </div>
-        {editDay ? (
+        {showGarmin ? (
+          <RunAnalysis runs={garminRuns} hasRuns variant="month" range={{ key: "month", from: `${ym}-01`, to: `${ym}-${String(last).padStart(2, "0")}`, label: `${y}년 ${m}월` }} />
+        ) : editDay ? (
           <ActionForm key={editDay} action={setDay} className="day-edit" keep>
             <input type="hidden" name="ym" value={ym} />
             <input type="hidden" name="nick" value={who} />
             <input type="hidden" name="day" value={editDay} />
-            <span className="day-edit-date">{m}/{editDay}({WEEK[new Date(y, m - 1, editDay).getDay()]}) 입력</span>
+            <span className="day-edit-date">{m}/{editDay}({WEEK[new Date(y, m - 1, editDay).getDay()]}) {mine ? "내 기록은?" : "기록 입력"}</span>
             <input name="km" type="number" inputMode="decimal" step="0.01" min={0} max={300} className="input day-edit-km"
               defaultValue={me.days[editDay] ?? ""} placeholder="km (0이면 삭제)" required aria-label={`${m}월 ${editDay}일 달린 거리 km`} />
-            <Submit>{me.days[editDay] ? "수정" : "저장"}</Submit>
+            <Submit>{me.days[editDay] ? "수정" : "입력"}</Submit>
           </ActionForm>
-        ) : (
-          <p className="text-sm text-muted">{maxDay === 0 ? "아직 오지 않은 달이라 기록할 수 없어요." : "기록할 날짜를 달력에서 눌러 주세요."}</p>
-        )}
+        ) : maxDay === 0 ? (
+          <p className="text-sm text-muted">아직 오지 않은 달이라 기록할 수 없어요.</p>
+        ) : null}
+        {mine && <Link href="/me/runs" className="text-sm text-muted underline justify-self-end">가민 CSV로 한 번에 올리기 →</Link>}
       </section>
 
       </>)}
 
       {/* 순위 */}
+      {/* 크루 전체 목표·달성율, 한 명과 대결 */}
+      <Link href={`/crew?m=${ym}`} className="vs-banner keep-motion" aria-label="크루 현황 보기, 한 명과 대결하기">
+        <span className="vs-bgL" aria-hidden /><span className="vs-bgR" aria-hidden />
+        <span className="vs-grit" aria-hidden />
+        <span className="vs-bolt" aria-hidden />
+        <span className="vs-burst" aria-hidden />
+        <span className="vs-side vs-l" data-text="크루 현황"><b>크루 현황</b></span>
+        <span className="vs-badge" aria-hidden><i>VS</i></span>
+        <span className="vs-side vs-r" data-text="한판 붙자"><b>한판 붙자</b></span>
+        <span className="vs-flash" aria-hidden />
+      </Link>
+
       <section className="grid gap-3">
         <div className="sec-head">
           <h2 className="label">크루 순위</h2>

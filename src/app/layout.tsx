@@ -31,6 +31,8 @@ export const metadata: Metadata = {
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "R2U Run To Ulsan" }],
   },
   twitter: { card: "summary_large_image", title: "R2U 크루", description: "R2U 러닝크루 통합 페이지", images: ["/og.png"] },
+  // iOS 사파리가 숫자(기록·날짜·전화번호 꼴)를 멋대로 링크로 바꿔 hydration 오류를 내지 않게 한다
+  formatDetection: { telephone: false, date: false, address: false, email: false },
   appleWebApp: { title: "R2U 크루", capable: true, statusBarStyle: "black-translucent" },
 };
 

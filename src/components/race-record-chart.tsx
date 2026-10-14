@@ -52,7 +52,7 @@ export default function RaceRecordChart({ records }: { records: RaceRecordPoint[
   const max = Math.max(...points.map((p) => p.sec));
   const padding = Math.max(30, (max - min) * 0.15);
   const low = Math.max(0, min - padding), high = max + padding;
-  const left = 70, right = 18, top = 18, bottom = 35, width = 600, height = 245;
+  const left = 70, right = 18, top = 18, bottom = 35, width = 600, height = 170;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
   const x = (index: number) => points.length === 1 ? left + plotWidth / 2 : left + index * plotWidth / (points.length - 1);
   const y = (seconds: number) => top + (seconds - low) / (high - low) * plotHeight;

@@ -10,6 +10,12 @@ let rows = [];
 let roster = SYNC ? [] : DUMMY_ROSTER.map(r => r.name);
 let hubPeriod = null; // 허브에서 운영진이 정한 이벤트 기간 {start,end} (있으면 이쪽이 우선)
 let eventNicks = []; // 허브가 알려 주는 이벤트 참가자 명단 (비어 있으면 거르지 않음)
+const inHub = self !== top; // 허브(이벤트 탭) 안의 화면인가
+const preview = /[?&]preview=1\b/.test(location.search); // 오픈 전 미리보기: 빙고판만 둘러본다 (눌러도 인증되지 않는다)
+const previewJoined = /[?&]joined=1\b/.test(location.search); // 미리보기 중인 사람이 이미 참가 신청을 했는가
+if (preview) document.body.classList.add('preview');
+let hubLoaded = false; // 허브가 알려 주는 이벤트 참가자 명단을 받았는가
+let hubStaff = false; // 허브 운영진 모드 계정(개인 참가가 없는 계정)인가
 let hubNick = ''; // R2U 허브에 로그인한 닉네임 (입장 화면 자동 선택용)
 let fresh = new Set(); // 아직 비밀번호가 없는(처음 입장하는) 참가자
 let syncErr = null;    // 명단을 불러오지 못했을 때의 오류
@@ -92,11 +98,12 @@ function render() {
     b.setAttribute('aria-label', `${i + 1}번 ${m.t}${isDone(i) ? ', 인증완료' : ''}`);
     const no = document.createElement('span'); no.className = 'no'; no.textContent = i + 1;
     no.style.background = COLORS[i % COLORS.length];
+    b.style.setProperty('--c', COLORS[i % COLORS.length]); // 칸마다 색을 정해 아이콘 배경·테두리에 쓴다
     const ic = document.createElement('span'); ic.className = 'ic'; ic.textContent = m.e;
     const tt = document.createElement('span'); tt.className = 'tt'; tt.textContent = m.t;
     const dt = document.createElement('span'); dt.className = 'dt'; dt.textContent = isDone(i) ? fmt(state.done[i]) : '';
     b.append(no, ic, tt, dt);
-    b.addEventListener('click', () => openSheet(i));
+    b.addEventListener('click', () => (editMode ? openEdit(i) : openSheet(i)));
     grid.appendChild(b);
   });
   const n = doneCount();
@@ -107,6 +114,12 @@ function render() {
 
 // ===== 미션 시트 =====
 function openSheet(i) {
+  if (preview) {
+    // 오픈 전에는 칸을 눌러도 인증되지 않는다. 언제부터 되는지만 알려 준다
+    const d = `${Number(START.slice(5, 7))}/${Number(START.slice(8))}`;
+    alert(previewJoined ? `${d}(시작일)부터 인증할 수 있습니다.` : `참가 신청하면 ${d}(시작일)부터 인증할 수 있습니다.`);
+    return;
+  }
   if (!loggedIn()) {
     toast('먼저 참가자를 고르고 비밀번호로 입장해 주세요!');
     $('who').focus();
@@ -137,7 +150,7 @@ function closeSheet() {
   $('sheet').classList.remove('on');
   cur = -1;
 }
-$('dim').addEventListener('click', closeSheet);
+$('dim').addEventListener('click', () => { closeSheet(); closeEdit(); });
 $('sClose').addEventListener('click', closeSheet);
 
 // ===== 로그인 / Supabase 연동 =====
@@ -199,13 +212,10 @@ function applyInfo(i) {
   if (!i) return;
   if (hubPeriod) { START = hubPeriod.start; END = hubPeriod.end; }
   else if (i.start && i.end) { START = i.start; END = i.end; }
-  $('period').textContent = `${fmtLong(START)} ~ ${fmtLong(END)}`;
+  showPeriod();
+  // 아래 안내 카드는 운영진이 안내 제목을 적어 둔 경우에만 보인다 (기간은 위쪽 제목 아래에만 있다)
+  $('infoCard').hidden = !i.title;
   if (i.title) $('infoTitle').textContent = i.title;
-  if (Array.isArray(i.items)) {
-    const ul = $('infoList');
-    ul.textContent = '';
-    for (const t of i.items) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
-  }
 }
 function takeSnapshot(j) {
   rows = j.rows; roster = j.names; fresh = new Set(j.fresh || []);
@@ -250,6 +260,7 @@ function renderLoginMode() {
 }
 function renderAuth() {
   $('login').hidden = loggedIn();
+  $('hubEnter').hidden = !(inHub && !loggedIn() && !hubStaff && !preview);
   $('me').hidden = !loggedIn();
   $('meName').textContent = state.name;
   $('reportOpen').hidden = !(SYNC && loggedIn());
@@ -322,12 +333,18 @@ async function push(payload) {
 }
 function renderBoard() {
   if (!SYNC) return;
+  // 허브 안에서는 이벤트 참가 신청한 사람만 보여 준다 (명단을 받기 전에는 비워 둔다)
+  if (inHub && !hubLoaded) { $('boardSum').textContent = ''; $('rank').textContent = ''; return; }
+  const allowed = inHub ? new Set(eventNicks.map(norm)) : null;
   const by = new Map();
-  for (const n of roster) by.set(norm(n), { name: n, set: new Set() });
+  let total = 0;
+  for (const n of roster) if (!allowed || allowed.has(norm(n))) by.set(norm(n), { name: n, set: new Set() });
   for (const r of rows) {
     const k = norm(r.n);
+    if (allowed && !allowed.has(k)) continue;
     if (!by.has(k)) by.set(k, { name: r.n, set: new Set() });
     by.get(k).set.add(r.no - 1);
+    total++;
   }
   const list = [...by.values()].map(o => ({
     key: norm(o.name), name: o.name, cnt: o.set.size,
@@ -335,7 +352,7 @@ function renderBoard() {
   }));
   list.sort((a, b) => b.bingo - a.bingo || b.cnt - a.cnt || a.name.localeCompare(b.name, 'ko'));
   const active = list.filter(p => p.cnt > 0).length;
-  $('boardSum').textContent = `참가자 ${list.length}명 · 도전 중 ${active}명 · 총 ${rows.length}칸 인증`;
+  $('boardSum').textContent = `참가자 ${list.length}명 · 도전 중 ${active}명 · 총 ${total}칸 인증`;
   const ol = $('rank');
   ol.textContent = '';
   let pos = 0;
@@ -417,7 +434,7 @@ if (SYNC) {
   $('reset').hidden = true; // 서버에 저장되는 기록은 칸별로 '인증 취소'로 지워요
   $('adminOpen').hidden = false;
 }
-$('period').textContent = `${fmtLong(START)} ~ ${fmtLong(END)}`;
+showPeriod();
 function fmtLong(s) {
   const [y, m, d] = s.split('-').map(Number);
   const w = '일월화수목금토'[new Date(y, m - 1, d).getDay()];
@@ -441,8 +458,10 @@ syncAll(true);
 fetch('/api/me', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
   if (!j) return;
   if (Array.isArray(j.eventNicks)) eventNicks = j.eventNicks;
-  if (j.eventPeriod) { hubPeriod = j.eventPeriod; START = hubPeriod.start; END = hubPeriod.end; $('period').textContent = `${fmtLong(START)} ~ ${fmtLong(END)}`; }
+  hubLoaded = true; renderBoard();
+  if (j.eventPeriod) { hubPeriod = j.eventPeriod; START = hubPeriod.start; END = hubPeriod.end; showPeriod(); }
   if (j.nick) hubNick = j.nick;
+  hubStaff = !!j.staff; renderAuth();
   // 이 브라우저에 다른 사람으로 입장해 둔 기록이 남아 있으면, 허브에 로그인한 사람으로 바꾼다
   if (self !== top && j.nick && loggedIn() && norm(state.name) !== norm(j.nick)) { logout(); autoTried = false; }
   if (!loggedIn()) { fillSelect(); renderLoginMode(); autoEnter(); }
@@ -451,25 +470,70 @@ fetch('/api/me', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j
 // ===== R2U 허브 연동: 빙고 비밀번호 자동 입력 =====
 // 허브가 기억해 둔 내 빙고 비번으로 자동 입장. 처음(비번 미설정)이면 비번을 만들어 바로 입장한다.
 let autoTried = false;
-async function autoEnter() {
-  if (autoTried || loggedIn() || !SYNC || !hubNick || !roster.length) return;
-  const m = roster.find(n => norm(n) === norm(hubNick));
-  if (!m) return;
-  autoTried = true;
-  $('who').value = m; renderLoginMode();
-  let pw = null;
-  try { const j = await fetch('/api/bingo/pw', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); pw = j && j.pw; } catch (e) {}
-  if (!pw && selectedFresh()) {
-    const a = new Uint8Array(9); crypto.getRandomValues(a);
-    pw = 'r2u-' + Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 12);
-    $('pw2').value = pw;
-  }
-  if (!pw) return; // 직접 정한 비번이 있는데 허브가 아직 모르면, 한 번만 직접 입력
-  $('pw').value = pw;
-  await enter();
-  if (!loggedIn()) { $('pw').value = ''; $('pw2').value = ''; } // 맞지 않으면 직접 입력하게 비워 둔다
+function hubMsg(text, retry) {
+  if (!inHub) return;
+  $('hubEnterMsg').textContent = text;
+  $('hubRetry').hidden = !retry;
 }
-function rememberPw(name, pw) {
-  if (!hubNick || norm(name) !== norm(hubNick)) return;
-  fetch('/api/bingo/pw', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, pw }) }).catch(() => {});
+// 허브 로그인이 곧 신원이라 이름·비밀번호 없이 바로 입장한다. (이벤트에 참가 신청한 크루원·운영진만)
+async function autoEnter(retry) {
+  if (preview || !SYNC || !hubNick || hubStaff || loggedIn() || (autoTried && !retry)) return;
+  autoTried = true;
+  hubMsg('입장하는 중…', false);
+  try {
+    const j = await api({ action: 'login', name: hubNick, pw: 'hub' });
+    takeSnapshot(j);
+    state.name = j.name || hubNick; state.pw = 'hub';
+    applyRows(); save(); renderAll();
+  } catch (e) {
+    hubMsg(e.message || '입장하지 못했어요. 잠시 후 다시 시도해 주세요.', true);
+  }
+}
+function rememberPw() {} // 예전 비밀번호 기억 기능 (이제 필요 없음)
+$('hubRetry').addEventListener('click', () => autoEnter(true));
+
+// ===== 운영진 수정 모드 (허브 이벤트 탭의 ‘설정’ 버튼이 켜고 끈다) =====
+let editMode = false;
+function setEdit(on) {
+  editMode = !!on;
+  document.body.classList.toggle('editing', editMode);
+  $('editBanner').hidden = !editMode;
+  if (!editMode) closeEdit();
+}
+function openEdit(i) {
+  cur = i;
+  const m = MISSIONS[i];
+  $('eIcon').textContent = m.e; $('eNum').textContent = `MISSION ${i + 1}`;
+  $('eEmoji').value = m.e; $('eTitle').value = m.t; $('eDesc').value = m.d;
+  $('dim').classList.add('on'); $('eSheet').classList.add('on');
+}
+function closeEdit() { $('dim').classList.remove('on'); $('eSheet').classList.remove('on'); }
+$('eClose').addEventListener('click', closeEdit);
+$('eOk').addEventListener('click', async () => {
+  const no = cur + 1;
+  const t = $('eTitle').value.trim();
+  if (!t) { toast('제목을 입력해 주세요'); return; }
+  $('eOk').disabled = true;
+  try {
+    const j = await api({ action: 'adminMission', no, e: $('eEmoji').value.trim(), t, d: $('eDesc').value.trim() });
+    takeSnapshot(j); render(); closeEdit();
+    toast(`${no}번 미션을 저장했어요`);
+  } catch (e) {
+    toast(e.message || '저장하지 못했어요', 5000);
+  } finally {
+    $('eOk').disabled = false;
+  }
+});
+window.addEventListener('message', e => {
+  if (e.origin !== location.origin || !e.data || e.data.type !== 'bingo-edit') return;
+  setEdit(e.data.on);
+});
+if (inHub) parent.postMessage({ type: 'bingo-ready' }, location.origin); // 허브가 현재 수정 모드 상태를 다시 알려 주게
+
+// 이벤트 기간: 위쪽 제목 아래에 담백하게(2026.11.01 ~ 2026.11.30) 한 번만 보여 준다
+function showPeriod() {
+  // 이벤트 기간 : 2026.11.01 - 30  (같은 달이면 끝 날짜는 일만, 달이 다르면 월.일, 해가 다르면 연.월.일)
+  const a = START.split('-'), z = END.split('-');
+  const end = a[0] === z[0] && a[1] === z[1] ? z[2] : a[0] === z[0] ? `${z[1]}.${z[2]}` : `${z[0]}.${z[1]}.${z[2]}`;
+  $('heroPeriod').textContent = `이벤트 기간 : ${a[0]}.${a[1]}.${a[2]} - ${end}`;
 }

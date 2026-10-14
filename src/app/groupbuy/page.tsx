@@ -17,7 +17,7 @@ export default async function Home() {
   return (
     <main className="wrap grid gap-6">
       <header className="grid gap-2 pt-4">
-        <h1 className="font-display text-2xl leading-tight">R2U 크루 공구</h1>
+        <h1 className="hub-h1">R2U 크루 공구</h1>
       </header>
 
       <Link href="/groupbuy/new" className="btn btn-primary text-base py-3.5">+ 새 공구 열기</Link>

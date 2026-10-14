@@ -16,7 +16,7 @@ export default async function JoinStatus({ params, searchParams }: { params: Pro
   return (
     <main className="wrap grid gap-5" style={{ maxWidth: 420 }}>
       <header className="grid gap-2 pt-6 text-center">
-        <h1 className="hub-h1">닉네임 승인</h1>
+        <h1 className="hub-h1 hub-h1-lg">닉네임 승인</h1>
         <p className="text-sm text-muted">신규 크루원 닉네임 생성 요청</p>
       </header>
       <section className="panel p-5 grid gap-4 text-center">

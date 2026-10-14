@@ -1,9 +1,18 @@
 "use client";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { login } from "@/app/actions";
-import { CrownIcon, GearIcon } from "@/components/crown";
 import PasswordInput from "@/components/password-input";
 
+/** 즐겨찾기(비밀번호 설정함) 표시: 선만 있는 빈 별 */
+function StarIcon({ onPick, filled }: { onPick?: () => void; filled?: boolean }) {
+  return (
+    <svg className="nick-star" onClick={onPick ? (e) => { e.stopPropagation(); onPick(); } : undefined} viewBox="0 0 24 24" width={16} height={16} fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" role="img" aria-label="비밀번호 설정함">
+      <path d="M12 2.8l2.84 5.76 6.36.92-4.6 4.48 1.08 6.34L12 17.3l-5.68 2.99 1.08-6.34-4.6-4.48 6.36-.92z" />
+    </svg>
+  );
+}
+
+const ONLY_NICK = "r2u:onlyNick"; // 별을 눌러 ‘내 닉네임만 보기’로 해 둔 닉네임
 const LAST_NICK = "r2u:lastNick"; // 이 기기에서 마지막으로 입장한 닉네임
 const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
 /** 한글 초성만 뽑기: 정이 → ㅈㅇ */
@@ -25,10 +34,13 @@ export default function LoginForm({ members, next, children }: { members: { nick
   const [staffNick, setStaffNick] = useState<"운영진" | null>(null);
   const m = members.find((x) => x.nick === nick);
   const first = !staffNick && m && !m.hasPw;
-  const list = useMemo(() => members.filter((x) => matches(x.nick, x.name, q)), [members, q]);
+  const [only, setOnly] = useState<string | null>(null); // 내 별을 눌러 내 닉네임만 보는 중
+  const list = useMemo(() => only ? members.filter((x) => x.nick === only) : members.filter((x) => matches(x.nick, x.name, q)), [members, q, only]);
+  const pickOnly = (v: string | null) => { setOnly(v); try { if (v) localStorage.setItem(ONLY_NICK, v); else localStorage.removeItem(ONLY_NICK); } catch { /* 저장소 막힘 */ } };
 
   // 이 기기에서 마지막으로 쓴 닉네임을 미리 골라 둔다
   useEffect(() => {
+    try { const o = localStorage.getItem(ONLY_NICK); if (o && members.some((x) => x.nick === o && x.hasPw)) setOnly(o); } catch { /* 저장소 막힘 */ }
     try { const last = localStorage.getItem(LAST_NICK); if (last && members.some((x) => x.nick === last)) setNick(last); } catch { /* 저장소 막힘 */ }
   }, [members]);
   useEffect(() => { if (state?.msg) setShowError(true); }, [state]);
@@ -48,7 +60,7 @@ export default function LoginForm({ members, next, children }: { members: { nick
           <div className="field">
             <span className="label">닉넴/이름</span>
             <div className="nick-picked">
-              <b className="inline-flex items-center gap-1">{m?.manager ? <GearIcon size={15} /> : m?.admin ? <CrownIcon size={15} /> : null}{nick}/{m?.name || "없음"}</b>
+              <b className="inline-flex items-center gap-1">{m?.hasPw && <StarIcon filled={only === nick} />}{nick}/<span className={m?.manager ? "is-manager" : m?.admin ? "is-admin" : undefined}>{m?.name || "없음"}</span></b>
               <button type="button" className="btn btn-ghost text-sm" onClick={() => { chooseNick(""); setQ(""); }}>바꾸기</button>
             </div>
             <input type="hidden" name="nick" value={nick} />
@@ -57,10 +69,11 @@ export default function LoginForm({ members, next, children }: { members: { nick
           <div className="field">
             <div className="nick-grid" aria-label="닉넴/이름 목록">
               {list.map((x) => (
-                <button key={x.nick} type="button" className="nick-chip" onClick={() => chooseNick(x.nick)}>{x.manager ? <GearIcon size={13} /> : x.admin ? <CrownIcon size={13} /> : null}{x.nick}/{x.name}</button>
+                <button key={x.nick} type="button" className="nick-chip" onClick={() => chooseNick(x.nick)}>{x.hasPw && <StarIcon filled={only === x.nick} onPick={() => pickOnly(only === x.nick ? null : x.nick)} />}{x.nick}/<span className={x.manager ? "is-manager" : x.admin ? "is-admin" : undefined}>{x.name}</span></button>
               ))}
               {list.length === 0 && <span className="text-sm text-muted">‘{q}’에 맞는 닉네임이 없어요.</span>}
             </div>
+            {only && <button type="button" className="text-xs text-muted underline underline-offset-2 justify-self-center py-1" onClick={() => pickOnly(null)}>전체 닉네임 보기</button>}
           </div>
         )}
         {(nick || staffNick) && (
@@ -86,7 +99,7 @@ export default function LoginForm({ members, next, children }: { members: { nick
           </button>
         )}
       </form>
-      {!staffNick && !nick && (
+      {!staffNick && !nick && !only && (
         <div className="flex items-center gap-3 px-1">
           <input className="input min-w-0 flex-1 nick-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="닉넴/이름 찾기 (한두 글자 또는 초성)" aria-label="닉넴/이름 찾기" />
         </div>

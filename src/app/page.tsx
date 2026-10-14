@@ -157,9 +157,10 @@ export default async function Home() {
           {upcoming.map((r) => {
             const d = fmtRaceDate(r.date);
             const me = r.participants.find((p) => p.nick === u.nick);
+            const dd = Math.round((Date.parse(`${r.date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
             return (
-              <Link key={r.id} href={`/races#${r.id}`} className="flex items-center gap-3 py-3 px-1 hover:bg-[var(--card)]">
-                <span className="datebox"><b>{d.md}</b><span>{d.w}요일</span></span>
+              <Link key={r.id} href={`/races#${r.id}`} className={`flex items-center gap-3 py-3 px-1 hover:bg-[var(--card)]`}>
+                <span className={`datebox ${dd >= 0 && dd <= 3 ? "datebox-gold keep-motion" : ""}`}><b>{d.md}</b><span>{d.w}요일</span></span>
                 <span className="min-w-0 grid">
                   <span className="font-bold truncate">{r.name}</span>
                   <span className="text-sm text-muted truncate">{r.time ? `${r.time} 출발 · ` : ""}{r.place || "장소 미정"} · 크루 {r.participants.length}명</span>

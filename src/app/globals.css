@@ -1211,3 +1211,12 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 .btn-blink { animation: btn-blink 1.3s ease-in-out infinite; }
 .btn-blink:hover, .btn-blink:focus-visible, .btn-blink:active { animation-play-state: paused; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .btn-blink { animation: none; } }
+
+/* 홈 '다가오는 대회': D-3 이내 대회는 날짜 박스에만 금테두리 */
+.datebox.datebox-gold { border: 2px solid #f5c542; position: relative; isolation: isolate; }
+.datebox.datebox-gold::before {
+  content: ""; position: absolute; inset: -2px; border-radius: inherit; pointer-events: none; z-index: -1;
+  box-shadow: 0 0 0 1px rgba(255, 224, 138, .7), 0 0 10px 1px rgba(245, 197, 66, .42);
+  opacity: 0; will-change: opacity; transform: translateZ(0);
+  animation: gold-pulse 2.2s ease-in-out infinite;
+}

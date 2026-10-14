@@ -5,6 +5,7 @@ import ClickSound from "@/components/click-sound";
 import HubNav from "@/components/hub-nav";
 import AppBar from "@/components/app-bar";
 import Toaster from "@/components/toaster";
+import BadgeClear from "@/components/badge-clear";
 
 // 페이퍼로지 (무료 폰트, 이주원) — 제목에만 쓴다. 본문은 프리텐다드
 const paperlogy = localFont({
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ClickSound />
+        <BadgeClear />
         <AppBar />
         <Toaster />
         <HubNav />

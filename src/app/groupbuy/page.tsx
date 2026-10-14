@@ -55,6 +55,7 @@ function RoundCard({ round: r, summary: s, names }: { round: Round; summary: Pub
     <Link href={`/groupbuy/r/${r.id}`} className="panel p-4 grid gap-1.5 hover:border-[var(--lane)]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
+          {r.custom && <span className="chip chip-open">단체 제작 · {r.custom.kind}</span>}
           <StatusChip status={status} />
           {status === "open" && <Countdown deadline={r.deadline} />}
         </div>

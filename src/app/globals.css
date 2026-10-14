@@ -1220,3 +1220,25 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
   opacity: 0; will-change: opacity; transform: translateZ(0);
   animation: gold-pulse 2.2s ease-in-out infinite;
 }
+
+/* 매치 현황 (1:1 대결 신청·진행·응원 투표) */
+.match-board { padding: 14px; display: grid; gap: 12px; }
+.match-title { font-size: 16px; font-weight: 800; }
+.match-title .num { color: var(--bib); }
+.match-req { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--bib) 10%, var(--card)); font-size: 14px; }
+.match-req p { min-width: 0; flex: 1 1 160px; }
+.match-req-btns { display: flex; gap: 6px; }
+.match-card { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: var(--fill, rgba(127,127,127,.1)); }
+.match-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; font-size: 16px; }
+.match-head .win { color: var(--bib); }
+.match-km { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; font-size: 13px; text-align: center; }
+.match-km span:first-child { text-align: left; font-weight: 800; font-size: 15px; }
+.match-km span:last-child { text-align: right; font-weight: 800; font-size: 15px; }
+.match-vote-bar { height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 16%, transparent); overflow: hidden; }
+.match-vote-bar span { display: block; height: 100%; background: var(--bib); }
+.match-vote { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.match-vote .btn { width: 100%; }
+.match-vote-count { text-align: center; font-size: 13px; color: var(--muted); padding: 8px 0; }
+
+/* 공구 종류 선택 (일반 공구 / R2U 단체 제작) */
+.seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

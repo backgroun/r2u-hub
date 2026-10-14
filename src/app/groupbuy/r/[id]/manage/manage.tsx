@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, copyText, MY_ROUNDS, store, type MyRound } from "@/lib/client";
-import { bibLabel, fmtDeadline, fmtPickup, minLabel, orderTotal, qtyOf, roundStatus, won, type Order, type Round } from "@/lib/types";
+import { bibLabel, fmtDeadline, fmtPickup, itemLabel, minLabel, orderTotal, qtyOf, roundStatus, won, type Order, type Round } from "@/lib/types";
 import RoundForm from "@/components/round-form";
 import { Countdown, PayBadges, Progress, StatusChip, useToast } from "@/components/ui";
 import { knownMemberLabel } from "@/lib/member-label";
@@ -109,14 +109,14 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     minLabel(round.minQty),
     ...(fmtPickup(round.pickup) ? [`배포 장소: ${fmtPickup(round.pickup)}`] : []),
     "",
-    ...round.items.map((it) => `· ${it.name} ${won(it.price)}`),
+    ...round.items.map((it) => `· ${itemLabel(it)} ${won(it.price)}`),
     "",
     `👉 주문은 여기서: ${orderUrl}`,
   ].join("\n");
 
   const report = [
     `📦 [${round.title}] 집계 (${orders.length}명 · ${totalQty}개)`,
-    ...round.items.map((it) => `· ${it.name}: ${totals[it.id] ?? 0}개`),
+    ...round.items.map((it) => `· ${itemLabel(it)}: ${totals[it.id] ?? 0}개`),
     `총액 ${won(grand)} · 입금완료 ${orders.filter((o) => o.paid).length}/${orders.length}명 · 수령완료 ${orders.filter((o) => o.delivered).length}/${orders.length}명`,
     ...(fmtPickup(round.pickup) ? [`📍 배포 장소: ${fmtPickup(round.pickup)}`] : []),
     "",
@@ -219,7 +219,7 @@ export default function Manage({ id, names }: { id: string; names: Record<string
               {round.items.map((it) => (
                 <tr key={it.id} className="border-b border-line last:border-0">
                   <td className="p-3">
-                    {it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{it.name}</a> : it.name}
+                    {it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{itemLabel(it)}</a> : itemLabel(it)}
                     {it.note && <span className="block text-xs text-muted">참고: {it.note}</span>}
                   </td>
                   <td className="p-3 text-right num text-xl font-bold whitespace-nowrap">{totals[it.id] ?? 0}<span className="text-sm text-muted">개</span></td>
@@ -254,7 +254,7 @@ export default function Manage({ id, names }: { id: string; names: Record<string
                 <span className="num font-bold">{won(orderTotal(round.items, o.lines))}</span>
               </div>
               <p className="text-sm text-muted">
-                {round.items.filter((it) => o.lines[it.id]).map((it) => `${it.name} ${o.lines[it.id]}`).join(" · ")}
+                {round.items.filter((it) => o.lines[it.id]).map((it) => `${itemLabel(it)} ${o.lines[it.id]}`).join(" · ")}
                 {o.memo && <><br />메모: {o.memo}</>}
               </p>
               <div className="flex flex-wrap items-center justify-between gap-2">

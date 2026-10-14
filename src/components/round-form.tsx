@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { makeTitle, type Item, type Round } from "@/lib/types";
+import { buildCustomItems, CUSTOM_KINDS, CUSTOM_PRESETS, makeTitle, type CustomKind, type CustomSpec, type Item, type Round } from "@/lib/types";
 import { normalizePassword } from "@/components/password-input";
 
 export type RoundDraft = Omit<Round, "id" | "createdAt" | "closed">;
@@ -40,6 +40,19 @@ export default function RoundForm({
   const [deadlineLocal, setDeadlineLocal] = useState(toLocalInput(initial.deadline));
   const [lastMin, setLastMin] = useState(initial.minQty > 0 ? initial.minQty : 20);
   const [busy, setBusy] = useState(false);
+  // R2U 단체 제작: 종류(의류·모자·양말·기타)와 사이즈·컬러를 정해서 주문받는다
+  const [custom, setCustom] = useState<CustomSpec | null>(initial.custom ?? null);
+  const [sizesText, setSizesText] = useState((initial.custom?.sizes ?? []).join(", "));
+  const [colorsText, setColorsText] = useState((initial.custom?.colors ?? []).join(", "));
+  const splitList = (t: string) => [...new Set(t.split(/[,\n]/).map((x) => x.trim()).filter(Boolean))];
+  const pickKind = (kind: CustomKind) => {
+    const pre = CUSTOM_PRESETS[kind];
+    setCustom((c) => ({ ...(c ?? { name: "", price: 0, sizes: [], colors: [] }), kind }));
+    setSizesText(pre.sizes.join(", ")); setColorsText(pre.colors.join(", "));
+  };
+  const startCustom = () => { setCustom({ kind: "의류", name: "", price: 0, sizes: [], colors: [] }); setSizesText(CUSTOM_PRESETS.의류.sizes.join(", ")); setColorsText(CUSTOM_PRESETS.의류.colors.join(", ")); };
+  const customNow: CustomSpec | undefined = custom ? { ...custom, sizes: splitList(sizesText), colors: splitList(colorsText) } : undefined;
+  const comboCount = customNow ? Math.max(1, customNow.sizes.length) * Math.max(1, customNow.colors.length) : 0;
   const [err, setErr] = useState<string | null>(null);
 
   const set = <K extends keyof RoundDraft>(k: K, v: RoundDraft[K]) => setD((x) => ({ ...x, [k]: v }));
@@ -54,7 +67,8 @@ export default function RoundForm({
     if (askPassword && password.length < 4) return setErr("관리 비밀번호는 4자 이상으로 정해 주세요.");
     setBusy(true);
     try {
-      await onSubmit({ ...d, deadline: t.toISOString(), items: d.items.filter((i) => i.name.trim()) }, password);
+      if (customNow && !customNow.name.trim()) throw new Error("제작할 상품 이름을 입력해 주세요.");
+      await onSubmit({ ...d, deadline: t.toISOString(), custom: customNow, items: customNow ? buildCustomItems(customNow) : d.items.filter((i) => i.name.trim()) }, password);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -125,6 +139,50 @@ export default function RoundForm({
         <input id="f-holder" className="input" placeholder="예금주" value={d.bank.holder} onChange={(e) => set("bank", { ...d.bank, holder: e.target.value })} />
       </fieldset>
 
+      <div className="seg" role="group" aria-label="공구 종류">
+        <button type="button" className={`btn ${!custom ? "btn-primary" : ""}`} onClick={() => setCustom(null)}>일반 공구</button>
+        <button type="button" className={`btn ${custom ? "btn-primary" : ""}`} onClick={() => !custom && startCustom()}>R2U 단체 제작</button>
+      </div>
+
+      {custom ? (
+        <fieldset className="panel p-4 grid gap-4">
+          <legend className="label px-1">단체 제작 상품</legend>
+          <div className="field">
+            <span className="label">무엇을 만들까요?</span>
+            <div className="flex flex-wrap gap-2">
+              {CUSTOM_KINDS.map((k) => (
+                <button key={k} type="button" className={`btn text-sm ${custom.kind === k ? "btn-primary" : ""}`} onClick={() => pickKind(k)}>
+                  {k === "의류" ? "👕 " : k === "모자" ? "🧢 " : k === "양말" ? "🧦 " : "🎁 "}{k}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <input className="input min-w-0 flex-[1.6]" placeholder="상품명 (예: R2U 크루 티셔츠)" value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} />
+            <div className="relative min-w-0 flex-1">
+              <input type="text" inputMode="numeric" aria-label="가격" className="input num pr-7" placeholder="25,000"
+                value={custom.price ? custom.price.toLocaleString("ko-KR") : ""}
+                onChange={(e) => setCustom({ ...custom, price: Math.min(Number(e.target.value.replace(/[^0-9]/g, "")) || 0, 100_000_000) })} />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted text-sm">원</span>
+            </div>
+          </div>
+          <label className="field">
+            <span className="label">사이즈 {custom.kind === "기타" && "(없으면 비워 두세요)"}</span>
+            <input className="input" placeholder="쉼표로 구분 예) S, M, L, XL" value={sizesText} onChange={(e) => setSizesText(e.target.value)} />
+          </label>
+          <label className="field">
+            <span className="label">컬러 {custom.kind === "기타" && "(없으면 비워 두세요)"}</span>
+            <input className="input" placeholder="쉼표로 구분 예) 블랙, 화이트, 네이비" value={colorsText} onChange={(e) => setColorsText(e.target.value)} />
+          </label>
+          <input type="url" inputMode="url" className="input" placeholder="시안·참고 URL (선택)" value={custom.url ?? ""} onChange={(e) => setCustom({ ...custom, url: e.target.value })} />
+          <input className="input" placeholder="참고사항 (선택) 예) 소재, 제작 기간, 로고 위치" value={custom.note ?? ""} onChange={(e) => setCustom({ ...custom, note: e.target.value })} />
+          <p className="text-sm text-muted">
+            주문 항목 <b className="num">{comboCount}</b>가지
+            {customNow && (customNow.sizes.length > 0 || customNow.colors.length > 0) && <> ({customNow.colors.length ? `컬러 ${customNow.colors.length}` : ""}{customNow.colors.length && customNow.sizes.length ? " × " : ""}{customNow.sizes.length ? `사이즈 ${customNow.sizes.length}` : ""})</>}
+            {" "}· 공구 이름 <b>{makeTitle(d.opener, [{ name: custom.name }])}</b> <span className="text-xs">(자동)</span>
+          </p>
+        </fieldset>
+      ) : (
       <fieldset className="panel p-4 grid gap-3">
         <legend className="label px-1">상품</legend>
         <p className="text-sm">공구 이름 <b>{makeTitle(d.opener, d.items)}</b> <span className="text-muted text-xs">(자동)</span></p>
@@ -150,6 +208,7 @@ export default function RoundForm({
         ))}
         <button type="button" className="btn" onClick={() => set("items", [...d.items, { id: uid(), name: "", price: 0 }])}>+ 상품 추가</button>
       </fieldset>
+      )}
 
       {err && <p className="chip chip-failed justify-self-start text-sm">{err}</p>}
       <button className="btn btn-primary py-3.5 text-base" disabled={busy}>{busy ? "저장 중…" : submitLabel}</button>

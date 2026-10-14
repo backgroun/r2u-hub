@@ -1,4 +1,4 @@
-import { makeTitle, type Item } from "./types";
+import { buildCustomItems, CUSTOM_KINDS, makeTitle, type CustomKind, type CustomSpec, type Item } from "./types";
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
@@ -15,6 +15,22 @@ function safeUrl(v: string) {
   }
 }
 
+/** 쉼표·줄바꿈으로 적은 사이즈/컬러 목록 → 중복 없는 짧은 목록 */
+const list = (v: unknown, max: number) => {
+  const arr = Array.isArray(v) ? v : typeof v === "string" ? v.split(/[,\n]/) : [];
+  return [...new Set(arr.map((x) => str(x, 20)).filter(Boolean))].slice(0, max);
+};
+function parseCustom(v: unknown): CustomSpec | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const c = v as Record<string, unknown>;
+  const kind = CUSTOM_KINDS.includes(c.kind as CustomKind) ? (c.kind as CustomKind) : "기타";
+  const name = str(c.name, 50);
+  if (!name) throw new BadInput("제작할 상품 이름을 입력해 주세요.");
+  const sizes = list(c.sizes, 12), colors = list(c.colors, 12);
+  if (sizes.length * Math.max(1, colors.length) > 60) throw new BadInput("사이즈와 컬러 조합이 너무 많아요. (최대 60가지)");
+  return { kind, name, price: Math.max(0, Math.floor(Number(c.price) || 0)), sizes, colors, url: safeUrl(str(c.url, 500)), note: str(c.note, 200) || undefined };
+}
+
 export function parseRoundInput(body: Record<string, unknown>) {
   const opener = str(body.opener, 30);
   const b = (body.bank ?? {}) as Record<string, unknown>;
@@ -23,8 +39,9 @@ export function parseRoundInput(body: Record<string, unknown>) {
   const pickup = { place: str(pk.place, 60) };
   const deadline = str(body.deadline, 40);
   const minQty = Math.floor(Number(body.minQty));
+  const custom = parseCustom(body.custom);
   const rawItems = Array.isArray(body.items) ? body.items.slice(0, 30) : [];
-  const items: Item[] = rawItems
+  const items: Item[] = custom ? buildCustomItems(custom) : rawItems
     .map((x: Record<string, unknown>, i: number) => ({
       id: str(x?.id, 20) || `i${i}`,
       name: str(x?.name, 50),
@@ -42,7 +59,7 @@ export function parseRoundInput(body: Record<string, unknown>) {
   const ids = new Set(items.map((i) => i.id));
   if (ids.size !== items.length) items.forEach((it, i) => (it.id = `i${i}`));
 
-  return { title: makeTitle(opener, items), opener, bank, pickup, deadline: new Date(deadline).toISOString(), minQty, items };
+  return { title: makeTitle(opener, items), opener, bank, pickup, deadline: new Date(deadline).toISOString(), minQty, items, custom };
 }
 
 export function parseOrderInput(body: Record<string, unknown>, items: Item[], needPassword = true) {

@@ -5,7 +5,7 @@ import { driverOf, currentUser, getMember, isStaffAccount, fmtRaceDate, getMonth
 import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
 import { getOrders, listRounds } from "@/lib/db";
-import { nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/types";
+import { itemLabel, nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/types";
 import { cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
 import { getNickChangeRequest } from "@/lib/nickname";
 import RaceRecordForm from "@/components/race-record-form";
@@ -204,7 +204,7 @@ export default async function MyPage() {
                 <span className="min-w-0 grid gap-0.5">
                   <span className="font-bold truncate">{round.title}</span>
                   <span className="text-sm text-muted truncate">
-                    {round.items.filter((it) => o.lines[it.id]).map((it) => `${it.name} ${o.lines[it.id]}`).join(" · ")} · <span className="num">{qtyOf(o.lines)}개 {won(orderTotal(round.items, o.lines))}</span>
+                    {round.items.filter((it) => o.lines[it.id]).map((it) => `${itemLabel(it)} ${o.lines[it.id]}`).join(" · ")} · <span className="num">{qtyOf(o.lines)}개 {won(orderTotal(round.items, o.lines))}</span>
                   </span>
                   <span className="flex flex-wrap gap-1 mt-0.5">
                     {open && <span className="chip chip-open">모집중</span>}

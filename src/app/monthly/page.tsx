@@ -9,6 +9,7 @@ import { rankMonth, shiftYm, ymOf, type RankRow } from "@/lib/rank";
 import { setDay } from "@/app/actions";
 import { ActionForm, Submit } from "@/components/action-form";
 import { Nick } from "@/components/crown";
+import MatchBoard from "@/components/match-board";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "월간 기록" };
@@ -78,6 +79,9 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
         </div>
         <Link href={q({ m: shiftYm(ym, 1) })} className="btn btn-ghost px-3 py-1" style={{ minHeight: 32 }} aria-label="다음 달">→</Link>
       </header>
+
+      {/* 매치 현황: 진행 중인 1:1 대결·신청·응원 투표 (이번 달, 있을 때만) */}
+      <MatchBoard ym={ym} viewer={u.nick} />
 
       {/* 크루 요약 */}
       <section className="stat-strip">

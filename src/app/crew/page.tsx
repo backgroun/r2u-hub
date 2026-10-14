@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { K, currentUser, getAdminNicks, getAllVs, getMembers, getMonth, isStaffAccount, isStaffNick, kstToday, redis } from "@/lib/hub";
 import { rankMonth, shiftYm, ymOf, type RankRow } from "@/lib/rank";
 import { manageVersusEnd, setVersus } from "@/app/actions";
+import MatchBoard from "@/components/match-board";
+import { getVsRequests } from "@/lib/versus";
 import { Nick } from "@/components/crown";
 import { ActionForm, Submit } from "@/components/action-form";
 
@@ -31,7 +33,7 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
   const currentMonth = ym === ymOf(today);
   const sort = sp.sort === "km" ? "km" : sp.sort === "goal" ? "goal" : "rate";
   const staff = isStaffAccount(u);
-  const [month, members, admins, allVs] = await Promise.all([getMonth(ym), getMembers(), getAdminNicks(), getAllVs(ym)]);
+  const [month, members, admins, allVs, vsReqs] = await Promise.all([getMonth(ym), getMembers(), getAdminNicks(), getAllVs(ym), getVsRequests(ym)]);
   const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const label = (nick: string) => `${nick}/${names[nick] || "없음"}`;
@@ -68,6 +70,8 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
         <Link href={q({ m: shiftYm(ym, 1) })} className="btn btn-ghost px-3" aria-label="다음 달">→</Link>
       </header>
 
+      {!staff && <MatchBoard ym={ym} viewer={u.nick} />}
+
       {!staff && opp && <Versus me={me} opp={opp} today={today} ym={ym} admins={admins} managers={managers} names={names} endRequest={endRequest} />}
 
       <section className="grid gap-2">
@@ -101,16 +105,21 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
                 </div>
                 <b className="num crew-rate" style={{ color: rate >= 100 ? "var(--good)" : undefined }}>{r.rate != null ? `${r.rate}%` : "–"}</b>
                 {!staff && currentMonth && !isMe && !vsNick && !allVs[r.nick] && (
-                  <ActionForm action={setVersus}>
-                    <input type="hidden" name="ym" value={ym} /><input type="hidden" name="opp" value={r.nick} />
-                    <Submit className="btn text-xs py-1 px-2">⚔️ 대결</Submit>
-                  </ActionForm>
+                  vsReqs[u.nick] === r.nick ? <span className="chip chip-warn">신청 중</span>
+                  : vsReqs[r.nick] === u.nick ? <span className="chip chip-open">신청 받음 ↑</span>
+                  : vsReqs[u.nick] ? null
+                  : (
+                    <ActionForm action={setVersus} keep>
+                      <input type="hidden" name="ym" value={ym} /><input type="hidden" name="opp" value={r.nick} />
+                      <Submit className="btn text-xs py-1 px-2">⚔️ 대결 신청</Submit>
+                    </ActionForm>
+                  )
                 )}
               </li>
             );
           })}
         </ol>
-        <p className="text-xs text-muted">달성율 = 이번 달 달린 거리 ÷ 내가 정한 목표. 목표를 정하지 않은 크루원은 달성율이 “–”로 나와요. 이번 달의 ⚔️ 대결은 다음 달 1일 0시에 자동으로 종료돼요.</p>
+        <p className="text-xs text-muted">달성율 = 이번 달 달린 거리 ÷ 내가 정한 목표. 목표를 정하지 않은 크루원은 달성율이 “–”로 나와요. ⚔️ 대결은 신청한 뒤 상대가 받아줘야 시작되고, 다음 달 1일 0시에 자동으로 종료돼요.</p>
       </section>
     </main>
   );

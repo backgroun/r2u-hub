@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
-import { bibLabel, fmtDeadline, fmtPickup, minLabel, nickKey, orderTotal, qtyOf, roundStatus, won, type Order, type PublicOrder, type PublicSummary, type Round } from "@/lib/types";
+import { bibLabel, fmtDeadline, fmtPickup, itemLabel, minLabel, nickKey, orderTotal, qtyOf, roundStatus, won, type Order, type PublicOrder, type PublicSummary, type Round } from "@/lib/types";
 import { Countdown, Progress, StatusChip, Stepper, useToast } from "@/components/ui";
 import { knownMemberLabel } from "@/lib/member-label";
 
@@ -172,7 +172,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
             <b>{label(done.name)}님 주문이 접수됐어요</b>
           </div>
           <p className="text-sm text-muted">
-            {round.items.filter((it) => done.lines[it.id]).map((it) => `${it.name} ${done.lines[it.id]}개`).join(" · ")} · <b className="num">{won(orderTotal(round.items, done.lines))}</b>
+            {round.items.filter((it) => done.lines[it.id]).map((it) => `${itemLabel(it)} ${done.lines[it.id]}개`).join(" · ")} · <b className="num">{won(orderTotal(round.items, done.lines))}</b>
           </p>
           <p className="text-sm text-muted">입금한 뒤 아래 <b>주문 현황</b>에서 내 닉네임 옆 ‘내 주문’을 누르고 비밀번호를 넣어 입금완료를, 물건을 받으면 수령완료를 표시해 주세요. 마감 전에는 같은 곳에서 수정·취소도 할 수 있어요.</p>
         </div>
@@ -192,16 +192,25 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
             <h2 className="label">{editing ? `${label(editing.order.name)}님 주문 수정` : "주문하기"} <span className="normal-case font-normal">(<span className="text-[var(--bad)]">*</span> 필수, 수량 1개 이상)</span></h2>
             {editing && <button className="text-sm text-muted underline underline-offset-2" onClick={() => { setEditing(null); resetForm(); }}>수정 그만두기</button>}
           </div>
+          {round.custom && (
+            <div className="panel p-3.5 grid gap-1">
+              <span className="chip chip-open justify-self-start">R2U 단체 제작 · {round.custom.kind}</span>
+              <b className="text-lg leading-snug">{round.custom.name}</b>
+              <span className="num text-sm">{won(round.custom.price)}{round.custom.sizes.length > 0 && <span className="text-muted"> · 사이즈 {round.custom.sizes.join(" / ")}</span>}{round.custom.colors.length > 0 && <span className="text-muted"> · 컬러 {round.custom.colors.join(" / ")}</span>}</span>
+              {round.custom.note && <span className="text-xs text-muted">참고: {round.custom.note}</span>}
+              {round.custom.url && <a href={round.custom.url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--lane)] underline underline-offset-2 justify-self-start">시안·상품 보기 ↗</a>}
+            </div>
+          )}
           <ul className="grid gap-2.5">
             {round.items.map((it) => (
               <li key={it.id} className="panel p-3.5 flex items-center justify-between gap-3">
                 <div className="min-w-0 grid">
-                  <span className="font-semibold leading-snug">{it.name}</span>
-                  {it.note && <span className="text-xs text-muted">참고: {it.note}</span>}
-                  {it.url && <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--lane)] underline underline-offset-2 justify-self-start">상품 보기 ↗</a>}
+                  <span className="font-semibold leading-snug">{round.custom ? [it.color, it.size].filter(Boolean).join(" · ") || it.name : it.name}</span>
+                  {!round.custom && it.note && <span className="text-xs text-muted">참고: {it.note}</span>}
+                  {!round.custom && it.url && <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--lane)] underline underline-offset-2 justify-self-start">상품 보기 ↗</a>}
                   <span className="num text-sm">{won(it.price)} <span className="text-muted">· 지금까지 {summary.itemTotals[it.id] ?? 0}개</span></span>
                 </div>
-                <Stepper label={it.name} value={lines[it.id] ?? 0} onChange={(n) => setLines((l) => ({ ...l, [it.id]: n }))} />
+                <Stepper label={itemLabel(it)} value={lines[it.id] ?? 0} onChange={(n) => setLines((l) => ({ ...l, [it.id]: n }))} />
               </li>
             ))}
           </ul>
@@ -255,7 +264,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
                     <div className="min-w-0 flex-1 grid leading-snug">
                       <span className="font-semibold truncate">{label(o.name)}</span>
                       <span className="text-xs text-muted">
-                        {round.items.filter((it) => o.lines[it.id]).map((it) => `${it.name} ${o.lines[it.id]}`).join(" · ")} · <span className="num">{qtyOf(o.lines)}개 {won(orderTotal(round.items, o.lines))}</span>
+                        {round.items.filter((it) => o.lines[it.id]).map((it) => `${itemLabel(it)} ${o.lines[it.id]}`).join(" · ")} · <span className="num">{qtyOf(o.lines)}개 {won(orderTotal(round.items, o.lines))}</span>
                       </span>
                       <span className="flex flex-wrap gap-1 mt-1">
                         {o.paid ? <span className="chip chip-confirmed">입금완료</span> : <span className="chip chip-warn">입금대기</span>}

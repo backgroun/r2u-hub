@@ -135,7 +135,13 @@ export default async function MyPage() {
 
       {/* 월간 기록 */}
       <section className="grid gap-2">
-        <div className="sec-head"><h2 className="label">월간 기록</h2><span className="flex gap-3"><Link href="/me/runs">가민 기록 올리기 →</Link><Link href="/monthly">기록하기 →</Link></span></div>
+        <div className="sec-head"><h2 className="label">월간 기록</h2><span className="flex items-center gap-3">
+          <Link href="/me/runs" className="btn text-xs !py-1 !px-2.5 inline-flex items-center gap-1.5" style={{ background: "transparent", color: "var(--ink)", border: "1.2px solid var(--ink)", boxShadow: "none" }}>
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="8" cy="8" r="6" /><path d="M8 4.8V8l2.2 1.4" /></svg>
+            가민 분석 보기
+          </Link>
+          <Link href="/monthly">기록하기 →</Link>
+        </span></div>
         <ol className="board">
           {monthly.map((m) => (
             <li key={m.ym} style={{ gridTemplateColumns: "56px 1fr 92px" }}>
@@ -150,12 +156,15 @@ export default async function MyPage() {
 
       {/* 내 대회 기록 */}
       <section className="grid gap-2">
-        <div className="sec-head"><h2 className="label">내 대회 기록</h2></div>
-        {pb.size > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {[...pb.entries()].map(([c, v]) => <span key={c} className="chip count-badge">🏅 {c} 최고 {v.time}</span>)}
-          </div>
-        )}
+        {/* 코스별 최고 기록 배지는 제목 줄 오른쪽에 (코스가 여러 개면 오른쪽 정렬로 줄바꿈) */}
+        <div className="sec-head" style={{ alignItems: "flex-start", gap: 8 }}>
+          <h2 className="label" style={{ paddingTop: 3 }}>내 대회 기록</h2>
+          {pb.size > 0 && (
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {[...pb.entries()].map(([c, v]) => <span key={c} className="chip count-badge">🏅 {c} 최고 {v.time}</span>)}
+            </div>
+          )}
+        </div>
         <RaceRecordChart records={recList.map(({ id, rec, race }) => ({ id, race: race.name, date: race.date, course: rec.course, sec: rec.sec, time: rec.time }))} />
         <details className="panel p-4">
           <summary className="font-bold">+ 대회 기록 추가</summary>

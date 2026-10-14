@@ -154,6 +154,12 @@
 
 /* ===== 고급스러운 테마: 깊은 먹색 바탕 · 가는 선 · 절제된 금색 포인트 ===== */
 :root { --bg: #0b110e; --panel: #131a16; --panel2: #18211c; --hair: rgba(255,255,255,.09); --text: #ebe8df; --dim: #8e998f; --gold: #c9a965; --gold-soft: rgba(201,169,101,.13); --gold-line: rgba(201,169,101,.5); --ink: #ebe8df; --muted: #8e998f; --card: #131a16; }
+/* 항상 어두운 화면: 브라우저가 스크롤바·폼 요소를 다크로 그리게 한다 (iframe 안 스크롤바 흰 배경 방지) */
+html { color-scheme: dark; background: var(--bg); scrollbar-color: rgba(255,255,255,.24) var(--bg); scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); border-radius: 8px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.34); }
 body { background: var(--bg); background-image: radial-gradient(900px 420px at 50% -8%, rgba(201,169,101,.10), transparent 65%), radial-gradient(700px 500px at 90% 110%, rgba(40,90,60,.18), transparent 60%); background-attachment: fixed; color: var(--text); font-feature-settings: "tnum"; }
 
 .hero { background: none; border: 0; box-shadow: none; padding: 30px 8px 6px; color: var(--text); }

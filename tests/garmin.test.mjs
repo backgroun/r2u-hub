@@ -162,3 +162,48 @@ test("분석 기간", async () => {
   assert.equal(parsed.runs.filter((r) => inRange(r.date, may)).length, 4);
   assert.equal(parsed.runs.filter((r) => inRange(r.date, resolveRange({}, today))).length, 15);
 });
+
+test("가이드 규칙", async () => {
+  const { buildGuide } = await import("../src/lib/garmin/guide.ts");
+  const mk = (date, km, te = 3, hr = 150, min) => ({ startedAt: `${date} 07:00:00`, date, activityType: "러닝", title: "러닝", distanceKm: km, durationSec: (min ?? km * 6.5) * 60, aerobicTE: te, avgHr: hr, avgCadence: 175 });
+  const titles = (g) => g.items.map((i) => i.title).join(" | ");
+  const today = "2026-10-14"; // 수요일
+  assert.equal(buildGuide([], today), null);
+
+  // 기록이 적을 때
+  assert.match(titles(buildGuide([mk("2026-10-10", 5)], today)), /기록이 아직 적어요/);
+
+  // 오래 쉬었을 때: 복귀 가이드 (쉬기 전 4주 평균의 70%)
+  const gap = [mk("2026-08-03", 10), mk("2026-08-10", 10), mk("2026-08-17", 10), mk("2026-08-24", 10)];
+  const g0 = buildGuide(gap, today);
+  assert.match(titles(g0), /일째 쉬고 있어요/);
+  assert.match(g0.items[0].body, /7km/);
+
+  // 지난주 급증 + 힘든 러닝 비중 높음 + 연달아 힘든 러닝
+  const jump = [
+    mk("2026-09-14", 10), mk("2026-09-21", 10), mk("2026-09-28", 10), // 앞 3주 10km씩
+    mk("2026-10-05", 8, 4.5), mk("2026-10-06", 8, 5), mk("2026-10-08", 8, 4.2), // 지난주 24km
+    mk("2026-10-12", 5, 4.1),
+  ];
+  const g1 = buildGuide(jump, today);
+  const t1 = titles(g1);
+  assert.match(t1, /지난주 거리가 급하게 늘었어요/);
+  assert.match(t1, /힘든 러닝 비중이 높아요/);
+  assert.match(t1, /연달아/);
+  assert.equal(g1.items[0].tone, "warn"); // 경고가 먼저
+  assert.match(g1.items.find((i) => i.title.includes("급하게")).body, /약 2배/); // 24km vs 10km: 퍼센트 대신 배수
+  assert.ok(g1.items.length <= 7);
+
+  // 안정적인 패턴: 권장 거리 + 강도 균형 좋음
+  const steady = [];
+  for (const w of ["2026-09-14", "2026-09-21", "2026-09-28", "2026-10-05"]) {
+    steady.push(mk(w, 6, 3.2), mk(addDaysT(w, 2), 6, 3.4), mk(addDaysT(w, 4), 12, 4.2));
+  }
+  function addDaysT(d, n) { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+  const g2 = buildGuide(steady, today);
+  const t2 = titles(g2);
+  assert.match(t2, /이번 주 권장 21.6~26.4km/); // 평균 24km의 ±10%
+  assert.match(t2, /강도 균형이 좋아요/);
+  assert.doesNotMatch(t2, /지난주 거리가 급하게/);
+  assert.ok(g2.basis.includes("러닝 10회")); // 최근 4주 창(9/17~10/14) 밖의 9/14·9/16은 빠진다
+});

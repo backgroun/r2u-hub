@@ -27,6 +27,7 @@ export const MAX_RUNS_PER_UPLOAD = 2000;
 
 const runsKey = (nick: string) => `r2u:runs:${nick}`;
 const CONSENT_KEY = "r2u:runsConsent"; // hash nick -> 동의 시각
+const UPLOADED_KEY = "r2u:runsUploadedAt"; // hash nick -> 마지막으로 저장한 시각(ms)
 
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -37,6 +38,19 @@ export async function hasRunsConsent(nick: string) {
 }
 export async function saveRunsConsent(nick: string) {
   await redis.hset(CONSENT_KEY, { [nick]: Date.now() });
+}
+
+/** 마지막으로 가민 CSV를 저장한 시각 (ms). 없으면 null */
+export async function getLastUpload(nick: string): Promise<number | null> {
+  const v = await redis.hget<number | string>(UPLOADED_KEY, nick);
+  const n = Number(v);
+  return v != null && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** 한국 시간 "2026.10.15 14:30" */
+export function fmtUploadTime(ms: number) {
+  const k = new Date(ms + 9 * 3600e3).toISOString();
+  return `${k.slice(0, 4)}.${k.slice(5, 7)}.${k.slice(8, 10)} ${k.slice(11, 16)}`;
 }
 
 /* ---------- 조회 ---------- */
@@ -199,7 +213,8 @@ export async function importRuns(nick: string, incoming: IncomingRun[], opts: { 
     const tx = redis.multi();
     if (Object.keys(writes).length) tx.hset(runsKey(nick), writes);
     for (const [key, rec] of months) tx.hset(key, { [nick]: rec });
-    if (Object.keys(writes).length || months.length) await tx.exec();
+    tx.hset(UPLOADED_KEY, { [nick]: now }); // 새 기록이 없어도 ‘올린 시각’은 남긴다
+    await tx.exec();
   }
 
   return {
@@ -234,6 +249,7 @@ export async function deleteAllRuns(nick: string) {
   const tx = redis.multi();
   tx.del(runsKey(nick));
   tx.hdel(CONSENT_KEY, nick);
+  tx.hdel(UPLOADED_KEY, nick);
   for (const [key, rec] of months) tx.hset(key, { [nick]: rec });
   await tx.exec();
   return all.length;

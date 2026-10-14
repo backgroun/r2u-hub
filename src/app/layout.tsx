@@ -36,11 +36,12 @@ export const metadata: Metadata = {
   appleWebApp: { title: "R2U 크루", capable: true, statusBarStyle: "black-translucent" },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
+// 화면 모드(라이트/다크)와 상관없이 항상 어두운 디자인으로 보여 준다 (data-theme="dark" + 브라우저 기본 요소도 다크)
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", colorScheme: "dark", themeColor: "#0f161d" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko" className={paperlogy.variable}>
+    <html lang="ko" data-theme="dark" className={paperlogy.variable}>
       <head>
         {/* 본문 글꼴: 프리텐다드 (가변 글꼴, 필요한 글자만 나눠 받는 CDN) */}
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />

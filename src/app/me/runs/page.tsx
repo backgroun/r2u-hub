@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser, isStaffAccount, kstToday } from "@/lib/hub";
-import { getRuns, hasRunsConsent, MONTHLY_SYNC_FROM, RANK_GRACE_DAYS } from "@/lib/runs";
+import { fmtUploadTime, getLastUpload, getRuns, hasRunsConsent, MONTHLY_SYNC_FROM, RANK_GRACE_DAYS } from "@/lib/runs";
 import { aggregateByDay, fmtDur, fmtPace } from "@/lib/garmin/aggregate";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { agreeRunsConsent, removeAllRuns, removeRun } from "./actions";
 import GarminUpload from "./garmin-upload";
 import RunAnalysis from "./run-analysis";
+import { buildGuide } from "@/lib/garmin/guide";
 import { inRange, resolveRange, type RangeParams } from "@/lib/garmin/range";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "가민 기록" };
+export const metadata = { title: "가민 분석" };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -18,7 +19,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
   const u = await currentUser();
   if (!u) redirect("/login?next=/me/runs");
   if (isStaffAccount(u)) redirect("/admin");
-  const [consent, runs] = await Promise.all([hasRunsConsent(u.nick), getRuns(u.nick)]);
+  const [consent, runs, lastUpload] = await Promise.all([hasRunsConsent(u.nick), getRuns(u.nick), getLastUpload(u.nick)]);
 
   const counted = runs.filter((r) => !r.flagged);
   const range = resolveRange(await searchParams, kstToday());
@@ -35,12 +36,32 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
     months.set(d.date.slice(0, 7), m);
   }
 
+  const helpBody = (
+    <>
+        <ol className="text-sm grid gap-1" style={{ listStyle: "decimal", paddingInlineStart: 18 }}>
+          <li><b>PC</b>에서 connect.garmin.com 로그인 → 왼쪽 메뉴 <b>활동 목록 → 모든 활동</b> (모바일에서는 안 돼요)</li>
+          <li>원하는 기간까지 <b>아래로 스크롤</b> (화면에 보이는 만큼만 내보내질 수 있어요)</li>
+          <li>오른쪽 위 <b>CSV 내보내기</b> 클릭 → <code>Activities.csv</code> 저장</li>
+          <li><b>파일을 엑셀로 열어서 저장하지 마세요</b> (날짜 형식·인코딩이 바뀔 수 있어요). 그대로 올리면 돼요</li>
+          <li>여기서 <b>가민 기록 올리기</b> → 미리보기 확인 → 저장</li>
+          <li>한 달에 한 번, 또는 월말 마감 전에 올려 주세요. 예전 기록이 겹쳐도 새 기록만 추가돼요</li>
+        </ol>
+        <p className="text-xs text-muted mt-2">월간 기록 반영: {MONTHLY_SYNC_FROM ? `${MONTHLY_SYNC_FROM.replace("-", "년 ")}월 이후 기록부터` : "예전 기록까지 모두"}{RANK_GRACE_DAYS != null ? `, 달이 끝나고 ${RANK_GRACE_DAYS}일 안에 올린 것까지` : ""} 월간 기록·순위에 들어가요. 하루 합계에서 페이스는 총 시간 ÷ 총 거리로 계산해요.</p>
+    </>
+  );
+
   return (
     <main className="hub-wrap">
       <header className="grid gap-1">
         <div className="flex items-center gap-2"><Link href="/me" className="text-sm text-muted">← 내 페이지</Link></div>
-        <h1 className="hub-h1">가민 기록 <span className="chip" style={{ verticalAlign: "middle" }}>Garmin</span></h1>
-        <p className="text-sm text-muted">가민 커넥트에서 내려받은 활동 CSV를 그대로 올리면 러닝만 골라 하루 단위로 합산하고, 월간 기록에도 반영해요.</p>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="hub-h1">가민 분석</h1>
+          {/* 가민 커넥트 활동 목록: 새 창으로 열어서 CSV를 받고 돌아온다 */}
+          <a href="https://connect.garmin.com/modern/activities" target="_blank" rel="noopener noreferrer" className="btn btn-blink text-xs !py-1 !px-3" aria-label="가민 커넥트 새 창으로 열기" title="가민 커넥트 활동 목록을 새 창으로 열어요"
+            style={{ background: "transparent", color: "var(--ink)", border: "1.2px solid var(--ink)", boxShadow: "none", flex: "none" }}>가민 커넥트</a>
+        </div>
+        <p className="text-sm text-muted">가민 CSV를 올리면 러닝을 분석하고 월간 기록에 반영해요.</p>
+        {lastUpload && <p className="text-xs text-muted num">마지막 업로드 {fmtUploadTime(lastUpload)}</p>}
       </header>
 
       {!consent ? (
@@ -59,23 +80,18 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
           </ActionForm>
         </section>
       ) : (
-        <GarminUpload />
+        <GarminUpload help={helpBody} />
       )}
 
-      <details className="panel p-4">
-        <summary className="font-bold">CSV 받는 방법</summary>
-        <ol className="text-sm grid gap-1 mt-3" style={{ listStyle: "decimal", paddingInlineStart: 18 }}>
-          <li><b>PC</b>에서 connect.garmin.com 로그인 → 왼쪽 메뉴 <b>활동 목록 → 모든 활동</b> (모바일에서는 안 돼요)</li>
-          <li>원하는 기간까지 <b>아래로 스크롤</b> (화면에 보이는 만큼만 내보내질 수 있어요)</li>
-          <li>오른쪽 위 <b>CSV 내보내기</b> 클릭 → <code>Activities.csv</code> 저장</li>
-          <li><b>파일을 엑셀로 열어서 저장하지 마세요</b> (날짜 형식·인코딩이 바뀔 수 있어요). 그대로 올리면 돼요</li>
-          <li>여기서 <b>가민 CSV 올리기</b> → 미리보기 확인 → 저장</li>
-          <li>한 달에 한 번, 또는 월말 마감 전에 올려 주세요. 예전 기록이 겹쳐도 새 기록만 추가돼요</li>
-        </ol>
-        <p className="text-xs text-muted mt-2">월간 기록 반영: {MONTHLY_SYNC_FROM ? `${MONTHLY_SYNC_FROM.replace("-", "년 ")}월 이후 기록부터` : "예전 기록까지 모두"}{RANK_GRACE_DAYS != null ? `, 달이 끝나고 ${RANK_GRACE_DAYS}일 안에 올린 것까지` : ""} 월간 기록·순위에 들어가요. 하루 합계에서 페이스는 총 시간 ÷ 총 거리로 계산해요.</p>
-      </details>
+      {/* 동의 전에는 올리기 버튼이 없으니 안내를 따로 펼쳐 보여 준다 */}
+      {!consent && (
+        <details className="panel p-4">
+          <summary className="font-bold">CSV 받는 방법</summary>
+          <div className="mt-3">{helpBody}</div>
+        </details>
+      )}
 
-      <RunAnalysis runs={counted.filter((r) => inRange(r.date, range))} range={range} hasRuns={counted.length > 0} />
+      <RunAnalysis runs={counted.filter((r) => inRange(r.date, range))} range={range} hasRuns={counted.length > 0} guide={buildGuide(counted, kstToday())} />
 
       {months.size > 0 && (
         <section className="grid gap-2">

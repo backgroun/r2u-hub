@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import { eventOpen, eventStart } from "@/lib/event";
+import { eventHidden, eventOpen, eventStart } from "@/lib/event";
 import { currentUser, hasEventPreview } from "@/lib/hub";
 import { displayBlock, getRoster, isJoined, pollResult, type EventBlock } from "@/lib/event-blocks";
 import { ActionForm, Submit } from "@/components/action-form";
 import EventEditToggle from "@/components/event-edit-toggle";
-import { joinEvent, leaveEvent, voteEvent } from "@/app/actions";
+import { joinEvent, leaveEvent, setEventExposure, voteEvent } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "이벤트" };
@@ -13,8 +13,11 @@ export const metadata = { title: "이벤트" };
 export default async function EventPage({ searchParams }: { searchParams: Promise<{ staff?: string }> }) {
   const u = await currentUser();
   const block = await displayBlock();
+  // 운영진이 숨겨 둔 동안 크루원에게는 안내 화면만 보인다 (운영진은 그대로 본다)
+  const hidden = await eventHidden();
+  if (hidden && !u?.admin) return <Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon />;
   // 운영진은 위에 작은 바가 붙는다: 블록 바꾸기 · 참가 신청 · 이벤트 설정으로 가기
-  const bar = u?.admin ? await AdminBar({ block, nick: u.nick }) : null;
+  const bar = u?.admin ? await AdminBar({ block, nick: u.nick, hidden }) : null;
   if (!block) return <>{bar}<Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon /></>;
   if (block.type === "poll") return <>{bar}<Poll block={block} nick={u?.nick} /></>;
 
@@ -29,7 +32,8 @@ export default async function EventPage({ searchParams }: { searchParams: Promis
   const joined = isJoined(await getRoster(), u?.nick);
   const open = await eventOpen();
   const start = await eventStart();
-  if (joined && open) return <Frame staff={staff} />;
+  // 운영진 화면·신청 전 화면과 똑같이 빙고판 아래에 참가 신청 명단을 보여 준다
+  if (joined && open) return <Shell me={u?.nick} bar={null}><Frame staff={staff} /></Shell>;
   // 신청 전·오픈 전에는 실제 빙고판을 그대로 보여 주고(칸은 눌러도 인증되지 않는다), 위에서 신청한다
   const soon = `${Number(start.slice(5, 7))}월 ${Number(start.slice(8))}일에 열려요`;
   return (
@@ -56,19 +60,24 @@ function JoinBar({ joined, open, soon }: { joined: boolean; open: boolean; soon:
 }
 
 // 운영진 바: 지금 세팅된 이벤트를 보여 주고, 본인 참가 신청/취소, 빙고판 수정 모드, 이벤트 관리로 이동한다.
-async function AdminBar({ block, nick }: { block: EventBlock | null; nick: string }) {
+async function AdminBar({ block, nick, hidden }: { block: EventBlock | null; nick: string; hidden: boolean }) {
   const joined = isJoined(await getRoster(), nick);
   return (
     <div className="event-admin-bar">
       <div className="event-admin-title"><b>{block ? `${Number(block.ym.slice(5))}월 ` : ""}이벤트 신청 및 설정</b></div>
       <div className="event-admin-actions">
+        {/* 크루원에게 이벤트 전체를 보여 줄지 (비노출이어도 운영진은 계속 본다) */}
+        <ActionForm action={setEventExposure} keep alertError className="event-admin-join">
+          <input type="hidden" name="hide" value={hidden ? "0" : "1"} />
+          <Submit className={`btn event-vis ${hidden ? "off" : "on"}`}>{hidden ? "비노출" : "노출"}</Submit>
+        </ActionForm>
         {block?.type === "bingo" && (
           <ActionForm action={joined ? leaveEvent : joinEvent} keep alertError className="event-admin-join">
-            <Submit className={`btn ${joined ? "btn-ghost" : "btn-primary"}`}>{joined ? "✓ 신청함" : "✋ 참가 신청"}</Submit>
+            <Submit className={`btn ${joined ? "btn-ghost" : "btn-primary"}`}>{joined ? "신청함" : "참가 신청"}</Submit>
           </ActionForm>
         )}
         {block?.type === "bingo" && <EventEditToggle />}
-        <a href="/admin?tab=bingo" className="btn btn-ghost">⚙ 관리</a>
+        <a href="/admin?tab=bingo" className="btn btn-ghost">관리</a>
       </div>
     </div>
   );
@@ -105,7 +114,7 @@ function Message({ emoji, title, sub, soon, kicker, children }: { emoji: string;
         {kicker && <p className="event-kicker">{kicker}</p>}
         <h1>{title}</h1>
         <p className="event-sub">{sub}</p>
-        {soon && <p className="event-chip">🏁 곧 오픈</p>}
+        {soon && <p className="event-chip">곧 오픈</p>}
         {children}
       </section>
     </main>

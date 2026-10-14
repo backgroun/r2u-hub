@@ -37,3 +37,16 @@ export async function eventOpen(): Promise<boolean> {
   const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   return today >= (await eventStart());
 }
+
+const HIDDEN_KEY = "r2u:eventHidden";
+/** 운영진이 크루에게 이벤트를 숨겼는가 (읽기 실패하면 숨기지 않음) */
+export async function eventHidden(): Promise<boolean> {
+  try { const v = await kv.get<number | string | boolean>(HIDDEN_KEY); return v === 1 || v === "1" || v === true; } catch { return false; }
+}
+export async function setEventHidden(hide: boolean) {
+  if (hide) await kv.set(HIDDEN_KEY, 1); else await kv.del(HIDDEN_KEY);
+}
+/** 크루원이 이벤트를 볼 수 있는가: 오픈일이 지났고, 운영진이 숨기지 않았을 때 */
+export async function eventVisible(): Promise<boolean> {
+  return (await eventOpen()) && !(await eventHidden());
+}

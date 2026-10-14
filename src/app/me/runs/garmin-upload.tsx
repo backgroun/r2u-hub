@@ -18,9 +18,10 @@ type ImportResult = {
 const STATUS_LABEL: Record<Status, string> = { new: "새 기록", updated: "변경", unchanged: "이미 있음", deleted: "지운 기록" };
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`;
 
-export default function GarminUpload() {
+/** help: ‘CSV 받는 방법’ 안내 내용 (서버에서 만들어 넘긴다). 버튼 옆 토글로 펼친다 */
+export default function GarminUpload({ help }: { help: React.ReactNode }) {
   const router = useRouter();
-  const [unit, setUnit] = useState<"km" | "mi">("km");
+  const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [parsed, setParsed] = useState<ParseResult | null>(null);
@@ -36,7 +37,7 @@ export default function GarminUpload() {
     if (!file) return;
     setBusy(true);
     try {
-      const p = await parseGarminFile(file, unit);
+      const p = await parseGarminFile(file);
       setParsed(p);
       if (p.warning) { setError(p.warning); return; }
       if (!p.runs.length) { setError("러닝 기록이 없어요. 가민에서 러닝이 보이게 스크롤한 뒤 다시 내보내 주세요."); return; }
@@ -64,21 +65,20 @@ export default function GarminUpload() {
   const excludedTotal = parsed ? parsed.excluded.notRun + parsed.excluded.empty : 0;
 
   return (
-    <section className="panel p-4 grid gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="btn btn-primary" style={{ cursor: busy ? "wait" : "pointer" }}>
-          {busy ? "읽는 중…" : "가민 CSV 올리기"}
+    <section className="panel grid gap-3" style={{ padding: "10px 12px" }}>
+      <div className="flex items-center justify-between gap-3">
+        <label className="btn btn-primary" style={{ cursor: busy ? "wait" : "pointer", flex: "none", minHeight: 34, height: 34, padding: "0 14px", fontSize: 13.5 }}>
+          {busy ? "읽는 중…" : "가민 기록 올리기"}
           <input type="file" accept=".csv,text/csv" className="sr-only" disabled={busy}
             onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
-        <label className="text-sm flex items-center gap-1">
-          가민 단위
-          <select className="input" style={{ width: "auto", minHeight: 32, paddingBlock: 2 }} value={unit} onChange={(e) => setUnit(e.target.value as "km" | "mi")}>
-            <option value="km">km</option>
-            <option value="mi">mi</option>
-          </select>
-        </label>
+        <button type="button" aria-expanded={helpOpen} onClick={() => setHelpOpen((v) => !v)}
+          className="inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: "var(--ink)", background: "none", border: 0, padding: "4px 2px", cursor: "pointer", minHeight: 34 }}>
+          CSV 받는 방법
+          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden style={{ transition: "transform .15s", transform: helpOpen ? "rotate(180deg)" : "none" }}><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
       </div>
+      {helpOpen && <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>{help}</div>}
 
       {error && <p role="alert" className="text-sm text-[var(--bad)]">{error}</p>}
 

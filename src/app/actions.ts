@@ -9,7 +9,7 @@ import {
 import { syncMembers } from "@/lib/sheet";
 import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoinId, queueMemberNameForSheet, renameMemberInSheet, saveJoin, updateMemberNameInSheet } from "@/lib/join";
 import { addNotice, deleteNotice, getPushEnabledNicks, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
-import { EVENT_PERIOD_KEY, resetEventCache } from "@/lib/event";
+import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
 import { clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
 import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive } from "@/lib/event-blocks";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
@@ -775,6 +775,16 @@ export async function removeEventBlock(fd: FormData) {
   await admin();
   await deleteBlock(str(fd, "id", 20));
   revalidatePath("/", "layout");
+}
+
+/* ---------- 이벤트 노출/비노출 (운영진) ---------- */
+export async function setEventExposure(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const hide = fd.get("hide") === "1";
+  await setEventHidden(hide);
+  revalidatePath("/event");
+  revalidatePath("/");
+  return ok(hide ? "크루에게 이벤트를 숨겼어요. 운영진은 계속 볼 수 있어요." : "크루에게 이벤트를 다시 보여 줘요.");
 }
 
 /* ---------- 이벤트 참가 신청 (크루원 본인) ---------- */

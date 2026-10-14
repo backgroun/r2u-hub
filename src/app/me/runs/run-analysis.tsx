@@ -2,6 +2,8 @@ import Link from "next/link";
 import { analyzeRuns, weekStart, type Group, type RunLike } from "@/lib/garmin/analysis";
 import { fmtDur, fmtPace } from "@/lib/garmin/aggregate";
 import { BarChart, Donut, HBars, InfoTip, LineChart } from "@/components/run-charts";
+import RunGuide from "@/components/run-guide";
+import type { Guide } from "@/lib/garmin/guide";
 import { PRESETS, type Range } from "@/lib/garmin/range";
 
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
@@ -25,42 +27,113 @@ function Chart({ title, sub, info, children }: { title: string; sub?: string; in
   );
 }
 
-function SurfaceCard({ name, g }: { name: string; g: Group }) {
+/** 구역 제목: 글자 + 가는 줄 */
+function Sub({ title }: { title: string }) {
   return (
-    <div className="panel p-3 grid gap-0.5 text-sm">
-      <b>{name}</b>
-      {g.runs ? (
-        <>
-          <span className="num">{g.km}km · {g.runs}회</span>
-          <span className="num text-muted text-xs">{fmtPace(g.avgPaceSec)}/km{g.avgHr ? ` · 심박 ${g.avgHr}` : ""}{g.avgCadence ? ` · 케이던스 ${g.avgCadence}` : ""}</span>
-        </>
-      ) : <span className="text-muted text-xs">기록 없음</span>}
+    <div className="flex items-center gap-3" style={{ marginTop: 10 }}>
+      <h3 className="label" style={{ whiteSpace: "nowrap" }}>{title}</h3>
+      <i aria-hidden style={{ flex: 1, height: 1, background: "var(--line)" }} />
     </div>
   );
 }
 
-/** 가민 기록 분석: 의심 기록을 뺀 러닝만 받는다 */
-function RangePicker({ range }: { range: Range }) {
+function Tile({ label, value, unit }: { label: string; value: string; unit?: string }) {
   return (
-    <div className="panel p-3 grid gap-2">
-      <nav className="tabs" aria-label="분석 기간" style={{ flexWrap: "wrap" }}>
-        {PRESETS.map((p) => (
-          <Link key={p.key} href={p.key === "all" ? "/me/runs" : `/me/runs?range=${p.key}`} scroll={false} aria-current={range.key === p.key ? "page" : undefined}>{p.label}</Link>
-        ))}
+    <div className="panel p-3.5 grid gap-1" style={{ overflow: "visible" }}>
+      <span className="text-xs text-muted">{label}</span>
+      <b className="num" style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.1 }}>{value}{unit && <small style={{ fontSize: 13, marginLeft: 3, color: "var(--muted)", fontWeight: 600 }}>{unit}</small>}</b>
+    </div>
+  );
+}
+
+type BestItem = { label: string; value: string; unit?: string; sub: string };
+/** 베스트 기록: 색·아이콘 없이 한 장짜리 목록. 왼쪽 이름과 날짜, 오른쪽 큰 값 */
+function BestList({ items }: { items: BestItem[] }) {
+  return (
+    <div className="panel" style={{ overflow: "hidden" }}>
+      {items.map((b, i) => (
+        <div key={b.label} className="flex items-center justify-between gap-3" style={{ padding: "14px 16px", borderTop: i ? "1px solid var(--line)" : "none" }}>
+          <div style={{ minWidth: 0 }}>
+            <p className="text-sm font-bold">{b.label}</p>
+            <p className="text-xs text-muted truncate" style={{ marginTop: 2 }}>{b.sub}</p>
+          </div>
+          <b className="num" style={{ fontSize: 22, fontWeight: 800, whiteSpace: "nowrap" }}>{b.value}{b.unit && <small style={{ fontSize: 13, marginLeft: 3, color: "var(--muted)", fontWeight: 600 }}>{b.unit}</small>}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** 야외 vs 트레드밀: 거리 비율 막대 + 각각의 요약 */
+function SurfaceCompare({ ou, tm }: { ou: Group; tm: Group }) {
+  const total = ou.km + tm.km || 1;
+  const ouPct = Math.round((ou.km / total) * 100);
+  const col = (name: string, g: Group, color: string) => (
+    <div className="grid gap-0.5" style={{ minWidth: 0 }}>
+      <span className="flex items-center gap-1.5 text-sm font-bold"><i aria-hidden style={{ width: 9, height: 9, borderRadius: 3, background: color, display: "inline-block" }} />{name}</span>
+      {g.runs ? (
+        <>
+          <b className="num" style={{ fontSize: 22, fontWeight: 800 }}>{g.km}<small style={{ fontSize: 13, marginLeft: 3, color: "var(--muted)", fontWeight: 600 }}>km</small></b>
+          <span className="num text-xs text-muted">{g.runs}회 · {fmtPace(g.avgPaceSec)}/km</span>
+          <span className="num text-xs text-muted">{g.avgHr ? `심박 ${g.avgHr}` : ""}{g.avgHr && g.avgCadence ? " · " : ""}{g.avgCadence ? `케이던스 ${g.avgCadence}` : ""}</span>
+        </>
+      ) : <span className="text-xs text-muted">기록 없음</span>}
+    </div>
+  );
+  return (
+    <>
+      <div aria-hidden style={{ display: "flex", height: 10, borderRadius: 999, overflow: "hidden", background: "color-mix(in srgb, var(--ink) 9%, transparent)" }}>
+        <span style={{ width: `${ouPct}%`, background: "var(--lane)" }} />
+        <span style={{ width: `${100 - ouPct}%`, background: "var(--bib)" }} />
+      </div>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        {col(`야외 ${ouPct}%`, ou, "var(--lane)")}
+        {col(`트레드밀 ${100 - ouPct}%`, tm, "var(--bib)")}
+      </div>
+    </>
+  );
+}
+
+/** 분석 기간: 한 줄짜리 선택 묶음 + 접어 둔 ‘직접 기간 정하기’ */
+function RangePicker({ range }: { range: Range }) {
+  const custom = range.key === "custom";
+  const field = { minHeight: 42, fontSize: 14, width: "100%", minWidth: 0 } as const;
+  return (
+    <div className="panel p-3 grid gap-2.5" style={{ overflow: "visible" }}>
+      <nav aria-label="분석 기간" style={{ display: "grid", gridTemplateColumns: `repeat(${PRESETS.length}, 1fr)`, gap: 3, padding: 3, borderRadius: 12, background: "color-mix(in srgb, var(--ink) 8%, transparent)" }}>
+        {PRESETS.map((p) => {
+          const on = range.key === p.key;
+          return (
+            <Link key={p.key} href={p.key === "all" ? "/me/runs" : `/me/runs?range=${p.key}`} scroll={false} aria-current={on ? "page" : undefined}
+              style={{ textAlign: "center", padding: "8px 2px", borderRadius: 9, fontSize: 13, fontWeight: on ? 800 : 600, whiteSpace: "nowrap", background: on ? "var(--lane)" : "transparent", color: on ? "var(--card)" : "var(--ink)", boxShadow: on ? "0 1px 4px rgba(0,0,0,.25)" : "none" }}>
+              {p.label}
+            </Link>
+          );
+        })}
       </nav>
-      <form method="get" className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted">직접 정하기</span>
-        <input type="date" name="from" className="input" style={{ width: "auto", minHeight: 34 }} defaultValue={range.key === "custom" ? range.from ?? "" : ""} aria-label="시작일" />
-        <span>~</span>
-        <input type="date" name="to" className="input" style={{ width: "auto", minHeight: 34 }} defaultValue={range.key === "custom" ? range.to ?? "" : ""} aria-label="종료일" />
-        <button type="submit" className="btn btn-primary" style={{ minHeight: 34 }}>적용</button>
-      </form>
+      <details open={custom} className="range-custom">
+        <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 700, color: custom ? "var(--lane)" : "var(--muted)", listStyle: "none", display: "flex", alignItems: "center", gap: 6 }}>
+          <span aria-hidden className="range-chev" style={{ display: "inline-block", transition: "transform .15s", fontSize: 10 }}>▶</span>
+          직접 기간 정하기{custom ? ` · ${range.label}` : ""}
+        </summary>
+        <form method="get" className="grid gap-2.5" style={{ marginTop: 10 }}>
+          <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <label className="grid gap-1 text-xs text-muted" style={{ minWidth: 0 }}>시작일
+              <input type="date" name="from" className="input" style={field} defaultValue={custom ? range.from ?? "" : ""} />
+            </label>
+            <label className="grid gap-1 text-xs text-muted" style={{ minWidth: 0 }}>종료일
+              <input type="date" name="to" className="input" style={field} defaultValue={custom ? range.to ?? "" : ""} />
+            </label>
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ minHeight: 42, width: "100%" }}>이 기간으로 보기</button>
+        </form>
+      </details>
     </div>
   );
 }
 
 /** 가민 기록 분석: 의심 기록을 뺀 러닝 중 고른 기간의 것만 받는다 */
-export default function RunAnalysis({ runs, range, hasRuns, variant = "page" }: { runs: RunLike[]; range: Range; hasRuns: boolean; variant?: "page" | "month" }) {
+export default function RunAnalysis({ runs, range, hasRuns, variant = "page", guide }: { runs: RunLike[]; range: Range; hasRuns: boolean; variant?: "page" | "month"; guide?: Guide | null }) {
   const month = variant === "month"; // 월간기록 화면: 그 달만 보여 주므로 기간 선택·월별 막대는 뺀다
   if (!hasRuns) return null;
   const a = analyzeRuns(runs);
@@ -75,56 +148,80 @@ export default function RunAnalysis({ runs, range, hasRuns, variant = "page" }: 
   const withHr = a.trend.filter((p) => p.avgHr != null);
   const withCad = a.trend.filter((p) => p.avgCadence != null);
   const withEff = a.trend.filter((p) => p.efficiency != null);
-  const insights: string[] = [];
+  type Row = { label: string; value: string; tone?: "good" | "bad" };
+  const rows: Row[] = [];
   if (a.recent) {
     const { current: c, previous: p } = a.recent;
-    insights.push(`최근 4주 ${c.km}km (${c.runs}회) — 그 앞 4주(${p.km}km, ${p.runs}회)보다 ${sign(c.km - p.km, "km")}`);
+    const dk = c.km - p.km;
+    rows.push({ label: "최근 4주 거리", value: `${c.km}km (${sign(dk, "km")})`, tone: dk > 0 ? "good" : dk < 0 ? "bad" : undefined });
     if (c.avgPaceSec && p.avgPaceSec) {
       const d = c.avgPaceSec - p.avgPaceSec;
-      insights.push(d === 0 ? "평균 페이스는 그대로예요" : `평균 페이스 ${fmtPace(c.avgPaceSec)}/km — ${Math.abs(d)}초 ${d < 0 ? "빨라졌어요" : "느려졌어요"}`);
+      rows.push({ label: "최근 4주 평균 페이스", value: d === 0 ? `${fmtPace(c.avgPaceSec)}/km (그대로)` : `${fmtPace(c.avgPaceSec)}/km (${Math.abs(d)}초 ${d < 0 ? "빨라짐" : "느려짐"})`, tone: d < 0 ? "good" : d > 0 ? "bad" : undefined });
     }
   }
   const topDow = [...a.weekday].sort((x, y) => y.runs - x.runs)[0];
-  if (topDow.runs > 0) insights.push(`${topDow.label}요일에 가장 많이 달렸어요 (${topDow.runs}회)`);
+  if (topDow.runs > 0) rows.push({ label: "가장 많이 달린 요일", value: `${topDow.label}요일 · ${topDow.runs}회` });
   const topTod = [...a.timeOfDay].sort((x, y) => y.runs - x.runs)[0];
-  if (topTod.runs > 0) insights.push(`${topTod.label.split(" ")[0]}에 달리는 편이에요 (${topTod.runs}회)`);
-  const tm = a.surface.treadmill, ou = a.surface.outdoor;
-  if (tm.avgPaceSec && ou.avgPaceSec) insights.push(`트레드밀 평균 ${fmtPace(tm.avgPaceSec)}/km, 야외 ${fmtPace(ou.avgPaceSec)}/km`);
+  if (topTod.runs > 0) rows.push({ label: "주로 달리는 시간대", value: `${topTod.label.split(" ")[0]} · ${topTod.runs}회` });
+
+  const mini = (label: string, value: string, unit?: string) => (
+    <div className="grid gap-0.5 text-center" style={{ minWidth: 0 }}>
+      <span className="text-xs text-muted">{label}</span>
+      <b className="num" style={{ fontSize: 19, fontWeight: 800 }}>{value}{unit && <small style={{ fontSize: 11, marginLeft: 2, color: "var(--muted)", fontWeight: 600 }}>{unit}</small>}</b>
+    </div>
+  );
 
   return (
     <section id="garmin-analysis" className="grid gap-3" style={{ scrollMarginTop: 72 }}>
-      <div className="sec-head"><h2 className="label">{month ? "가민 분석" : "분석"}</h2><span className="text-xs text-muted">{range.label} · 러닝 {t.runs}회 (의심 기록 제외)</span></div>
+      <div className="sec-head"><h2 className="label">{month ? "가민 분석" : "분석"}</h2><span className="text-xs text-muted">{range.label} · 의심 기록 제외</span></div>
 
       {!month && <RangePicker range={range} />}
 
-      <div className="stat-strip" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}>
-        <div><span className="label">총 거리</span><b className="num">{t.km}<small>km</small></b></div>
-        <div><span className="label">러닝</span><b className="num">{t.runs}<small>회 · {t.days}일</small></b></div>
-        <div><span className="label">총 시간</span><b className="num">{fmtDur(t.durationSec)}</b></div>
-        <div><span className="label">평균 페이스</span><b className="num">{fmtPace(t.avgPaceSec)}<small>/km</small></b></div>
-        <div><span className="label">평균 심박</span><b className="num">{t.avgHr ?? "–"}</b></div>
-        <div><span className="label">평균 케이던스</span><b className="num">{t.avgCadence ?? "–"}</b></div>
-        <div><span className="label">평균 훈련효과</span><b className="num">{t.avgTE ?? "–"}</b></div>
-        <div><span className="label">칼로리</span><b className="num">{won(t.calories)}</b></div>
-        <div><span className="label">걸음 수</span><b className="num">{won(t.steps)}</b></div>
-        <div><span className="label">누적 상승</span><b className="num">{t.elevGainM ?? "–"}<small>m</small></b></div>
+      {/* 대표 지표 */}
+      <div style={{ borderRadius: 20, padding: "18px 16px 14px", background: "linear-gradient(140deg, color-mix(in srgb, var(--lane) 32%, var(--card)) 0%, var(--card) 75%)", border: "1px solid color-mix(in srgb, var(--lane) 26%, var(--line))" }}>
+        <p className="text-xs text-muted">총 거리</p>
+        <p className="num" style={{ fontSize: 46, fontWeight: 800, lineHeight: 1.05, marginTop: 2 }}>{t.km}<span style={{ fontSize: 18, marginLeft: 5, color: "var(--muted)", fontWeight: 700 }}>km</span></p>
+        <p className="num text-sm text-muted" style={{ marginTop: 4 }}>러닝 {t.runs}회 · {t.days}일 · 총 {fmtDur(t.durationSec)}</p>
+        <div className="grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 14, paddingTop: 12, borderTop: "1px solid color-mix(in srgb, var(--ink) 12%, transparent)" }}>
+          {mini("평균 페이스", fmtPace(t.avgPaceSec), "/km")}
+          {mini("평균 심박", t.avgHr != null ? `${t.avgHr}` : "–")}
+          {mini("평균 케이던스", t.avgCadence != null ? `${t.avgCadence}` : "–")}
+        </div>
       </div>
 
-      {insights.length > 0 && (
-        <ul className="panel p-3 grid gap-1 text-sm" style={{ listStyle: "disc", paddingInlineStart: 28 }}>
-          {insights.map((s) => <li key={s}>{s}</li>)}
-        </ul>
+      <div className="grid gap-2.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <Tile label="평균 훈련효과" value={t.avgTE != null ? `${t.avgTE}` : "–"} />
+        <Tile label="칼로리" value={won(t.calories)} unit="kcal" />
+        <Tile label="걸음 수" value={won(t.steps)} />
+        <Tile label="누적 상승" value={t.elevGainM != null ? `${t.elevGainM}` : "–"} unit="m" />
+      </div>
+
+      {rows.length > 0 && (
+        <Chart title="한눈에 보기" info="최근 4주와 그 앞 4주를 비교하고, 어느 요일·시간대에 주로 달렸는지 요약해요. 초록은 좋아진 쪽, 빨강은 줄어든 쪽이에요.">
+          <div className="grid">
+            {rows.map((r, i) => (
+              <div key={r.label} className="flex items-center justify-between gap-3 text-sm" style={{ padding: "9px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
+                <span className="text-muted">{r.label}</span>
+                <b className="num text-right" style={{ color: r.tone === "good" ? "var(--good)" : r.tone === "bad" ? "var(--bad)" : "var(--ink)" }}>{r.value}</b>
+              </div>
+            ))}
+          </div>
+        </Chart>
       )}
 
-      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
-        <div className="panel p-3 grid gap-0.5 text-sm"><span className="label">가장 길게</span><b className="num">{h.longest.value}km</b><span className="text-xs text-muted truncate">{md(h.longest.date)} {h.longest.title}</span></div>
-        {h.fastest && <div className="panel p-3 grid gap-0.5 text-sm"><span className="label">가장 빠르게 (3km↑)</span><b className="num">{fmtPace(h.fastest.value)}/km</b><span className="text-xs text-muted truncate">{md(h.fastest.date)} {h.fastest.title}</span></div>}
-        {h.hardest && <div className="panel p-3 grid gap-0.5 text-sm"><span className="label">훈련효과 최고</span><b className="num">{h.hardest.value}</b><span className="text-xs text-muted truncate">{md(h.hardest.date)} {h.hardest.title}</span></div>}
-        {h.climb && <div className="panel p-3 grid gap-0.5 text-sm"><span className="label">가장 많이 오르기</span><b className="num">{h.climb.value}m</b><span className="text-xs text-muted truncate">{md(h.climb.date)} {h.climb.title}</span></div>}
-      </div>
+      {guide && <RunGuide guide={guide} />}
 
+      <Sub title="베스트 기록" />
+      <BestList items={[
+        { label: "가장 길게 달린 날", value: `${h.longest.value}`, unit: "km", sub: `${md(h.longest.date)} · ${h.longest.title}` },
+        ...(h.fastest ? [{ label: "가장 빠른 페이스 (3km 이상)", value: fmtPace(h.fastest.value), unit: "/km", sub: `${md(h.fastest.date)} · ${h.fastest.title}` }] : []),
+        ...(h.hardest ? [{ label: "훈련효과 최고", value: `${h.hardest.value}`, sub: `${md(h.hardest.date)} · ${h.hardest.title}` }] : []),
+        ...(h.climb ? [{ label: "가장 많이 오른 날", value: `${h.climb.value}`, unit: "m", sub: `${md(h.climb.date)} · ${h.climb.title}` }] : []),
+      ]} />
+
+      <Sub title="추이" />
       {!month && (
-      <Chart title="월별 거리" sub="막대에 올리면 러닝 횟수·페이스가 보여요" info="달마다 달린 총 거리(km)예요. 가장 많이 달린 달이 주황색 막대로 강조돼요.">
+        <Chart title="월별 거리" sub="막대에 올리면 러닝 횟수·페이스가 보여요" info="달마다 달린 총 거리(km)예요. 가장 많이 달린 달이 주황색 막대로 강조돼요.">
           <BarChart label="월별 거리" fmt="km1"
             bars={a.monthly.map((m) => ({ label: `${Number(m.ym.slice(5))}월`, value: m.km, tip: `${m.ym} ${m.km}km · ${m.runs}회 · ${m.days}일 · ${fmtPace(m.avgPaceSec)}/km` }))} />
         </Chart>
@@ -156,6 +253,7 @@ export default function RunAnalysis({ runs, range, hasRuns, variant = "page" }: 
           points={withEff.map((p) => ({ date: p.date, at: p.startedAt, y: p.efficiency!, hollow: p.treadmill, tip: `${md(p.date)} 효율 ${p.efficiency} (심박 ${p.avgHr}, ${fmtPace(p.paceSec)}/km)` }))} />
       </Chart>
 
+      <Sub title="분포" />
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
         <Chart title="거리대별 횟수" info="한 번에 달린 거리별로 러닝이 몇 번이었는지 보여 줘요. 가장 많은 구간이 주황색이에요.">
           <HBars rows={a.distanceBands.map((b) => ({ label: b.label, value: b.runs }))} />
@@ -171,10 +269,10 @@ export default function RunAnalysis({ runs, range, hasRuns, variant = "page" }: 
         </Chart>
       </div>
 
-      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        <SurfaceCard name="야외 러닝" g={a.surface.outdoor} />
-        <SurfaceCard name="트레드밀" g={a.surface.treadmill} />
-      </div>
+      <Sub title="비교" />
+      <Chart title="야외 · 트레드밀" info="야외 러닝과 트레드밀 러닝의 거리 비율과 평균 페이스·심박·케이던스를 비교해요. 트레드밀은 보통 같은 힘으로도 다르게 나와서 따로 보는 게 좋아요.">
+        <SurfaceCompare ou={a.surface.outdoor} tm={a.surface.treadmill} />
+      </Chart>
     </section>
   );
 }

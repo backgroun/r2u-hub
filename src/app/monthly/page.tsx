@@ -4,6 +4,7 @@ import { currentUser, getAdminNicks, getMembers, isStaffAccount, isStaffNick, ge
 import GoalPicker from "./goal-picker";
 import RunAnalysis from "@/app/me/runs/run-analysis";
 import { getRuns } from "@/lib/runs";
+import { buildGuide } from "@/lib/garmin/guide";
 import { rankMonth, shiftYm, ymOf, type RankRow } from "@/lib/rank";
 import { setDay } from "@/app/actions";
 import { ActionForm, Submit } from "@/components/action-form";
@@ -26,7 +27,8 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
   const [month, admins, members, myRuns] = await Promise.all([getMonth(ym), getAdminNicks(), getMembers(), isStaffAccount(u) ? Promise.resolve([]) : getRuns(u.nick)]);
   // 이 달에 가민으로 올린 러닝 (의심 기록 제외): 있으면 ‘가민 분석’ 버튼을 보여 준다
   const garminRuns = myRuns.filter((r) => !r.flagged && r.date.startsWith(ym));
-  const showGarmin = sp.view === "garmin" && garminRuns.length > 0;
+  // 가민 기록이 있는 달은 가민 분석이 기본으로 열려 있다. 닫기(view=edit)나 날짜 선택(day)을 하면 입력 폼이 나온다
+  const showGarmin = garminRuns.length > 0 && sp.view !== "edit" && !sp.day;
   const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const who = u.nick;
@@ -116,7 +118,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
         )}
 
         <GoalPicker ym={ym} goal={me.goal} editsLeft={GOAL_EDIT_LIMIT - (month[who]?.goalEdits ?? 0)} limit={GOAL_EDIT_LIMIT}
-          garmin={garminRuns.length ? { href: showGarmin ? q({}) : `${q({ view: "garmin" })}#garmin-analysis`, open: showGarmin } : undefined} />
+          garmin={garminRuns.length ? { href: showGarmin ? q({ view: "edit" }) : `${q({})}#garmin-analysis`, open: showGarmin } : undefined} />
       </section>
 
       {/* 달력 */}
@@ -142,7 +144,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
           })}
         </div>
         {showGarmin ? (
-          <RunAnalysis runs={garminRuns} hasRuns variant="month" range={{ key: "month", from: `${ym}-01`, to: `${ym}-${String(last).padStart(2, "0")}`, label: `${y}년 ${m}월` }} />
+          <RunAnalysis runs={garminRuns} hasRuns variant="month" guide={buildGuide(myRuns.filter((r) => !r.flagged), today)} range={{ key: "month", from: `${ym}-01`, to: `${ym}-${String(last).padStart(2, "0")}`, label: `${y}년 ${m}월` }} />
         ) : editDay ? (
           <ActionForm key={editDay} action={setDay} className="day-edit" keep>
             <input type="hidden" name="ym" value={ym} />

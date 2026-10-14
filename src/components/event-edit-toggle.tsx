@@ -18,7 +18,7 @@ export default function EventEditToggle() {
 
   return (
     <button type="button" className={`btn ${on ? "btn-primary" : "btn-ghost"}`} aria-pressed={on} onClick={() => { const next = !on; setOn(next); send(next); }}>
-      {on ? "✔ 수정 완료" : "✏️ 수정"}
+      {on ? "수정 완료" : "수정"}
     </button>
   );
 }

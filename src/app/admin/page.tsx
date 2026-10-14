@@ -116,7 +116,7 @@ async function Members({ self }: { self: string }) {
       )}
       <SheetSync
         title="구글시트로 회원 동기화"
-        help="시트 탭의 A열에 닉네임을 적고(머리글 ‘닉네임’ 아래부터), 이 버튼을 누르면 새 닉네임이 회원으로 추가돼요. C열 ‘닉네임(이벤트)’의 닉네임은 이벤트 참가자로 불러와요. 시트에서 빠진 회원은 자동으로 지우지 않고 알려만 드려요."
+        help="시트 탭의 A열에 닉네임을 적고(머리글 ‘닉네임’ 아래부터), 이 버튼을 누르면 새 닉네임이 회원으로 추가돼요. ‘역할’ 열에 ‘운영진’이라고 적으면 운영진으로 지정돼요. C열 ‘닉네임(이벤트)’의 닉네임은 이벤트 참가자로 불러와요. 시트에서 빠진 회원은 자동으로 지우지 않고 알려만 드려요."
         url={sheets.members} action={syncMembersAction} button="회원 동기화"
       />
       <ActionForm action={addMembers} className="panel p-4 grid gap-3">

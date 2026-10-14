@@ -19,7 +19,7 @@ const STATUS_LABEL: Record<Status, string> = { new: "새 기록", updated: "변�
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`;
 
 /** help: ‘CSV 받는 방법’ 안내 내용 (서버에서 만들어 넘긴다). 버튼 옆 토글로 펼친다 */
-export default function GarminUpload({ help }: { help: React.ReactNode }) {
+export default function GarminUpload({ help, lastUpload }: { help: React.ReactNode; lastUpload: string | null }) {
   const router = useRouter();
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -79,6 +79,9 @@ export default function GarminUpload({ help }: { help: React.ReactNode }) {
         </button>
       </div>
       {helpOpen && <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>{help}</div>}
+      <p className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.5, marginTop: -4 }}>
+        {lastUpload ? <b className="num" style={{ fontWeight: 600 }}>마지막 업로드 {lastUpload}</b> : "아직 올린 기록이 없어요"} · 중복 기록은 제외돼요
+      </p>
 
       {error && <p role="alert" className="text-sm text-[var(--bad)]">{error}</p>}
 

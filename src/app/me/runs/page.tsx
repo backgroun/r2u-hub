@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser, isStaffAccount, kstToday } from "@/lib/hub";
-import { fmtUploadTime, getLastUpload, getRuns, hasRunsConsent, MONTHLY_SYNC_FROM, RANK_GRACE_DAYS } from "@/lib/runs";
+import { fmtUploadTime, getLastUpload, getRuns, hasRunsConsent } from "@/lib/runs";
 import { aggregateByDay, fmtDur, fmtPace } from "@/lib/garmin/aggregate";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { agreeRunsConsent, removeAllRuns, removeRun } from "./actions";
@@ -19,7 +19,9 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
   const u = await currentUser();
   if (!u) redirect("/login?next=/me/runs");
   if (isStaffAccount(u)) redirect("/admin");
-  const [consent, runs, lastUpload] = await Promise.all([hasRunsConsent(u.nick), getRuns(u.nick), getLastUpload(u.nick)]);
+  const [consent, runs, savedUpload] = await Promise.all([hasRunsConsent(u.nick), getRuns(u.nick), getLastUpload(u.nick)]);
+  // 업로드 시각을 따로 기록하기 전에 올린 분은 러닝 기록에 남은 가장 최근 저장 시각으로 대신한다
+  const lastUpload = savedUpload ?? (runs.length ? Math.max(...runs.map((r) => r.updatedAt)) : null);
 
   const counted = runs.filter((r) => !r.flagged);
   const range = resolveRange(await searchParams, kstToday());
@@ -39,14 +41,10 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
   const helpBody = (
     <>
         <ol className="text-sm grid gap-1" style={{ listStyle: "decimal", paddingInlineStart: 18 }}>
-          <li><b>PC</b>에서 connect.garmin.com 로그인 → 왼쪽 메뉴 <b>활동 목록 → 모든 활동</b> (모바일에서는 안 돼요)</li>
-          <li>원하는 기간까지 <b>아래로 스크롤</b> (화면에 보이는 만큼만 내보내질 수 있어요)</li>
-          <li>오른쪽 위 <b>CSV 내보내기</b> 클릭 → <code>Activities.csv</code> 저장</li>
-          <li><b>파일을 엑셀로 열어서 저장하지 마세요</b> (날짜 형식·인코딩이 바뀔 수 있어요). 그대로 올리면 돼요</li>
-          <li>여기서 <b>가민 기록 올리기</b> → 미리보기 확인 → 저장</li>
-          <li>한 달에 한 번, 또는 월말 마감 전에 올려 주세요. 예전 기록이 겹쳐도 새 기록만 추가돼요</li>
+          <li><b>PC</b>에서 가민 커넥트 → <b>활동 목록</b> (모바일 불가)</li>
+          <li>원하는 기간까지 <b>아래로 스크롤</b> → <b>CSV 내보내기</b></li>
+          <li>엑셀로 열지 말고 <b>그대로 올리기</b></li>
         </ol>
-        <p className="text-xs text-muted mt-2">월간 기록 반영: {MONTHLY_SYNC_FROM ? `${MONTHLY_SYNC_FROM.replace("-", "년 ")}월 이후 기록부터` : "예전 기록까지 모두"}{RANK_GRACE_DAYS != null ? `, 달이 끝나고 ${RANK_GRACE_DAYS}일 안에 올린 것까지` : ""} 월간 기록·순위에 들어가요. 하루 합계에서 페이스는 총 시간 ÷ 총 거리로 계산해요.</p>
     </>
   );
 
@@ -61,7 +59,6 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
             style={{ background: "transparent", color: "var(--ink)", border: "1.2px solid var(--ink)", boxShadow: "none", flex: "none" }}>가민 커넥트</a>
         </div>
         <p className="text-sm text-muted">가민 CSV를 올리면 러닝을 분석하고 월간 기록에 반영해요.</p>
-        {lastUpload && <p className="text-xs text-muted num">마지막 업로드 {fmtUploadTime(lastUpload)}</p>}
       </header>
 
       {!consent ? (
@@ -80,7 +77,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
           </ActionForm>
         </section>
       ) : (
-        <GarminUpload help={helpBody} />
+        <GarminUpload help={helpBody} lastUpload={lastUpload ? fmtUploadTime(lastUpload) : null} />
       )}
 
       {/* 동의 전에는 올리기 버튼이 없으니 안내를 따로 펼쳐 보여 준다 */}

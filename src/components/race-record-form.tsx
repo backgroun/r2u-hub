@@ -58,8 +58,10 @@ export default function RaceRecordForm({ races, initialId = "", today }: { races
             onChange={(e) => setT({ ...t, s: num(e.target.value, 59) })} /><span>초</span>
         </div>
       </div>
-      <label className="field full"><span className="label">한 줄 메모 (선택)</span><input name="note" className="input" maxLength={100} placeholder="날씨, 컨디션, 소감 등" /></label>
-      <div className="full"><Submit>기록 저장</Submit></div>
+      <div className="full inline-edit">
+        <input name="note" className="input" maxLength={100} placeholder="한 줄 메모 (선택) · 날씨, 컨디션, 소감 등" aria-label="한 줄 메모 (선택)" />
+        <Submit>기록 저장</Submit>
+      </div>
     </ActionForm>
   );
 }

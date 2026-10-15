@@ -4,16 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { memberAction, editMemberByAdmin } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
-import { CrownIcon, GearIcon } from "@/components/crown";
+import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import type { Member } from "@/lib/hub";
 
-export default function AdminMemberRow({ m, self, pushEnabled, lastSeen }: { m: Member; self: string; pushEnabled: boolean; lastSeen?: number }) {
+export default function AdminMemberRow({ m, self, pushEnabled, lastSeen, lv }: { m: Member; self: string; pushEnabled: boolean; lastSeen?: number; lv?: number }) {
   const [edit, setEdit] = useState<"nick" | "name" | null>(null);
   return (
     <div className="member-row">
       <div className="member-row-main">
         <Link href={`/admin/members/${encodeURIComponent(m.nick)}`} className="member-name" title={`${m.nick}님의 개인 현황 보기`}>
-          <b>{m.manager ? <GearIcon /> : m.role === "admin" ? <CrownIcon /> : null}{m.nick}/{m.name?.trim() || "없음"}</b>
+          <b>{m.manager ? <GearIcon /> : m.role === "admin" ? <CrownIcon /> : null}{m.nick}/{m.name?.trim() || "없음"}{lv ? <LevelBadge lv={lv} /> : null}</b>
           <span role="img" aria-label={pushEnabled ? "알림 켜짐" : "알림 꺼짐"} title={pushEnabled ? "알림 켜짐" : "알림 꺼짐"} className={pushEnabled ? "text-sm" : "text-sm opacity-40"}>{pushEnabled ? "🔔" : "🔕"}</span>
           <span className="text-xs text-muted whitespace-nowrap" title="최근 접속 (한국 시간)">{Number.isFinite(lastSeen) && lastSeen ? `접속 ${new Date(lastSeen + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ")}` : "접속 기록 없음"}</span>
           {m.manager && <span className="chip">관리자</span>}

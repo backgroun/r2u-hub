@@ -7,30 +7,46 @@ const b64 = (s: string) => {
   return Uint8Array.from(r, (c) => c.charCodeAt(0));
 };
 
+export type PushState = "loading" | "unsupported" | "off" | "on" | "denied";
+
+/** 이 기기의 알림 상태 */
+export async function pushStatus(): Promise<PushState> {
+  if (!KEY || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return "unsupported";
+  if (Notification.permission === "denied") return "denied";
+  const reg = await navigator.serviceWorker.register("/sw.js").catch(() => null);
+  const sub = await reg?.pushManager.getSubscription();
+  return sub && Notification.permission === "granted" ? "on" : "off";
+}
+
+/** 알림 허용을 묻고 구독을 서버에 저장한다 */
+export async function enablePush(): Promise<{ state: PushState; msg?: string }> {
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") return { state: perm === "denied" ? "denied" : "off" };
+  const reg = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(KEY) }));
+  const r = await fetch("/api/push/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sub: sub.toJSON() }) });
+  return r.ok ? { state: "on" } : { state: "off", msg: "알림을 켜지 못했어요. 잠시 후 다시 시도해 주세요." };
+}
+
 /** 크루 알림 받기 켜기/끄기. iPhone은 홈 화면에 추가한 앱에서만 켤 수 있다. */
 export default function PushToggle({ compact = false }: { compact?: boolean }) {
-  const [state, setState] = useState<"loading" | "unsupported" | "off" | "on" | "denied">("loading");
+  const [state, setState] = useState<PushState>("loading");
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    (async () => {
-      if (!KEY || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return setState("unsupported");
-      if (Notification.permission === "denied") return setState("denied");
-      const reg = await navigator.serviceWorker.register("/sw.js").catch(() => null);
-      const sub = await reg?.pushManager.getSubscription();
-      setState(sub && Notification.permission === "granted" ? "on" : "off");
-    })().catch(() => setState("unsupported"));
+    pushStatus().then(setState).catch(() => setState("unsupported"));
+    // 알림 켜기 팝업에서 켜면 이 버튼도 같이 바뀐다
+    const on = () => setState("on");
+    window.addEventListener("r2u:push-on", on);
+    return () => window.removeEventListener("r2u:push-on", on);
   }, []);
 
   async function turnOn() {
     setMsg("");
-    const perm = await Notification.requestPermission();
-    if (perm !== "granted") { setState(perm === "denied" ? "denied" : "off"); return; }
-    const reg = await navigator.serviceWorker.register("/sw.js");
-    await navigator.serviceWorker.ready;
-    const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(KEY) }));
-    const r = await fetch("/api/push/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sub: sub.toJSON() }) });
-    if (r.ok) { setState("on"); setMsg("알림을 켰어요."); } else setMsg("알림을 켜지 못했어요. 잠시 후 다시 시도해 주세요.");
+    const r = await enablePush();
+    setState(r.state);
+    setMsg(r.state === "on" ? "알림을 켰어요." : r.msg ?? "");
   }
   async function turnOff() {
     const reg = await navigator.serviceWorker.getRegistration("/sw.js");

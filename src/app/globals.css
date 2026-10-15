@@ -1483,3 +1483,8 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .member-card .stat-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 /* 명단 칩 안의 회원 카드 버튼은 ✕ 버튼 규칙(.pchip button)을 따르지 않는다 */
 .pchip .mc-trigger { display: inline-flex; align-items: center; min-width: 0; min-height: 0; color: inherit; font-size: inherit; place-items: initial; }
+/* 알림 켜기 팝업 */
+.push-prompt .push-bell { font-size: 40px; line-height: 1; animation: push-ring 1.4s ease-in-out infinite; transform-origin: 50% 10%; }
+@keyframes push-ring { 0%, 60%, 100% { transform: rotate(0); } 10% { transform: rotate(16deg); } 20% { transform: rotate(-14deg); } 30% { transform: rotate(10deg); } 40% { transform: rotate(-6deg); } }
+.push-prompt .push-steps { padding: 12px 14px; border-radius: 12px; background: var(--fill, rgba(127,127,127,.12)); }
+@media (prefers-reduced-motion: reduce) { .push-prompt .push-bell { animation: none; } }

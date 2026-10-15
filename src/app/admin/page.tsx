@@ -18,7 +18,7 @@ import AdminMemberRow from "@/components/admin-member-row";
 import AdminMemberSearch from "@/components/admin-member-search";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { rankMonth, shiftYm } from "@/lib/rank";
-import { getPointConfig, getPointTotals, levelOf, PT_LABELS, type PointRules } from "@/lib/points";
+import { getLevels, getPointConfig, getPointTotals, levelOf, PT_LABELS, type PointRules } from "@/lib/points";
 import { tierOf } from "@/lib/tiers";
 import { adjustMemberPoints, savePointRules } from "@/app/actions";
 
@@ -112,7 +112,7 @@ async function Notices() {
 }
 
 async function Members({ self }: { self: string }) {
-  const [allMembers, sheets, joins, pushEnabled, lastSeen] = await Promise.all([getMembers(), getSheets(), listJoins(), getPushEnabledNicks(), getLastSeen()]);
+  const [allMembers, sheets, joins, pushEnabled, lastSeen, levels] = await Promise.all([getMembers(), getSheets(), listJoins(), getPushEnabledNicks(), getLastSeen(), getLevels()]);
   const members = allMembers.filter((member) => !isStaffNick(member.nick));
   const pending = joins.filter((j) => j.status === "pending");
   const waiting = members.filter((m) => !m.pw).length;
@@ -176,15 +176,15 @@ async function Members({ self }: { self: string }) {
             </div>
             <div className="row-list">
               {staff.length === 0 && <p className="py-3 text-sm text-muted">아직 운영진으로 지정한 크루원이 없어요.</p>}
-              {staff.map((m) => <AdminMemberRow key={m.nick} m={m} self={self} pushEnabled={pushEnabled.has(m.nick)} lastSeen={lastSeen[m.nick]} />)}
+              {staff.map((m) => <AdminMemberRow key={m.nick} m={m} self={self} pushEnabled={pushEnabled.has(m.nick)} lastSeen={lastSeen[m.nick]} lv={isStaffNick(m.nick) ? undefined : levels[m.nick] ?? 1} />)}
             </div>
             {managers.length > 0 && <>
               <h3 className="label"><GearIcon size={13} />관리자 {managers.length}명</h3>
-              <div className="row-list">{managers.map((m) => <AdminMemberRow key={m.nick} m={m} self={self} pushEnabled={pushEnabled.has(m.nick)} lastSeen={lastSeen[m.nick]} />)}</div>
+              <div className="row-list">{managers.map((m) => <AdminMemberRow key={m.nick} m={m} self={self} pushEnabled={pushEnabled.has(m.nick)} lastSeen={lastSeen[m.nick]} lv={isStaffNick(m.nick) ? undefined : levels[m.nick] ?? 1} />)}</div>
             </>}
             <h3 className="label">크루원 {crew.length}명</h3>
             <div className="row-list">
-              {crew.map((m) => <AdminMemberRow key={m.nick} m={m} self={self} pushEnabled={pushEnabled.has(m.nick)} lastSeen={lastSeen[m.nick]} />)}
+              {crew.map((m) => <AdminMemberRow key={m.nick} m={m} self={self} pushEnabled={pushEnabled.has(m.nick)} lastSeen={lastSeen[m.nick]} lv={isStaffNick(m.nick) ? undefined : levels[m.nick] ?? 1} />)}
             </div>
           </>
         );

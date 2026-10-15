@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { currentUser, getMember, getMembers, getRaceRecs, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, kstNow, kstToday, memberLabel, regInfo } from "@/lib/hub";
 import { knownMemberLabel } from "@/lib/member-label";
 import PushToggle from "@/components/push-toggle";
+import PushPrompt from "@/components/push-prompt";
 import { getNotices, noticeState } from "@/lib/notice";
 import { rankMonth, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
@@ -51,6 +52,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
 
   return (
     <main className="hub-wrap">
+      {/* 알림을 안 켠 크루원에게 알림 켜기 팝업 (운영진 계정 제외) */}
+      {!isStaffAccount(u) && <PushPrompt />}
       <header className="flex items-center justify-between gap-4 pt-2">
         <div className="min-w-0">
           <h1 className="hub-h1 hub-greeting flex items-center gap-2.5">

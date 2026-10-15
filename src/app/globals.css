@@ -1474,3 +1474,12 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .level-compact > .btn { flex: none; }
 .pt-rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .pt-rules .input { min-height: 38px; }
+/* 회원 카드 */
+.mc-trigger { display: inline-flex; align-items: center; gap: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; line-height: inherit; min-height: 0; white-space: nowrap; cursor: pointer; text-align: left; box-shadow: none; }
+.member-card .mc-head { display: flex; align-items: center; gap: 12px; }
+.member-card .mc-avatar { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 20px; color: #111;
+  background: var(--tier, #ffd60a); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tier, #ffd60a) 35%, transparent); }
+.member-card .level-bar { display: block; height: 5px; }
+.member-card .stat-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* 명단 칩 안의 회원 카드 버튼은 ✕ 버튼 규칙(.pchip button)을 따르지 않는다 */
+.pchip .mc-trigger { display: inline-flex; align-items: center; min-width: 0; min-height: 0; color: inherit; font-size: inherit; place-items: initial; }

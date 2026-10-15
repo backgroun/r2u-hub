@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getLevels } from "@/lib/points";
+import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
@@ -43,6 +44,7 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
 
   return (
     <main className="hub-wrap">
+      <MemberCardSheet />
       <header className="grid gap-1">
         <div className="flex items-center justify-between gap-2">
           <h1 className="hub-h1 hub-title-sm">대회 일정</h1>
@@ -255,7 +257,7 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
               <div className="flex flex-wrap gap-1.5">
                 {g.list.map((p) => (
                   <span key={p.nick} className={`pchip ${p.nick === u.nick ? "me" : ""}`}>
-                    <Nick n={p.nick} admins={admins} managers={managers} names={names} levels={levels} />
+                    <MemberChip nick={p.nick}><Nick n={p.nick} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip>
                     {p.nick === u.nick && !past && (
                       <form action={leaveRace} className="inline">
                         <input type="hidden" name="id" value={r.id} />
@@ -275,7 +277,7 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
         <span className="label">📣 응원 {r.cheers.length}명</span>
         {[...r.cheers].sort((a, b) => a.localeCompare(b, "ko")).map((n) => (
           <span key={n} className={`pchip cheer ${n === u.nick ? "me" : ""}`}>
-            <Nick n={n} admins={admins} managers={managers} names={names} levels={levels} />
+            <MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip>
           </span>
         ))}
       </div>}
@@ -417,8 +419,8 @@ function AfterItem({ a, raceId, u, admins, managers, names, levels }: { a: After
         {kind !== "photo" && (
           <div className="flex flex-wrap items-center gap-1.5">
             <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
-            {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></span>)}
-            {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></span>)}
+            {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
+            {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
             {actions}
           </div>
         )}

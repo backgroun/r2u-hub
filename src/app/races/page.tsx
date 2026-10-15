@@ -233,11 +233,12 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
       {/* D-3 이내(오늘 포함) 대회는 펼쳐 둔다 */}
       <details className="race-more" open={(dd >= 0 && dd <= 3) || undefined}>
         <summary className="race-sum">
-          <span className="race-sum-text">
-            <b>👥 참가 {r.participants.length}</b>
-            {groups.length > 0 && <span className="text-muted"> ({groups.map((g) => `${g.label} ${g.list.length}`).join(" · ")})</span>}
-            <span className="text-muted"> · 📣 응원 {r.cheers.length}</span>
-            {schedule.map((a) => <span key={a.id} className="text-muted"> · {AFTER_ICON[kindOf(a)]} {a.time || KINDS.find((k) => k.kind === kindOf(a))!.tag}</span>)}
+          {/* 1줄: 참가 인원(코스별) · 2줄: 응원 · 단사·카풀·뒷풀이 시간 */}
+          <span className="race-sum-text grid gap-0.5">
+            <span className="truncate"><b>👥 참가 {r.participants.length}</b>
+              {groups.length > 0 && <span className="text-muted"> ({groups.map((g) => `${g.label} ${g.list.length}`).join(" · ")})</span>}</span>
+            <span className="text-muted text-[13px]">📣 응원 {r.cheers.length}
+              {schedule.map((a) => <span key={a.id}> · {AFTER_ICON[kindOf(a)]} {KINDS.find((k) => k.kind === kindOf(a))!.tag}{a.time ? ` ${a.time}` : ""}</span>)}</span>
           </span>
         </summary>
         <div className="grid gap-3 pt-3">

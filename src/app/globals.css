@@ -1492,7 +1492,7 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .gear-list .gear-txt { flex: 1 1 0; min-width: 0; }
 .gear-list .gear-ico { align-self: flex-start; margin-top: 0; }
 .gear-pitch { color: #ea8a5b; font-weight: 700; }
-.bi-reward-pitch { margin-top: 3px; font-size: 13px; line-height: 1.5; font-weight: 800; color: #ea580c; word-break: keep-all; }
+.bi-reward-pitch { margin-top: 4px; font-size: 13px; line-height: 1.5; color: #4b5563; word-break: keep-all; }
 /* 링크 수정 입력칸: 공통 입력칸의 최소 높이(44px)를 풀어 낮게 */
 .gear-row-edit .gear-edit-form .input, .gear-row-edit .admin-member-search .input { height: 26px !important; min-height: 0 !important; padding: 0 9px !important; line-height: 1.2; border-radius: 8px; }
 .gear-row-edit .gear-edit-form .btn { height: 26px !important; min-height: 0 !important; padding: 0 12px !important; border-radius: 8px; }

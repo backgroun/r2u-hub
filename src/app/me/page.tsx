@@ -11,6 +11,8 @@ import { getNickChangeRequest } from "@/lib/nickname";
 import { liveBrags } from "@/lib/brag";
 import { getMyPoints, getPointConfig, pointGuide, POINTS_START } from "@/lib/points";
 import PointGuide from "@/components/point-guide";
+import MyCollection from "@/components/my-collection";
+import { caughtGears } from "@/lib/gear-collect";
 import { tierOf } from "@/lib/tiers";
 import RaceRecordForm from "@/components/race-record-form";
 import RaceRecordChart from "@/components/race-record-chart";
@@ -49,7 +51,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
     getMember(u.nick),
     liveBrags(),
   ]);
-  const [pts, cfg] = await Promise.all([getMyPoints(u.nick), getPointConfig()]);
+  const [pts, cfg, gearCaught] = await Promise.all([getMyPoints(u.nick), getPointConfig(), caughtGears(u.nick)]);
   const tier = tierOf(pts.lv);
   const bragging = new Set(brags.filter((b) => b.nick === u.nick).map((b) => b.key));
 
@@ -122,6 +124,8 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
           <PointGuide rows={pointGuide(cfg.pt, cfg.vsSettle)} step={cfg.step} start={POINTS_START} />
         </section>
       )}
+
+      <MyCollection caught={Object.keys(gearCaught).map(Number).sort((a, b) => a - b)} />
 
       <section className="stat-strip stat-compact">
         <div><span className="label">이번 달</span><b className="num">{thisMonth.km}<small>km</small></b></div>

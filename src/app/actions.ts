@@ -7,6 +7,7 @@ import {
   getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type SheetKind,
 } from "@/lib/hub";
 import { syncMembers } from "@/lib/sheet";
+import type { SyncResult } from "@/lib/member-sync-types";
 import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoinId, queueMemberNameForSheet, renameMemberInSheet, saveJoin, updateMemberNameInSheet } from "@/lib/join";
 import { addNotice, deleteNotice, getPushEnabledNicks, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
 import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
@@ -595,17 +596,27 @@ async function sheetUrl(fd: FormData, kind: SheetKind) {
 }
 const errMsg = (e: unknown) => fail(e instanceof Error ? e.message : "시트를 읽지 못했어요.");
 
-export async function syncMembersAction(_: Result, fd: FormData): Promise<Result> {
-  await admin();
+/** 시트 회원 동기화. mode=preview 는 비교만(바꾸지 않음), mode=apply 는 접속한 담당자의 비밀번호를 확인한 뒤 저장한다. */
+export async function syncMembersAction(_: SyncResult, fd: FormData): Promise<SyncResult> {
   try {
-    const r = await syncMembers(await sheetUrl(fd, "members"));
+    await admin();
+    const mode = str(fd, "mode", 10) === "apply" ? "apply" : "preview";
+    const url = await sheetUrl(fd, "members");
+    if (mode === "preview") {
+      const diff = await syncMembers(url, false);
+      return { ok: true, diff, msg: "아직 아무것도 바꾸지 않았어요. 아래 변경 내용을 확인한 뒤 비밀번호를 입력하고 ‘동기화 적용’을 눌러 주세요." };
+    }
+    const real = await currentRealUser();
+    const self = real ? await getMember(real.nick) : null;
+    if (!real || !self?.pw) return { ok: false, msg: "담당자 계정을 확인할 수 없어요. 다시 로그인해 주세요." };
+    if (await loginBlocked(real.nick)) return { ok: false, msg: "비밀번호를 너무 많이 틀렸어요. 10분 뒤에 다시 시도해 주세요." };
+    const pw = String(fd.get("pw") ?? "");
+    if (!pw) return { ok: false, msg: "동기화하려면 내 비밀번호를 입력해 주세요." };
+    if (!checkPw(pw, self.pw)) { await recordFail(real.nick); return { ok: false, msg: "비밀번호가 맞지 않아요." }; }
+    const diff = await syncMembers(url, true);
     revalidatePath("/", "layout");
-    const parts = [`시트 ${r.total}명 확인`, r.added.length ? `새 회원 ${r.added.length}명 추가 (${r.added.join(", ")})` : "새 회원 없음"];
-    if (r.renamed.length) parts.push(`이름 갱신 ${r.renamed.length}명`);
-    if (r.promoted.length) parts.push(`운영진 지정: ${r.promoted.join(", ")}`);
-    if (r.missing.length) parts.push(`시트에 없는 회원 ${r.missing.length}명: ${r.missing.join(", ")} (필요하면 아래에서 삭제하세요)`);
-    return ok(parts.join(" · "));
-  } catch (e) { return errMsg(e); }
+    return { ok: true, applied: true, diff, msg: `동기화를 적용했어요. 새 회원 ${diff.added.length}명 · 이름 변경 ${diff.renamed.length}명 · 운영진 지정 ${diff.promoted.length}명` };
+  } catch (e) { return { ok: false, msg: e instanceof Error ? e.message : "시트를 읽지 못했어요." }; }
 }
 
 /* ---------- 운영진: 크루원이 올린 내용 고치기·지우기 ---------- */

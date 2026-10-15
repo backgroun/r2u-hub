@@ -762,8 +762,12 @@ html[data-theme="dark"]:has([data-tone="groupbuy"]) { --bib: #d9875a; --lane: #d
 .profile-edit-grid details { min-width: 0; }
 .sheet-sync-panel > summary { display: inline-flex; align-items: center; list-style: none; cursor: pointer; }
 .sheet-sync-panel > summary::-webkit-details-marker { display: none; }
-.nick-reject[open] { flex: 1 0 100%; }
-.nick-reject textarea { min-width: min(100%, 280px); }
+.nick-reject { min-width: 0; }
+.nick-reject > summary { cursor: pointer; border: 1px solid color-mix(in srgb, var(--bad) 55%, transparent); border-radius: 999px; }
+.nick-reject[open] { flex: 1 0 100%; padding: 12px; border: 1px solid color-mix(in srgb, var(--bad) 40%, var(--line)); border-radius: 14px; background: var(--fill, rgba(127,127,127,.08)); }
+.nick-reject[open] > summary { margin-bottom: 4px; }
+.nick-reject textarea { width: 100%; min-width: 0; resize: vertical; }
+.nick-reject form .btn { width: 100%; background: var(--bad); border-color: var(--bad); color: #fff; justify-content: center; }
 .kakao-place-field { position: relative; }
 .kakao-place-input-wrap { position: relative; }
 .kakao-place-input-wrap .input { padding-right: 34px; }
@@ -1258,3 +1262,21 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 .weather-place { color: var(--muted); overflow: hidden; text-overflow: ellipsis; max-width: 110px; white-space: nowrap; }
 @media (max-width: 400px) { .weather-range { display: none; } }
 @media (max-width: 340px) { .weather-meta > span:nth-child(1) { display: none; } }
+
+/* 시트 회원 동기화: 엑셀 초록 버튼 + 변경 내용 비교 */
+.btn-excel { background: #217346 !important; border-color: #217346 !important; color: #fff !important; box-shadow: none; }
+.btn-excel:hover:not(:disabled) { background: #1b5e39 !important; }
+.btn-excel:disabled { opacity: .5; }
+.sync-diff { font-size: 13.5px; }
+.sync-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); }
+.sync-stats b { color: var(--ink); }
+.sync-block { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; }
+.sync-block h3 { font-size: 13px; font-weight: 800; }
+.sync-block ul { display: grid; gap: 3px; max-height: 180px; overflow-y: auto; }
+.sync-block em { font-style: normal; color: var(--muted); }
+.sync-add { border-color: color-mix(in srgb, #217346 55%, var(--line)); }
+.sync-add h3 { color: #217346; }
+.sync-warn { border-color: color-mix(in srgb, var(--warn, #f59e0b) 60%, var(--line)); background: color-mix(in srgb, var(--warn, #f59e0b) 8%, transparent); }
+.sync-bad { color: var(--bad); }
+.sync-note { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.sync-apply { padding-top: 10px; border-top: 1px solid var(--line); }

@@ -9,7 +9,7 @@ import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
 import { listJoins, pendingJoinCount } from "@/lib/join";
 import { listNickChangeRequests } from "@/lib/nickname";
 import { getNotices, getPushEnabledNicks, noticeState, pushReady, subCount } from "@/lib/notice";
-import SheetSync from "@/components/sheet-sync";
+import MemberSheetSync from "@/components/member-sheet-sync";
 import LogoutButton from "@/components/logout-button";
 import RaceForm from "@/components/race-form";
 import GroupbuyStaff from "@/components/groupbuy-staff";
@@ -130,11 +130,7 @@ async function Members({ self }: { self: string }) {
           ))}
         </div>
       )}
-      <SheetSync
-        title="구글시트로 회원 동기화"
-        help="A열 닉네임과 B열 이름을 회원 정보로 불러와요. 이름이 비어 있으면 ‘없음’으로 표시해요. 시트에서 빠진 회원은 자동으로 지우지 않아요."
-        url={sheets.members} action={syncMembersAction} button="회원 동기화"
-      />
+      <MemberSheetSync url={sheets.members} />
       <ActionForm action={addMembers} className="panel p-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
         <h2 className="font-bold whitespace-nowrap">크루원 추가</h2>
         <input name="names" className="input min-w-0" aria-label="추가할 크루원 닉네임" placeholder="닉네임 입력" title="여러 명은 쉼표로 구분해 주세요" required />
@@ -199,12 +195,10 @@ async function NicknameRequests() {
   return (
     <section className="panel panel-alert p-4 grid gap-3">
       <h2 className="font-bold">닉네임 변경 요청 ({requests.length})</h2>
-      <p className="text-sm text-muted">크루원이 마이페이지에서 ‘변경 신청’을 누르면 여기에 표시돼요.</p>
-      {requests.length === 0 && <p className="text-sm text-muted">현재 승인 대기 중인 요청이 없어요.</p>}
       {requests.map((request) => (
         <div key={request.oldNick} className="grid gap-2 border-t border-[var(--line)] pt-3">
           <b>{request.oldNick}/{names[request.oldNick] || "없음"} → {request.newNick}/{names[request.oldNick] || "없음"}</b>
-          <span className="text-xs text-muted">신청 {new Date(request.at + 9 * 3600e3).toISOString().slice(0, 16).replace("T", " ")} · 승인 후 구글시트 A열 닉네임과 B열 이름이 자동 반영돼요.</span>
+          <span className="text-xs text-muted">신청 {new Date(request.at + 9 * 3600e3).toISOString().slice(0, 16).replace("T", " ")}</span>
           <div className="flex gap-1.5 flex-wrap">
             <ActionForm action={decideNickChange} className="grid gap-1">
               <input type="hidden" name="oldNick" value={request.oldNick} /><input type="hidden" name="act" value="approve" />

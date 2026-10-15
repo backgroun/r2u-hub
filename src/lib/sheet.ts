@@ -1,5 +1,6 @@
 import "server-only";
 import { K, getMembers, isStaffNick, saveMember, redis } from "./hub";
+import type { MemberDiff } from "./member-sync-types";
 import { clearQueuedMemberName, pendingMemberNames, updateMemberNameInSheet } from "./join";
 
 /** 시트 주소(…/d/<id>/edit?gid=<gid>)를 CSV 내보내기 주소로 바꾼다. 시트는 ‘링크가 있는 모든 사용자’ 보기 공유여야 한다. */
@@ -37,12 +38,15 @@ export function parseCsv(text: string) {
    이벤트 참가자는 시트가 아니라 이벤트 페이지에서 크루원이 직접 신청한다. */
 export const EVENT_NICKS_KEY = "r2u:eventNicks";
 
-export async function syncMembers(sheetUrl: string) {
+/** 시트와 현재 회원을 비교만 한다 (아무것도 바꾸지 않는다). apply 가 true 면 같은 내용을 실제로 저장한다. */
+export async function syncMembers(sheetUrl: string, apply = true): Promise<MemberDiff> {
   const queuedNames = await pendingMemberNames();
-  for (const [nick, name] of Object.entries(queuedNames)) {
-    if (await updateMemberNameInSheet(nick, name) === "ok") {
-      await clearQueuedMemberName(nick);
-      delete queuedNames[nick];
+  if (apply) {
+    for (const [nick, name] of Object.entries(queuedNames)) {
+      if (await updateMemberNameInSheet(nick, name) === "ok") {
+        await clearQueuedMemberName(nick);
+        delete queuedNames[nick];
+      }
     }
   }
   const rows = await fetchSheet(sheetUrl);
@@ -52,26 +56,28 @@ export async function syncMembers(sheetUrl: string) {
   const body = rows.slice(h + 1);
   const aliases = (await redis.hgetall<Record<string, string>>(K.nickAliases)) ?? {};
   const canonical = (nick: string) => aliases[nick] || nick;
-  const sheet = new Map<string, { admin: boolean; name: string }>();
+  const sheet = new Map<string, { admin: boolean; name: string; blank: boolean }>();
   for (const r of body) {
     const nick = r[0]?.trim();
     if (!nick || nick.length > 20) continue;
     const resolvedNick = canonical(nick);
-    sheet.set(resolvedNick, { admin: roleCol >= 0 && /운영/.test(r[roleCol] ?? ""), name: resolvedNick in queuedNames ? queuedNames[resolvedNick] || "없음" : r[1]?.trim() || "없음" });
+    const raw = r[1]?.trim() || "";
+    sheet.set(resolvedNick, { admin: roleCol >= 0 && /운영/.test(r[roleCol] ?? ""), name: resolvedNick in queuedNames ? queuedNames[resolvedNick] || "없음" : raw || "없음", blank: !raw && !(resolvedNick in queuedNames) });
   }
   if (!sheet.size) throw new Error("시트 A열에서 닉네임을 찾지 못했어요.");
   const members = await getMembers();
   const byNick = new Map(members.map((m) => [m.nick, m]));
-  const added: string[] = [], promoted: string[] = [], renamed: string[] = [];
-  for (const [nick, { admin, name }] of sheet) {
+  const diff: MemberDiff = { sheetTotal: sheet.size, currentTotal: members.filter((m) => !isStaffNick(m.nick)).length, unchanged: 0, added: [], renamed: [], promoted: [], missing: [] };
+  for (const [nick, { admin, name, blank }] of sheet) {
     const m = byNick.get(nick);
-    if (!m) { await saveMember({ nick, name, role: admin ? "admin" : "member", pw: null }); added.push(nick); }
-    else if (m.name !== name || (admin && m.role !== "admin")) {
-      await saveMember({ ...m, name, role: admin ? "admin" : m.role });
-      if (m.name !== name) renamed.push(nick);
-      if (admin && m.role !== "admin") promoted.push(nick);
-    }
+    if (!m) { if (apply) await saveMember({ nick, name, role: admin ? "admin" : "member", pw: null }); diff.added.push({ nick, name, admin }); continue; }
+    const nameChanged = (m.name?.trim() || "없음") !== name || (m.name !== name && !!m.name);
+    const promote = admin && m.role !== "admin";
+    if (!nameChanged && !promote) { diff.unchanged++; continue; }
+    if (apply) await saveMember({ ...m, name, role: admin ? "admin" : m.role });
+    if (nameChanged) diff.renamed.push({ nick, from: m.name?.trim() || "없음", to: name, blank });
+    if (promote) diff.promoted.push(nick);
   }
-  const missing = members.filter((m) => !sheet.has(m.nick) && !isStaffNick(m.nick)).map((m) => m.nick);
-  return { total: sheet.size, added, promoted, renamed, missing };
+  diff.missing = members.filter((m) => !sheet.has(m.nick) && !isStaffNick(m.nick)).map((m) => ({ nick: m.nick, name: m.name?.trim() || "없음" }));
+  return diff;
 }

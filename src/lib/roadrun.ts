@@ -87,3 +87,14 @@ export async function detailExternal(no: string): Promise<ExtDetail> {
 }
 
 export const viewUrl = (no: string) => `${BASE}/view.php?no=${no}`;
+
+/** 목록용 접수기간만 따로: 대회마다 12시간 동안 저장해 두고 다시 쓴다 (없는 대회도 기억해 다시 묻지 않는다) */
+export async function regPeriodExternal(no: string): Promise<{ regStart?: string; regEnd?: string }> {
+  const key = `r2u:rr:reg:${no}`;
+  const cached = await redis.get<{ regStart?: string; regEnd?: string }>(key);
+  if (cached) return cached;
+  let v: { regStart?: string; regEnd?: string } = {};
+  try { const d = await detailExternal(no); v = { regStart: d.regStart, regEnd: d.regEnd }; } catch { return {}; }
+  await redis.set(key, JSON.stringify(v), { ex: 12 * 3600 });
+  return v;
+}

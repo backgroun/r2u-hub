@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { currentUser, fmtRaceDate, getRaces, kstToday } from "@/lib/hub";
-import { AREAS, listExternal, viewUrl, type ExtRace } from "@/lib/roadrun";
+import { currentUser, fmtRaceDate, getRaces, kstNow, kstToday } from "@/lib/hub";
+import { AREAS, listExternal, regPeriodExternal, viewUrl, type ExtRace } from "@/lib/roadrun";
 import { sameRace } from "@/lib/race-link";
 import { addExternalRace } from "@/app/actions";
 import { ActionForm, Submit } from "@/components/action-form";
@@ -33,6 +33,18 @@ export default async function FindRaces({ searchParams }: { searchParams: Promis
   const matches = (r: ExtRace) => !q || r.name.includes(q) || r.place.includes(q);
   const cal = sp.view === "cal";
   const shown = list.filter((r) => r.date >= today && matches(r));
+  // 접수 상태(접수예정·접수중·접수마감): 목록은 앞쪽 40개, 달력은 고른 날 대회만 상세에서 읽어 온다
+  const pickedDay = Number(sp.d) || 0;
+  const need = cal
+    ? list.filter((r) => r.date.startsWith(sp.m ?? today.slice(0, 7)) && Number(r.date.slice(8)) === pickedDay && matches(r))
+    : shown.slice(0, 40);
+  const periods = new Map(await Promise.all(need.map(async (r) => [r.no, await regPeriodExternal(r.no)] as const)));
+  const now = kstNow();
+  const regOf = (r: ExtRace): "soon" | "open" | "closed" | undefined => {
+    const p = periods.get(r.no);
+    if (!p || (!p.regStart && !p.regEnd)) return undefined;
+    return p.regEnd && now > p.regEnd ? "closed" : p.regStart && now < p.regStart ? "soon" : "open";
+  };
   const href = (o: Record<string, string>) => `/races/find?${new URLSearchParams({ area, ...(q ? { q } : {}), ...(cal ? { view: "cal" } : {}), ...o })}`;
   const ym = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? sp.m! : today.slice(0, 7);
   // 대회 번호로 이어졌거나, 날짜가 같고 이름이 거의 같은 대회(시트에서 옮긴 대회)가 있으면 ‘우리 일정에 있음’
@@ -82,10 +94,10 @@ export default async function FindRaces({ searchParams }: { searchParams: Promis
       )}
 
       {cal ? (
-        !error && <FindCalendar races={list.filter(matches)} today={today} ym={ym} day={sp.d} href={href} isAdded={isAdded} />
+        !error && <FindCalendar races={list.filter(matches)} today={today} ym={ym} day={sp.d} href={href} isAdded={isAdded} regOf={regOf} />
       ) : (
         <div className="row-list">
-          {shown.map((r) => <FindRow key={r.no} r={r} added={isAdded(r)} />)}
+          {shown.map((r) => <FindRow key={r.no} r={r} added={isAdded(r)} reg={regOf(r)} />)}
         </div>
       )}
       <p className="text-xs text-muted text-center">출처: <a href="http://www.roadrun.co.kr/schedule/list.php" target="_blank" rel="noopener noreferrer" className="underline">마라톤온라인 대회일정</a> · 6시간마다 새로 불러와요.</p>
@@ -93,14 +105,16 @@ export default async function FindRaces({ searchParams }: { searchParams: Promis
   );
 }
 
-function FindRow({ r, added }: { r: ExtRace; added: boolean }) {
+const REG_CHIP = { soon: ["chip chip-warn", "접수예정"], open: ["chip chip-open", "접수중"], closed: ["chip", "접수마감"] } as const;
+
+function FindRow({ r, added, reg }: { r: ExtRace; added: boolean; reg?: "soon" | "open" | "closed" }) {
   const d = fmtRaceDate(r.date);
   return (
     <div className="find-row">
       <span className="datebox"><b>{d.md}</b><span>{d.w}요일</span></span>
       <div className="min-w-0 grid gap-1">
         <a href={viewUrl(r.no)} target="_blank" rel="noopener noreferrer" className="font-bold leading-snug hover:underline">{r.name} ↗</a>
-        <span className="text-sm text-muted">{r.courses}</span>
+        <span className="text-sm text-muted">{r.courses}{reg && <span className={REG_CHIP[reg][0]} style={{ marginLeft: 8, padding: "1px 8px", ...(reg === "closed" ? { background: "color-mix(in srgb, var(--ink) 10%, transparent)" } : null) }}>{REG_CHIP[reg][1]}</span>}</span>
         <span className="text-sm text-muted">{r.place}{r.host ? ` · ${r.host}` : ""}</span>
         <div className="flex justify-end mt-1">
           {added ? (
@@ -120,7 +134,7 @@ function FindRow({ r, added }: { r: ExtRace; added: boolean }) {
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 
 /** 달력 보기: 선택한 지역의 대회를 한 달 칸에 보여 주고, 날짜를 누르면 그날 대회가 아래에 열린다 */
-function FindCalendar({ races, today, ym, day, href, isAdded }: { races: ExtRace[]; today: string; ym: string; day?: string; href: (o: Record<string, string>) => string; isAdded: (r: ExtRace) => boolean }) {
+function FindCalendar({ races, today, ym, day, href, isAdded, regOf }: { regOf: (r: ExtRace) => "soon" | "open" | "closed" | undefined; races: ExtRace[]; today: string; ym: string; day?: string; href: (o: Record<string, string>) => string; isAdded: (r: ExtRace) => boolean }) {
   const [y, m] = ym.split("-").map(Number);
   const last = new Date(y, m, 0).getDate();
   const first = new Date(y, m - 1, 1).getDay();
@@ -161,7 +175,7 @@ function FindCalendar({ races, today, ym, day, href, isAdded }: { races: ExtRace
         <div className="grid gap-3">
           <h3 className="label">{m}월 {sel}일 대회</h3>
           {picked.length === 0 && <p className="text-sm text-muted">이날은 대회가 없어요.</p>}
-          <div className="row-list">{picked.map((r) => <FindRow key={r.no} r={r} added={isAdded(r)} />)}</div>
+          <div className="row-list">{picked.map((r) => <FindRow key={r.no} r={r} added={isAdded(r)} reg={regOf(r)} />)}</div>
         </div>
       )}
     </section>

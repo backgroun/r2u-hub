@@ -117,7 +117,38 @@ const svgStyle = { width: "100%", height: "auto", display: "block", touchAction:
 export type LinePoint = { date: string; at: string; y: number; hollow?: boolean; tip: string };
 
 /** invert: 값이 작을수록 위로 (페이스처럼 빠를수록 좋은 값) */
-export function LineChart({ points, fmt, invert = false, label }: { points: LinePoint[]; fmt: Fmt; invert?: boolean; label: string }) {
+type LineProps = { points: LinePoint[]; fmt: Fmt; invert?: boolean; label: string };
+
+/** 그래프를 마우스로 누르거나(모바일은 ‘확대’ 버튼) 크게 펼쳐서 본다. 기록이 많으면 옆으로 밀어서 본다 */
+export function LineChart(props: LineProps) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [open]);
+  return (
+    <>
+      <LineChartBase {...props} onExpand={() => setOpen(true)} />
+      {open && (
+        <div role="dialog" aria-modal="true" aria-label={`${props.label} 크게 보기`} onClick={() => setOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,.6)", display: "grid", placeItems: "center", padding: 12 }}>
+          <div onClick={(e) => e.stopPropagation()} className="panel" style={{ width: "min(1200px, 100%)", maxHeight: "100%", overflow: "auto", padding: "12px 14px" }}>
+            <div className="flex items-center justify-between gap-3" style={{ marginBottom: 6 }}>
+              <b>{props.label}</b>
+              <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)} style={{ minHeight: 32, height: 32, padding: "0 12px" }}>닫기</button>
+            </div>
+            <LineChartBase {...props} big />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function LineChartBase({ points, fmt, invert = false, label, big = false, onExpand }: LineProps & { big?: boolean; onExpand?: () => void }) {
+  const H = big ? 380 : 200;
   const id = gid(useId());
   const [boxRef, W] = useWidth();
   const [on, setOn] = useState<number | null>(null);
@@ -125,13 +156,17 @@ export function LineChart({ points, fmt, invert = false, label }: { points: Line
   if (points.length < 2) return <p className="text-sm text-muted">기록이 2개 이상이면 그래프가 나와요.</p>;
 
   const ys = points.map((p) => p.y);
-  const lo0 = Math.min(...ys), hi0 = Math.max(...ys);
+  // 튀는 값 몇 개 때문에 나머지가 한 줄로 뭉치지 않게: 기록이 많으면 위·아래 2%는 눈금 범위에서 빼고 가장자리에 붙여 그린다
+  const sorted = [...ys].sort((a, b) => a - b);
+  const q = (r: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round((sorted.length - 1) * r)))];
+  const trim = ys.length >= 20;
+  const lo0 = trim ? q(0.02) : sorted[0], hi0 = trim ? q(0.98) : sorted[sorted.length - 1];
   const pad = Math.max((hi0 - lo0) * 0.14, hi0 * 0.01, 0.01);
-  const lo = lo0 - pad, hi = hi0 + pad;
+  const lo = sorted[0] >= 0 ? Math.max(lo0 - pad, 0) : lo0 - pad, hi = hi0 + pad;
   const t0 = ts(points[0].at), t1 = ts(points[points.length - 1].at);
   const x = (at: string) => (t1 === t0 ? (L + W - R) / 2 : L + ((ts(at) - t0) / (t1 - t0)) * (W - L - R));
   const base = H - B;
-  const y = (v: number) => T + ((invert ? v - lo : hi - v) / (hi - lo)) * (base - T);
+  const y = (v: number) => Math.min(base, Math.max(T, T + ((invert ? v - lo : hi - v) / (hi - lo)) * (base - T)));
   const xy = points.map((p) => ({ x: x(p.at), y: y(p.y) }));
   const ticks = [0, 0.5, 1].map((r) => lo + (hi - lo) * (invert ? r : 1 - r));
   const line = smooth(xy);
@@ -149,15 +184,18 @@ export function LineChart({ points, fmt, invert = false, label }: { points: Line
 
   const hasHollow = points.some((p) => p.hollow);
   return (
-    <div ref={boxRef} style={noSelect}>
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted" style={{ marginBottom: 4 }} aria-hidden>
+    <div style={big ? { overflowX: "auto", ...noSelect } : noSelect}>
+    <div ref={boxRef} style={big ? { minWidth: Math.max(0, points.length * 8) } : undefined}>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted" style={{ marginBottom: 4, position: big ? "sticky" : undefined, left: 0 }}>
       <span className="inline-flex items-center gap-1.5"><i style={{ width: 16, borderTop: "2px dashed var(--bib)", display: "inline-block" }} />평균 <b className="num" style={{ color: "var(--ink)" }}>{f(avg)}</b></span>
       <span className="inline-flex items-center gap-1.5">최근 {shortDate(points[last].date)} <b className="num" style={{ color: "var(--ink)" }}>{f(points[last].y)}</b></span>
       <span className="inline-flex items-center gap-1.5"><i style={{ width: 8, height: 8, borderRadius: 99, background: "var(--lane)", display: "inline-block" }} />{hasHollow ? "야외" : "기록"}</span>
       {hasHollow && <span className="inline-flex items-center gap-1.5"><i style={{ width: 8, height: 8, borderRadius: 99, border: "2px solid var(--bib)", display: "inline-block", boxSizing: "content-box" }} />트레드밀</span>}
+      {onExpand && <button type="button" onClick={onExpand} aria-label="크게 보기" className="ml-auto font-bold" style={{ color: "var(--ink)", background: "none", border: 0, padding: "2px 4px", cursor: "pointer", fontSize: 12.5 }}>⤢ 확대</button>}
     </div>
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} style={svgStyle}
-      onPointerMove={pick} onPointerDown={pick} onPointerLeave={() => setOn(null)}>
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} style={{ ...svgStyle, cursor: onExpand ? "zoom-in" : undefined }}
+      onPointerMove={pick} onPointerDown={pick} onPointerLeave={() => setOn(null)}
+      onClick={(e) => { if (onExpand && (e.nativeEvent as PointerEvent).pointerType === "mouse") onExpand(); }}>
       <defs>
         <linearGradient id={`${id}a`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: "var(--lane)", stopOpacity: 0.34 }} />
@@ -192,6 +230,7 @@ export function LineChart({ points, fmt, invert = false, label }: { points: Line
       <text x={W - R} y={H - 8} textAnchor="end" fontSize="12" fill="var(--muted)">{shortDate(points[last].date)}</text>
       {on != null && <Tip W={W} x={xy[on].x} y={xy[on].y} text={points[on].tip} />}
     </svg>
+    </div>
     </div>
   );
 }

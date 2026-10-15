@@ -154,6 +154,8 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
   const me = r.participants.find((p) => p.nick === u.nick);
   const raceAttendee = !!me || r.cheers.includes(u.nick);
   const reg = regInfo(r);
+  const groups = groupByCourse(r.participants);
+  const schedule = sortAfters(r.afters);
   // 알림을 보낼 수 있는 일정: 시간이 정해져 있고 아직 안 지난 대회·단사·카풀·뒷풀이
   const upcoming = (t?: string) => !!t && /^([01]\d|2[0-3]):[0-5]\d$/.test(t) && Date.parse(`${r.date}T${t}:00+09:00`) > Date.now();
   const noticeKinds = [
@@ -190,7 +192,15 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
           {!past && !isStaffAccount(u) && (
             <Submit form={`join-${r.id}`} className="btn btn-primary text-sm py-1.5 px-4" confirm={me ? "참가 코스를 바꿀까요?" : undefined}>{me ? "코스 변경" : "크루 참가 표시"}</Submit>
           )}
-          <span className="chip count-badge" aria-label={`크루 참가 ${r.participants.length}명`}>👥 {r.participants.length}명</span>
+          {!past && !isStaffNick(u.nick) ? (
+          <form action={toggleCheer}>
+            <input type="hidden" name="id" value={r.id} />
+            <input type="hidden" name="nick" value={u.nick} />
+            <AlertConfirmButton className={`btn cheer-btn text-xs py-1 px-2.5 justify-center ${r.cheers.includes(u.nick) ? "is-on" : ""}`} message={r.cheers.includes(u.nick) ? "응원 표시를 취소할까요?" : `${r.name} 응원 갈게요로 표시할까요?`}>
+              {r.cheers.includes(u.nick) ? "응원 가요 ✓" : "응원 갈게요"}
+            </AlertConfirmButton>
+          </form>
+          ) : <span className="chip count-badge" aria-label={`크루 참가 ${r.participants.length}명`}>👥 {r.participants.length}명</span>}
         </div>
         {/* 주소 · (코스·링크 메모 + 대회 정보 버튼)을 이름·시간 줄과 같은 왼쪽 선에서 시작해 오른쪽 끝까지 */}
         {(r.address || r.note || r.regUrl || r.src) && <div className="race-detail grid gap-1 min-w-0">
@@ -203,10 +213,37 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
         </div>}
       </div>
 
+      {/* 참가 표시 입력(코스 선택)은 늘 보이고, 참가자·응원·단사/카풀/뒷풀이는 요약 줄을 눌러 펼친다 */}
+      {!past && !isStaffAccount(u) && (
+        <ActionForm action={joinRace} className="join-form" id={`join-${r.id}`} alertError>
+          <input type="hidden" name="id" value={r.id} />
+          <span className="label">코스 선택</span>
+          <div className="course-row" role="radiogroup" aria-label="코스">
+            {COURSES.map((c) => (
+              <label key={c} className="cchip">
+                <input type="radio" name="course" value={c} defaultChecked={me?.course === c} />
+                <span>{c}</span>
+              </label>
+            ))}
+            <input name="courseEtc" className="input cchip-etc" placeholder="직접입력" maxLength={20} aria-label="코스 직접입력" />
+          </div>
+        </ActionForm>
+      )}
+
+      <details className="race-more">
+        <summary className="race-sum">
+          <span className="race-sum-text">
+            <b>👥 참가 {r.participants.length}</b>
+            {groups.length > 0 && <span className="text-muted"> ({groups.map((g) => `${g.label} ${g.list.length}`).join(" · ")})</span>}
+            <span className="text-muted"> · 📣 응원 {r.cheers.length}</span>
+            {schedule.map((a) => <span key={a.id} className="text-muted"> · {AFTER_ICON[kindOf(a)]} {a.time || KINDS.find((k) => k.kind === kindOf(a))!.tag}</span>)}
+          </span>
+        </summary>
+        <div className="grid gap-3 pt-3">
       <div className="grid gap-1.5">
         {r.participants.length === 0 && <span className="text-sm text-muted">아직 없어요.</span>}
         <div className="grid gap-1.5">
-          {groupByCourse(r.participants).map((g) => (
+          {groups.map((g) => (
             <div key={g.key} className="pgroup">
               <span className="pgroup-l">{g.label}<small>{g.list.length}</small></span>
               <div className="flex flex-wrap gap-1.5">
@@ -228,42 +265,19 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
         </div>
       </div>
 
-      {!past && !isStaffAccount(u) && (
-        <ActionForm action={joinRace} className="join-form" id={`join-${r.id}`} alertError>
-          <input type="hidden" name="id" value={r.id} />
-          <span className="label">코스 선택</span>
-          <div className="course-row" role="radiogroup" aria-label="코스">
-            {COURSES.map((c) => (
-              <label key={c} className="cchip">
-                <input type="radio" name="course" value={c} defaultChecked={me?.course === c} />
-                <span>{c}</span>
-              </label>
-            ))}
-            <input name="courseEtc" className="input cchip-etc" placeholder="직접입력" maxLength={20} aria-label="코스 직접입력" />
-          </div>
-        </ActionForm>
-      )}
-
-      <div className="flex flex-wrap items-center gap-1.5">
+      {r.cheers.length > 0 && <div className="flex flex-wrap items-center gap-1.5">
         <span className="label">📣 응원 {r.cheers.length}명</span>
         {[...r.cheers].sort((a, b) => a.localeCompare(b, "ko")).map((n) => (
           <span key={n} className={`pchip cheer ${n === u.nick ? "me" : ""}`}>
             <Nick n={n} admins={admins} managers={managers} names={names} levels={levels} />
           </span>
         ))}
-        {!past && !isStaffNick(u.nick) && (
-          <form action={toggleCheer} className="ml-auto">
-            <input type="hidden" name="id" value={r.id} />
-            <input type="hidden" name="nick" value={u.nick} />
-            <AlertConfirmButton className={`btn cheer-btn text-sm py-1.5 px-3 w-[7.5rem] justify-center ${r.cheers.includes(u.nick) ? "is-on" : ""}`} message={r.cheers.includes(u.nick) ? "응원 표시를 취소할까요?" : `${r.name} 응원 갈게요로 표시할까요?`}>
-              {r.cheers.includes(u.nick) ? "응원 가요 ✓" : "응원 갈게요"}
-            </AlertConfirmButton>
-          </form>
-        )}
-      </div>
+      </div>}
 
       <AfterParties r={r} u={u} admins={admins} managers={managers} names={names} levels={levels}
         top={(u.admin || raceAttendee) && noticeKinds.length > 0 ? <div className="flex justify-end"><ScheduleNoticePanel raceId={r.id} kinds={noticeKinds} /></div> : null} />
+        </div>
+      </details>
 
     </article>
   );
@@ -285,6 +299,9 @@ const KINDS: { kind: AfterKind; add: string; tag: string }[] = [
   { kind: "after", add: "+ 뒷풀이 추가", tag: "뒷풀이" },
 ];
 const kindOf = (a: AfterFull): AfterKind => a.kind ?? "after";
+const AFTER_ICON: Record<AfterKind, string> = { photo: "📷", carpool: "🚗", after: "🍻" };
+/** 단사·카풀·뒷풀이를 시간 순서로 (시간 없는 건 뒤로) */
+const sortAfters = (list: AfterFull[]) => [...list].sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99") || a.at - b.at);
 
 const crewNicks = cache(async () => (await getMembers()).filter((m) => !isStaffNick(m.nick)).sort((a, b) => a.nick.localeCompare(b.nick, "ko")));
 
@@ -324,8 +341,7 @@ function AfterFields({ kind, me, a }: { kind: AfterKind; me: string; a?: AfterFu
 }
 
 function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; top?: React.ReactNode }) {
-  const order: AfterKind[] = ["photo", "carpool", "after"];
-  const items = [...r.afters].sort((a, b) => order.indexOf(kindOf(a)) - order.indexOf(kindOf(b)) || a.at - b.at);
+  const items = sortAfters(r.afters);
   return (
     <div className="after-wrap">
       {top}
@@ -373,29 +389,35 @@ function AfterItem({ a, raceId, u, admins, managers, names, levels }: { a: After
       )}
     </>
   ) : null;
+  // 한 줄: 아이콘 · 시간 · 장소(제목) · 참석 수 / 누르면 참석 버튼·명단·운전자·메모·수정
+  const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" ? `${a.yes.length}명` : "";
   return (
-    <div className={`after-item k-${kind}`}>
-      <div className="flex items-start gap-2">
+    <details className={`after-item k-${kind}`} open={mine === "yes" || undefined}>
+      <summary className="after-line">
+        <span className="after-ico" aria-hidden>{AFTER_ICON[kind]}</span>
+        <b className="after-time num">{a.time || "--:--"}</b>
         <span className={`chip k-tag`}>{tag}</span>
-        <div className="min-w-0 grid gap-0.5" style={{ flex: 1 }}>
-          <b className="leading-snug">{a.placeUrl ? <a href={a.placeUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--lane)] underline">{title}</a> : title}{a.time && title !== a.time && <span className="text-muted font-normal"> · {a.time}</span>}</b>
+        <span className="min-w-0 truncate">{title !== a.time ? title : ""}</span>
+        {count && <span className={`chip ${mine === "yes" ? "chip-open" : ""} ml-auto shrink-0`}>{mine === "yes" ? "✓ " : ""}{count}</span>}
+      </summary>
+      <div className="grid gap-2 pt-2">
+        <div className="grid gap-0.5 min-w-0">
+          {a.placeUrl && <a href={a.placeUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--lane)] underline">{a.place || "장소 보기"} 지도 ↗</a>}
           {a.address && <span className="text-xs text-muted">{a.address}</span>}
           {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           {a.memo && <span className="text-sm">{a.memo}</span>}
+          <span className="text-xs text-muted"><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림</span>
         </div>
-        <span className="text-xs text-muted text-right shrink-0 ml-auto self-start leading-snug"><><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림</></span>
+        {kind !== "photo" && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
+            {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></span>)}
+            {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></span>)}
+            {actions}
+          </div>
+        )}
+        {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}
       </div>
-      {kind !== "photo" && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
-          {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></span>)}
-          {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></span>)}
-          {actions}
-        </div>
-      )}
-      {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">
-        {actions}
-      </div>}
-    </div>
+    </details>
   );
 }

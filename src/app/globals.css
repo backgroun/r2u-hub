@@ -1436,3 +1436,15 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .runner-buddy .rb-burst b { position: absolute; transform: translate(-50%, -150%); font-weight: 900; font-size: 18px; color: #ceff1a; text-shadow: 0 2px 6px rgba(0,0,0,.6); white-space: nowrap; animation: rb-pop 1s ease-out forwards; }
 @keyframes rb-pop { from { opacity: 1; transform: translate(-50%, -120%); } to { opacity: 0; transform: translate(-50%, -260%); } }
 @media (prefers-reduced-motion: reduce) { .runner-buddy { animation-duration: 14s !important; } .runner-buddy .rb-hopper, .runner-buddy .rb-leg, .runner-buddy .rb-arm, .runner-buddy .rb-tail, .runner-buddy .rb-dust i { animation: none; } }
+/* 대회 카드: 요약 줄을 눌러 참가자·응원·일정 펼치기 */
+.race-more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--fill, rgba(127,127,127,.12)); font-size: 14px; }
+.race-more > summary::-webkit-details-marker { display: none; }
+.race-more > summary::after { content: ""; flex: none; margin-left: auto; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .2s; }
+.race-more[open] > summary::after { transform: rotate(-135deg); }
+.race-sum-text { min-width: 0; line-height: 1.45; }
+/* 단사·카풀·뒷풀이: 시간 순서 한 줄, 누르면 상세 */
+.after-item > summary.after-line { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; }
+.after-item > summary.after-line::-webkit-details-marker { display: none; }
+.after-line .after-ico { flex: none; font-size: 15px; }
+.after-line .after-time { flex: none; min-width: 3.1em; }
+.after-item { gap: 0; padding: 9px 12px; }

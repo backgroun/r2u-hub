@@ -6,6 +6,7 @@ import HubNav from "@/components/hub-nav";
 import AppBar from "@/components/app-bar";
 import Toaster from "@/components/toaster";
 import BadgeClear from "@/components/badge-clear";
+import RunnerBuddy from "@/components/runner-buddy";
 
 // 페이퍼로지 (무료 폰트, 이주원) — 제목에만 쓴다. 본문은 프리텐다드
 const paperlogy = localFont({
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Toaster />
         <HubNav />
         {children}
+        <RunnerBuddy />
       </body>
     </html>
   );

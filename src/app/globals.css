@@ -1349,3 +1349,20 @@ h1 .lv-badge { font-size: 12px; line-height: 20px; padding: 0 7px; flex: none; }
 .tier-dot.tier-black { box-shadow: 0 0 0 1.5px #8a8a8a; }
 h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .level-head .tier-dot { width: 12px; height: 12px; margin: 0; align-self: center; }
+/* 깜짝 러너: 오른쪽에서 왼쪽으로 뛰어 지나간다 */
+.runner-buddy { position: fixed; left: 0; z-index: 60; padding: 6px; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  animation: rb-cross 7s linear forwards; }
+@keyframes rb-cross { from { transform: translateX(calc(100vw + 10px)); } to { transform: translateX(-90px); } }
+.runner-buddy svg { display: block; transform: scaleX(-1); filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)); }
+.runner-buddy .rb-body { animation: rb-bob .32s ease-in-out infinite alternate; }
+@keyframes rb-bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+.runner-buddy .rb-leg { transform-box: fill-box; transform-origin: top center; animation: rb-leg .32s ease-in-out infinite alternate; }
+.runner-buddy .rb-leg-b { animation-direction: alternate-reverse; }
+@keyframes rb-leg { from { transform: rotate(-28deg); } to { transform: rotate(28deg); } }
+.runner-buddy .rb-arm { transform-box: fill-box; transform-origin: top right; animation: rb-leg .32s ease-in-out infinite alternate-reverse; }
+.runner-buddy.is-caught { animation-play-state: paused; }
+.runner-buddy.is-caught svg { animation: rb-jump .8s ease-out forwards; }
+@keyframes rb-jump { 0% { transform: scaleX(-1) translateY(0); } 40% { transform: scaleX(-1) translateY(-28px) rotate(-12deg); } 100% { transform: scaleX(-1) translateY(-40px); opacity: 0; } }
+.runner-buddy .rb-pop { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); font-weight: 900; font-size: 15px; color: #CEFF1A; text-shadow: 0 1px 4px rgba(0,0,0,.6); animation: rb-pop .8s ease-out forwards; }
+@keyframes rb-pop { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -26px); } }
+@media (prefers-reduced-motion: reduce) { .runner-buddy { animation-duration: 12s !important; } .runner-buddy .rb-body, .runner-buddy .rb-leg, .runner-buddy .rb-arm { animation: none; } }

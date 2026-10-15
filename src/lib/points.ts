@@ -16,6 +16,7 @@ export const PT = {
   versus: 10, // 1:1 대결 참가
   bingo: 5, // 빙고 미션 완료
   gb: 3, // 공구 주문
+  runner: 5, // 가끔 나타나는 러너 캐릭터 잡기 (하루 한 번)
 } as const;
 /** 포인트 기준 안내표 (내 정보의 ‘포인트 기준 보기’) */
 export const POINT_GUIDE: { what: string; p: string; how: string }[] = [
@@ -32,6 +33,7 @@ export const POINT_GUIDE: { what: string; p: string; how: string }[] = [
   { what: "1:1 대결 참가", p: `${PT.versus}P`, how: "대결이 시작되면 두 사람 모두 · 운영진이 취소하면 빠짐" },
   { what: "빙고 미션 완료", p: `${PT.bingo}P`, how: "미션 칸마다 · 인증 취소하면 빠짐" },
   { what: "공구 주문", p: `${PT.gb}P`, how: "공구마다 한 번 · 주문 삭제하면 빠짐" },
+  { what: "깜짝 러너 잡기 🏃", p: `${PT.runner}P`, how: "앱에 아주 가끔 뛰어가는 러너를 누르면 · 하루 한 번" },
 ];
 /** 100P마다 레벨 1 (Lv.1 = 0P, Lv.2 = 100P, …) · 레벨 상한 없음 */
 export const LEVEL_STEP = 100;
@@ -59,11 +61,12 @@ export async function setPoints(nick: string | null | undefined, key: string, p:
 }
 
 /** 출석처럼 한 번만 주는 포인트 (이미 받았으면 그대로) */
-export async function awardOnce(nick: string, key: string, p: number, why: string) {
-  if (!nick || isStaffNick(nick)) return;
+export async function awardOnce(nick: string, key: string, p: number, why: string): Promise<boolean> {
+  if (!nick || isStaffNick(nick)) return false;
   try {
-    if (await redis.hsetnx(LOG(nick), key, JSON.stringify({ p, why, at: Date.now() } satisfies PointEntry))) await redis.hincrbyfloat(TOTAL, nick, p);
+    if (await redis.hsetnx(LOG(nick), key, JSON.stringify({ p, why, at: Date.now() } satisfies PointEntry))) { await redis.hincrbyfloat(TOTAL, nick, p); return true; }
   } catch { /* 포인트는 덤 */ }
+  return false;
 }
 
 /** 월간 기록이 바뀌면 그달 km 포인트와 목표 달성 포인트를 다시 맞춘다 (시작일 이후 날짜만 센다) */

@@ -17,7 +17,7 @@ import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
 import { detachGarminDay } from "@/lib/runs";
 import { BRAG_KEY, BRAG_MS, type Brag } from "@/lib/brag";
-import { PT, setPoints, syncMonthPoints } from "@/lib/points";
+import { PT, awardOnce, setPoints, syncMonthPoints } from "@/lib/points";
 import { getVsRequests, saveVsRequest, vsReqKey, vsVoteKey } from "@/lib/versus";
 import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
 
@@ -1177,4 +1177,14 @@ export async function pinNews(fd: FormData) {
   await admin();
   await patchNews(str(fd, "id", 40), { pinned: fd.get("pinned") === "1" });
   revalidatePath("/news");
+}
+
+/* ---------- 깜짝 러너: 가끔 화면을 뛰어가는 캐릭터를 누르면 하루 한 번 포인트 ---------- */
+export async function catchRunner(): Promise<Result> {
+  const u = await currentUser();
+  if (!u) return fail("로그인하면 러너를 잡을 수 있어요.");
+  if (isStaffNick(u.nick)) return ok("러너를 잡았어요! (운영진 계정은 포인트가 없어요)");
+  const got = await awardOnce(u.nick, `runner:${kstToday()}`, PT.runner, "깜짝 러너 잡기");
+  if (got) { revalidatePath("/me"); return ok(`러너를 잡았어요! +${PT.runner}P 🏃`); }
+  return ok("러너를 또 만났네요! 포인트는 하루 한 번이에요.");
 }

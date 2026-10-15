@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CrownIcon, GearIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { currentUser, getMember, getMembers, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, kstNow, kstToday, memberLabel, regInfo } from "@/lib/hub";
+import { currentUser, getMember, getMembers, getRaceRecs, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, kstNow, kstToday, memberLabel, regInfo } from "@/lib/hub";
 import { knownMemberLabel } from "@/lib/member-label";
 import PushToggle from "@/components/push-toggle";
 import { getNotices, noticeState } from "@/lib/notice";
@@ -12,12 +12,13 @@ import WeatherCard from "@/components/weather-card";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<{ testrecord?: string }> }) {
+  const testRecord = !!(await searchParams).testrecord;
   const u = await currentUser();
   if (!u) redirect("/login");
   const today = kstToday();
   const ym = ymOf(today);
-  const [races, month, links, member, members] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers()]);
+  const [races, month, links, member, members, myRecs] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers(), isStaffAccount(u) ? Promise.resolve({} as Awaited<ReturnType<typeof getRaceRecs>>) : getRaceRecs(u.nick)]);
   const names = Object.fromEntries(members.map((entry) => [entry.nick, entry.name || "없음"]));
   const news = await listNews({ limit: 3 }).catch(() => []);
   const notice = (await getNotices()).find((n) => noticeState(n, today) === "live");
@@ -35,6 +36,14 @@ export default async function Home() {
   const mine = rankMonth(month).find((r) => r.nick === u.nick);
   const pct = mine?.rate ?? 0;
   const myNextRace = races.filter((r) => r.date >= today && r.participants.some((p) => p.nick === u.nick)).sort((a, b) => a.date.localeCompare(b.date))[0];
+  // 참가로 표시한 대회가 끝난 뒤 7일 동안, 아직 기록을 안 남겼다면 기록 입력을 알려 준다
+  const dayMs = 86400000, todayMs = Date.parse(`${today}T00:00:00Z`);
+  const recordDue = races
+    .map((r) => ({ r, since: Math.round((todayMs - Date.parse(`${r.date}T00:00:00Z`)) / dayMs) }))
+    .filter(({ r, since }) => since >= 0 && since <= 7 && !myRecs[r.id] && r.participants.some((p) => p.nick === u.nick))
+    .map(({ r, since }) => ({ id: r.id, name: r.name, left: 7 - since }));
+  // 테스트: 쩝쩝 계정에서 주소 뒤에 ?testrecord=1 을 붙이면 예시 알림이 보인다 (실제 대회가 끝나기 전에 화면을 확인하는 용도)
+  if (testRecord && u.nick === "쩝쩝") recordDue.unshift({ id: "test", name: "(테스트) 경주마라톤", left: 5 });
   const closingRace = races.filter((r) => r.date >= today && r.regEnd && regInfo(r, now).status === "open").sort((a, b) => (a.regEnd ?? "").localeCompare(b.regEnd ?? ""))[0];
 
   return (
@@ -53,6 +62,17 @@ export default async function Home() {
       </header>
 
       <WeatherCard />
+
+      {recordDue.map((r) => (
+        <Link key={r.id} href={`/me?rec=${r.id}#race-record`} className="panel panel-alert p-3.5 flex items-center gap-3">
+          <span className="text-2xl" aria-hidden>🏁</span>
+          <span className="min-w-0 grid">
+            <b className="truncate">{r.name} 어땠어요?</b>
+            <span className="text-xs text-muted">대회 기록을 남겨 주세요 · {r.left === 0 ? "오늘까지" : `${r.left}일 남음`}</span>
+          </span>
+          <span className="btn btn-primary text-sm shrink-0 ml-auto">기록 입력</span>
+        </Link>
+      ))}
 
       <section className={`panel ${notice ? "panel-alert p-4" : "px-4 py-2.5"}`}>
         {/* 새 공지가 있으면 펼친 채로, 없으면 접어서 보여 준다 */}

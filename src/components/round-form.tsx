@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { buildCustomItems, CUSTOM_KINDS, CUSTOM_PRESETS, makeTitle, type CustomKind, type CustomSpec, type Item, type Round } from "@/lib/types";
 import { normalizePassword } from "@/components/password-input";
 
@@ -27,7 +27,7 @@ export const EMPTY_DRAFT: RoundDraft = {
   deadline: defaultDeadline(),
   minQty: 20,
   items: [
-    { id: uid(), name: "", price: 0 },
+    { id: "i0", name: "", price: 0 }, // 고정 id (서버·브라우저 렌더가 같아야 hydration 오류가 안 난다)
   ],
 };
 
@@ -37,7 +37,9 @@ export default function RoundForm({
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [d, setD] = useState<RoundDraft>({ ...initial, pickup: initial.pickup ?? EMPTY_DRAFT.pickup });
-  const [deadlineLocal, setDeadlineLocal] = useState(toLocalInput(initial.deadline));
+  // 서버(UTC)와 브라우저(한국 시간)의 시각 표기가 달라 hydration 오류가 나므로, 마운트 뒤에 브라우저 시간으로 채운다
+  const [deadlineLocal, setDeadlineLocal] = useState("");
+  useEffect(() => setDeadlineLocal(toLocalInput(initial.deadline)), [initial.deadline]);
   const [lastMin, setLastMin] = useState(initial.minQty > 0 ? initial.minQty : 20);
   const [busy, setBusy] = useState(false);
   // R2U 단체 제작: 종류(의류·모자·양말·기타)와 사이즈·컬러를 정해서 주문받는다
@@ -77,7 +79,12 @@ export default function RoundForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-6">
+    <form onSubmit={submit} className="grid gap-4 round-form">
+      <div className="seg" role="group" aria-label="공구 종류">
+        <button type="button" className={`btn ${!custom ? "btn-primary" : ""}`} onClick={() => setCustom(null)}>일반 공구</button>
+        <button type="button" className={`btn ${custom ? "btn-primary" : ""}`} onClick={() => !custom && startCustom()}>R2U 단체 제작</button>
+      </div>
+
       <fieldset className="panel p-4 grid gap-4">
         <legend className="label px-1">기본 정보</legend>
         <div className={askPassword ? "grid grid-cols-2 gap-2" : "grid"}>
@@ -96,16 +103,12 @@ export default function RoundForm({
           )}
         </div>
         {askPassword && <span className="text-xs text-muted -mt-2">관리 비밀번호는 잊으면 되찾을 수 없어요. 크루원에게는 알려주지 마세요.</span>}
-      </fieldset>
-
-      <fieldset className="panel p-4 grid gap-4">
-        <legend className="label px-1">마감과 진행 조건</legend>
         <label className="field">
           <span className="label">접수 마감 (날짜·시간)</span>
           <input id="f-deadline" type="datetime-local" className="input" value={deadlineLocal} onChange={(e) => setDeadlineLocal(e.target.value)} />
         </label>
         <div className="field">
-          <span className="label">최소 수량 (주문 개수 합계가 이만큼 차면 진행)</span>
+          <span className="label">최소 수량 <span className="font-normal">(합계가 이만큼 차면 진행)</span></span>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <input id="f-min" type="number" inputMode="numeric" min={1} aria-label="최소 수량" className="input num w-24" disabled={d.minQty === 0}
@@ -120,10 +123,6 @@ export default function RoundForm({
             </label>
           </div>
         </div>
-      </fieldset>
-
-      <fieldset className="panel p-4 grid gap-4">
-        <legend className="label px-1">배포</legend>
         <label className="field">
           <span className="label">배포 장소</span>
           <input id="f-pickup-place" className="input" placeholder="예) 울산 OOO" value={d.pickup.place} onChange={(e) => set("pickup", { place: e.target.value })} />
@@ -138,11 +137,6 @@ export default function RoundForm({
         </div>
         <input id="f-holder" className="input" placeholder="예금주" value={d.bank.holder} onChange={(e) => set("bank", { ...d.bank, holder: e.target.value })} />
       </fieldset>
-
-      <div className="seg" role="group" aria-label="공구 종류">
-        <button type="button" className={`btn ${!custom ? "btn-primary" : ""}`} onClick={() => setCustom(null)}>일반 공구</button>
-        <button type="button" className={`btn ${custom ? "btn-primary" : ""}`} onClick={() => !custom && startCustom()}>R2U 단체 제작</button>
-      </div>
 
       {custom ? (
         <fieldset className="panel p-4 grid gap-4">

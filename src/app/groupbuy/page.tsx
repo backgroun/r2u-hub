@@ -16,11 +16,10 @@ export default async function Home() {
   const current = rounds.filter((x) => !past.includes(x));
   return (
     <main className="wrap grid gap-6">
-      <header className="grid gap-2 pt-4">
+      <header className="flex items-center justify-between gap-3 pt-2">
         <h1 className="hub-h1">R2U 크루 공구</h1>
+        <Link href="/groupbuy/new" className="btn btn-primary text-sm shrink-0">+ 새 공구</Link>
       </header>
-
-      <Link href="/groupbuy/new" className="btn btn-primary text-base py-3.5">+ 새 공구 열기</Link>
 
       <MyRounds />
 
@@ -28,7 +27,7 @@ export default async function Home() {
         <h2 className="label">진행 중인 공구</h2>
         {current.length === 0 && (
           <div className="panel p-5 text-muted text-sm">
-            아직 열린 공구가 없어요. 위의 ‘새 공구 열기’로 첫 공구를 만들어 보세요.
+            아직 열린 공구가 없어요. 오른쪽 위 ‘+ 새 공구’로 첫 공구를 만들어 보세요.
           </div>
         )}
         {current.map((x) => <RoundCard key={x.round.id} {...x} names={names} />)}
@@ -52,7 +51,7 @@ export default async function Home() {
 function RoundCard({ round: r, summary: s, names }: { round: Round; summary: PublicSummary; names: Record<string, string> }) {
   const status = roundStatus(r, s.totalQty);
   return (
-    <Link href={`/groupbuy/r/${r.id}`} className="panel p-4 grid gap-1.5 hover:border-[var(--lane)]">
+    <Link href={`/groupbuy/r/${r.id}`} className="panel p-3.5 grid gap-2 hover:border-[var(--lane)]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {r.custom && <span className="chip chip-open">단체 제작 · {r.custom.kind}</span>}
@@ -61,8 +60,9 @@ function RoundCard({ round: r, summary: s, names }: { round: Round; summary: Pub
         </div>
         <span className="num text-muted text-sm">{r.minQty > 0 ? `${s.totalQty}/${r.minQty}개` : `${s.totalQty}개 · 수량 무관`}</span>
       </div>
-      <h3 className="font-bold text-lg leading-snug">{r.title}</h3>
-      <p className="text-sm text-muted">공구 오픈자 {knownMemberLabel(r.opener, names)} · 마감 {fmtDeadline(r.deadline)}</p>
+      <h3 className="font-bold text-base leading-snug">{r.title}</h3>
+      <p className="text-xs text-muted">{knownMemberLabel(r.opener, names)} · 마감 {fmtDeadline(r.deadline)}</p>
+      {r.minQty > 0 && <div className={`track ${s.totalQty >= r.minQty ? "done" : ""}`} aria-hidden style={{ height: 6 }}><span style={{ width: `${Math.min(100, (s.totalQty / r.minQty) * 100)}%` }} /></div>}
       <PayBadges total={s.participants} paid={s.paidCount} delivered={status === "open" ? undefined : s.deliveredCount} />
     </Link>
   );

@@ -1288,3 +1288,11 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 .member-add-form > p { flex: 1 0 100%; }
 .member-add-form .input { flex: 1 1 0; min-width: 0; }
 .member-add-form .btn { flex: none; }
+
+/* 공구 폼: 섹션 제목이 카드 테두리에 걸치지 않고 카드 안쪽 제목으로 보이게, 입력칸은 낮고 간결하게 */
+fieldset.panel { min-width: 0; }
+fieldset.panel > legend { float: left; width: 100%; padding: 0 0 2px; margin: 0; font-size: 13px; font-weight: 800; color: var(--ink); letter-spacing: 0; }
+fieldset.panel > legend + * { clear: both; }
+.round-form .input { min-height: 40px; padding-block: 8px; }
+.round-form .field { gap: 4px; }
+.round-form .seg .btn { min-height: 42px; }

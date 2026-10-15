@@ -154,14 +154,15 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
           <dt className="text-muted">진행 조건</dt><dd className="font-semibold">{minLabel(round.minQty)}</dd>
           {fmtPickup(round.pickup) && (<><dt className="text-muted">배포 장소</dt><dd className="font-semibold">{fmtPickup(round.pickup)}</dd></>)}
         </dl>
-        <div className="panel p-4"><Progress count={summary.totalQty} min={round.minQty} /></div>
-        <div className="panel p-4 grid gap-1.5">
-          <span className="label">공구 입금 계좌</span>
-          <p className="num font-semibold break-all">{account}</p>
-          <button className="btn text-sm" onClick={async () => showToast((await copyText(`${round.bank.bank} ${round.bank.account}`)) ? "계좌번호를 복사했어요" : "복사하지 못했어요. 길게 눌러 복사해 주세요")}>
-            계좌번호 복사
-          </button>
-          <p className="text-xs text-muted">주문할 때 적은 입금자명으로 입금해 주세요.</p>
+        <div className="panel p-4 grid gap-3">
+          <Progress count={summary.totalQty} min={round.minQty} />
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-3">
+            <div className="min-w-0 grid gap-0.5">
+              <span className="text-xs text-muted">입금 계좌 · 주문 때 적은 입금자명으로 보내 주세요</span>
+              <p className="num font-semibold break-all text-sm">{account}</p>
+            </div>
+            <button className="btn text-sm shrink-0" onClick={async () => showToast((await copyText(`${round.bank.bank} ${round.bank.account}`)) ? "계좌번호를 복사했어요" : "복사하지 못했어요. 길게 눌러 복사해 주세요")}>복사</button>
+          </div>
         </div>
       </header>
 

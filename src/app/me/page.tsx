@@ -25,7 +25,8 @@ const courseOf = (c?: string) => {
   return t === "5k" ? "5K" : t === "10k" ? "10K" : t === "half" || t === "하프" ? "Half" : t === "full" || t === "풀" ? "Full" : "기타";
 };
 
-export default async function MyPage() {
+export default async function MyPage({ searchParams }: { searchParams: Promise<{ rec?: string }> }) {
+  const recParam = (await searchParams).rec ?? "";
   const u = await currentUser();
   if (!u) redirect("/login?next=/me");
   if (isStaffAccount(u)) redirect("/admin");
@@ -155,7 +156,7 @@ export default async function MyPage() {
       </section>
 
       {/* 내 대회 기록 */}
-      <section className="grid gap-2">
+      <section id="race-record" className="grid gap-2 scroll-mt-16">
         {/* 코스별 최고 기록 배지는 제목 줄 오른쪽에 (코스가 여러 개면 오른쪽 정렬로 줄바꿈) */}
         <div className="sec-head" style={{ alignItems: "flex-start", gap: 8 }}>
           <h2 className="label" style={{ paddingTop: 3 }}>내 대회 기록</h2>
@@ -166,10 +167,10 @@ export default async function MyPage() {
           )}
         </div>
         <RaceRecordChart records={recList.map(({ id, rec, race }) => ({ id, race: race.name, date: race.date, course: rec.course, sec: rec.sec, time: rec.time }))} />
-        <details className="panel p-4">
+        <details className="panel p-4" open={!!recParam && pastAll.some((r) => r.id === recParam)}>
           <summary className="font-bold">+ 대회 기록 추가</summary>
           {pastAll.length === 0 ? <p className="mt-2 text-sm text-muted">기록을 남길 수 있는 대회가 아직 없어요. 크루 참가로 표시한 대회가 끝나면 여기서 기록을 적을 수 있어요.</p> : (
-            <RaceRecordForm races={pastAll.map((r) => ({ id: r.id, label: `${fmtRaceDate(r.date).md} ${r.name}`, course: courseOf(r.participants.find((p) => p.nick === u.nick)?.course) }))} />
+            <RaceRecordForm initialId={pastAll.some((r) => r.id === recParam) ? recParam : ""} races={pastAll.map((r) => ({ id: r.id, label: `${fmtRaceDate(r.date).md} ${r.name}`, course: courseOf(r.participants.find((p) => p.nick === u.nick)?.course) }))} />
           )}
         </details>
         <div className="row-list">

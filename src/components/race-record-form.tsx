@@ -6,8 +6,8 @@ import { ActionForm, Submit } from "@/components/action-form";
 const COURSES = ["5K", "10K", "Half", "Full", "기타", "DNF", "DNS"];
 
 /** 내 대회 기록 입력. 대회를 고르면 내가 신청한 코스가 자동 선택되고, DNF·DNS(미완주·불참)는 기록 칸이 꺼진다. */
-export default function RaceRecordForm({ races }: { races: { id: string; label: string; course: string }[] }) {
-  const [course, setCourse] = useState("");
+export default function RaceRecordForm({ races, initialId = "" }: { races: { id: string; label: string; course: string }[]; initialId?: string }) {
+  const [course, setCourse] = useState(races.find((x) => x.id === initialId)?.course ?? "");
   const [t, setT] = useState({ h: "", m: "", s: "" });
   const mRef = useRef<HTMLInputElement>(null), sRef = useRef<HTMLInputElement>(null);
   const num = (v: string, max: number) => { const d = v.replace(/\D/g, "").slice(0, 2); return d !== "" && Number(d) > max ? String(max) : d; };
@@ -16,7 +16,7 @@ export default function RaceRecordForm({ races }: { races: { id: string; label: 
   return (
     <ActionForm action={saveRaceRecord} className="grid-2 mt-3 items-start" collapse>
       <label className="field full"><span className="label">대회</span>
-        <select name="id" className="input" required defaultValue="" onChange={(e) => { const r = races.find((x) => x.id === e.target.value); if (r) setCourse(r.course); }}>
+        <select name="id" className="input" required defaultValue={initialId} onChange={(e) => { const r = races.find((x) => x.id === e.target.value); if (r) setCourse(r.course); }}>
           <option value="" disabled>대회를 골라 주세요</option>
           {races.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
         </select>

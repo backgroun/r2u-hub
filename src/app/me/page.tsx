@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CrownIcon, GearIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { driverOf, currentUser, getMember, isStaffAccount, fmtRaceDate, getMonth, getRaceRecs, getRaces, kstToday, memberLabel, type RaceFull } from "@/lib/hub";
+import { driverOf, currentUser, getMember, isStaffAccount, fmtRaceDate, getMonth, getRaceRecs, getRaces, kstToday, memberLabel, recRace, type RaceFull } from "@/lib/hub";
 import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
 import { getOrders, listRounds } from "@/lib/db";
@@ -55,7 +55,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
 
   // 내 대회 기록: 코스별 최고 기록(PB)과 기록 목록, 기록을 넣을 수 있는 지난 대회(크루 참가로 표시한 대회만)
   const raceById = new Map(races.map((r) => [r.id, r]));
-  const recList = Object.entries(recs).map(([id, rec]) => ({ id, rec, race: raceById.get(id) })).filter((x): x is { id: string; rec: typeof x.rec; race: RaceFull } => !!x.race).sort((a, b) => b.race.date.localeCompare(a.race.date));
+  const recList = Object.entries(recs).map(([id, rec]) => ({ id, rec, race: recRace(id, rec, raceById) })).filter((x): x is { id: string; rec: typeof x.rec; race: { name: string; date: string } } => !!x.race).sort((a, b) => b.race.date.localeCompare(a.race.date));
   const activity = activityStats(races, u.nick, Object.keys(recs));
   const pb = new Map<string, { sec: number; time: string }>();
   for (const { rec } of recList) { if (!rec.sec) continue; const cur = pb.get(rec.course); if (!cur || rec.sec < cur.sec) pb.set(rec.course, { sec: rec.sec, time: rec.time }); }
@@ -140,9 +140,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
         <RaceRecordChart records={recList.map(({ id, rec, race }) => ({ id, race: race.name, date: race.date, course: rec.course, sec: rec.sec, time: rec.time }))} />
         <details className="panel p-4" open={!!recParam && pastAll.some((r) => r.id === recParam)}>
           <summary className="font-bold">+ 대회 기록 추가</summary>
-          {pastAll.length === 0 ? <p className="mt-2 text-sm text-muted">기록을 남길 수 있는 대회가 아직 없어요. 크루 참가로 표시한 대회가 끝나면 여기서 기록을 적을 수 있어요.</p> : (
-            <RaceRecordForm initialId={pastAll.some((r) => r.id === recParam) ? recParam : ""} races={pastAll.map((r) => ({ id: r.id, label: `${fmtRaceDate(r.date).md} ${r.name}`, course: courseOf(r.participants.find((p) => p.nick === u.nick)?.course) }))} />
-          )}
+          <RaceRecordForm initialId={pastAll.some((r) => r.id === recParam) ? recParam : ""} races={pastAll.map((r) => ({ id: r.id, label: `${fmtRaceDate(r.date).md} ${r.name}`, course: courseOf(r.participants.find((p) => p.nick === u.nick)?.course) }))} today={today} />
         </details>
         <div className="row-list">
           {recList.length === 0 && <p className="py-4 text-sm text-muted">아직 남긴 대회 기록이 없어요. 위에서 추가해 보세요.</p>}
@@ -214,8 +212,11 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
         </section>
       )}
 
-      {/* 계정 */}
-      <details className="panel p-4">
+      {/* 계정: 비밀번호·닉네임·이름 변경을 한 박스에 */}
+      <section className="grid gap-2">
+      <h2 className="label">계정 설정</h2>
+      <div className="panel account-group">
+      <details>
         <summary className="font-bold">비밀번호 바꾸기</summary>
         <ActionForm action={changePassword} className="grid gap-3 mt-3">
           <label className="field"><span className="label">지금 비밀번호</span><input name="cur" type="text" className="input pw-mask" required autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
@@ -223,8 +224,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
           <div><Submit confirm="비밀번호를 바꿀까요?">변경</Submit></div>
         </ActionForm>
       </details>
-      <div className="profile-edit-grid">
-      <details id="nickname-change" className="panel p-4">
+      <details id="nickname-change">
         <summary className="font-bold">닉네임 변경</summary>
         <div className="grid gap-3 mt-3">
           {nickRequest?.status === "pending" && <p className="text-sm">승인 대기: <b>{nickRequest.newNick}</b></p>}
@@ -242,7 +242,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
         </div>
       </details>
 
-      <details id="name-change" className="panel p-4">
+      <details id="name-change">
         <summary className="font-bold">이름 변경</summary>
         <div className="grid gap-3 mt-3">
           <ActionForm action={editMyName} className="grid gap-3" keep>
@@ -252,6 +252,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
         </div>
       </details>
       </div>
+      </section>
       <LogoutButton />
     </main>
   );

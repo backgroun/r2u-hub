@@ -611,9 +611,9 @@ html:has([data-tone="me"]) .tabbar [data-tab="/me"] { color: var(--bib); }
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 details.panel > summary, details > summary.font-bold { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-details.panel > summary::after { content: ""; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+details.panel > summary::after, .account-group > details > summary::after { content: ""; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
   transform: rotate(45deg); transition: transform .2s; margin-right: 4px; }
-details.panel[open] > summary::after { transform: rotate(-135deg); }
+details.panel[open] > summary::after, .account-group > details[open] > summary::after { transform: rotate(-135deg); }
 
 /* 크루 요약: 얇은 구분선으로 칸 나누기 (2×2에서도 맞게) */
 .stat-strip { gap: 0.5px; background: var(--sep); overflow: hidden; }
@@ -1204,6 +1204,10 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 
 /* 내 페이지 닉네임·이름 바꾸기: 입력칸을 낮게 */
 .profile-edit-grid .input { min-height: 36px; padding-block: 6px; font-size: 14px; }
+/* 내 정보: 계정 설정 묶음 (비밀번호·닉네임·이름 변경을 한 박스에 줄로) */
+.account-group { padding: 0; overflow: hidden; }
+.account-group > details { padding: 14px 16px; }
+.account-group > details + details { border-top: 1px solid var(--line); }
 
 /* 이벤트 노출/비노출 스위치 (운영진 바) */
 .event-admin-bar .btn.event-vis.on { color: #8fd6a3; border-color: rgba(143,214,163,.45); }

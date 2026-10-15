@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   K, redis, checkPw, hashPw, currentUser, currentRealUser, VIEW_COOKIE, startSession, endSession, getMember, saveMember, getMembers, getAllVs, isStaffNick,
-  getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type SheetKind,
+  getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type RaceRec, OWN_RACE_PREFIX, type SheetKind,
 } from "@/lib/hub";
 import { syncMembers } from "@/lib/sheet";
 import type { SyncResult } from "@/lib/member-sync-types";
@@ -901,14 +901,26 @@ export async function decideJoin(fd: FormData) {
 /* ---------- 내 대회 기록 ---------- */
 export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
-  const id = str(fd, "id", 20);
-  const race = await redis.hget(K.races, id);
-  if (!race) return fail("대회를 골라 주세요.");
-  if (!(await redis.hget(K.raceP(id), u.nick))) return fail("크루 참가로 표시한 대회만 기록할 수 있어요.");
+  // 개별 등록: 대회 목록에 없는 대회를 이름·날짜로 직접 적는다
+  const own = fd.get("own") === "1";
+  let id = str(fd, "id", 20);
+  let extra: { name?: string; date?: string } = {};
+  if (own) {
+    const name = str(fd, "raceName", 60), date = str(fd, "raceDate", 10);
+    if (!name) return fail("대회 이름을 적어 주세요.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail("대회 날짜를 골라 주세요.");
+    if (date > kstToday()) return fail("끝난 대회만 기록할 수 있어요.");
+    id = `${OWN_RACE_PREFIX}${Date.now().toString(36)}`;
+    extra = { name, date };
+  } else {
+    const race = await redis.hget(K.races, id);
+    if (!race) return fail("대회를 골라 주세요.");
+    if (!(await redis.hget(K.raceP(id), u.nick))) return fail("크루 참가로 표시한 대회만 기록할 수 있어요.");
+  }
   const course = str(fd, "course", 20) || "기타";
   // DNF(미완주)·DNS(불참)는 기록 시간 없이 저장한다
   if (course === "DNF" || course === "DNS") {
-    await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: 0, time: "", note: str(fd, "note", 100), at: Date.now() }) });
+    await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: 0, time: "", note: str(fd, "note", 100), at: Date.now(), ...extra }) });
     revalidatePath("/me");
     return ok(`${course}로 저장했어요.`);
   }
@@ -916,7 +928,7 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   const raw = str(fd, "time", 12);
   const t = parseRaceTime(/^\d{1,2}:\d{2}$/.test(raw) ? `${raw}:00` : raw);
   if (!t) return fail("기록의 시간·분·초를 골라 주세요. (0시간 0분 0초는 저장할 수 없어요)");
-  await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: t.sec, time: t.time, note: str(fd, "note", 100), at: Date.now() }) });
+  await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: t.sec, time: t.time, note: str(fd, "note", 100), at: Date.now(), ...extra }) });
   revalidatePath("/me");
   return ok(`기록을 저장했어요. (${course} ${t.time}) 목록에서 ‘🎉 자랑하기’를 눌러 홈에 자랑해 보세요!`);
 }
@@ -926,10 +938,10 @@ export async function braggRace(_: Result, fd: FormData): Promise<Result> {
   if (isStaffNick(u.nick)) return fail("크루원 계정으로 자랑해 주세요.");
   const id = str(fd, "id", 20);
   const [raw, race] = await Promise.all([redis.hget(K.raceRec(u.nick), id), redis.hget<unknown>(K.races, id)]);
-  if (!raw || !race) return fail("자랑할 기록을 찾을 수 없어요.");
-  const rec = (typeof raw === "string" ? JSON.parse(raw) : raw) as { course: string; sec: number; time: string };
+  const rec = raw ? ((typeof raw === "string" ? JSON.parse(raw) : raw) as RaceRec) : null;
+  const r = race ? ((typeof race === "string" ? JSON.parse(race) : race) as { name: string }) : rec?.name ? { name: rec.name } : null;
+  if (!rec || !r) return fail("자랑할 기록을 찾을 수 없어요.");
   if (!rec.sec) return fail("완주 기록만 자랑할 수 있어요.");
-  const r = (typeof race === "string" ? JSON.parse(race) : race) as { name: string };
   const field = `${u.nick}|${id}`;
   const cur = await redis.hget<unknown>(BRAG_KEY, field);
   if (cur) {

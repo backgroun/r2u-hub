@@ -27,7 +27,12 @@ export const K = {
   fails: (nick: string) => `r2u:fails:${nick}`,
 };
 
-export type RaceRec = { course: string; sec: number; time: string; note: string; at: number };
+/** name·date: 대회 목록에 없는 대회를 직접 적어 ‘개별 등록’한 기록 (id가 own-로 시작) */
+export type RaceRec = { course: string; sec: number; time: string; note: string; at: number; name?: string; date?: string };
+export const OWN_RACE_PREFIX = "own-";
+/** 기록이 가리키는 대회 이름·날짜: 대회 목록에서 찾고, 없으면 개별 등록 정보 */
+export const recRace = (id: string, rec: RaceRec, byId: Map<string, { name: string; date: string }>) =>
+  byId.get(id) ?? (rec.name && rec.date ? { name: rec.name, date: rec.date } : undefined);
 /** "1:45:30"·"45:30"을 초로. 형식이 맞지 않으면 null */
 export function parseRaceTime(t: string): { sec: number; time: string } | null {
   const m = t.trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/);

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { currentUser, fmtRaceDate, getMember, getMonth, getRaceRecs, getRaces, isStaffNick, kstToday, memberLabel } from "@/lib/hub";
+import { currentUser, fmtRaceDate, getMember, getMonth, getRaceRecs, getRaces, isStaffNick, kstToday, memberLabel, recRace } from "@/lib/hub";
 import { getOrders, listRounds } from "@/lib/db";
 import { nickKey, orderTotal, qtyOf, won } from "@/lib/types";
 import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
@@ -36,7 +36,7 @@ export default async function MemberProfile({ params }: { params: Promise<{ nick
   const upcoming = joined.filter((race) => race.date >= today);
   const past = joined.filter((race) => race.date < today).reverse();
   const raceById = new Map(races.map((race) => [race.id, race]));
-  const raceRecords = Object.entries(records).map(([id, record]) => ({ id, record, race: raceById.get(id) }))
+  const raceRecords = Object.entries(records).map(([id, record]) => ({ id, record, race: recRace(id, record, raceById) }))
     .filter((entry) => !!entry.race).sort((a, b) => b.race!.date.localeCompare(a.race!.date));
   const activity = activityStats(races, nick, Object.keys(records));
   const monthly = months.map((month, i) => ({ month, row: rankMonth(monthRecords[i]).find((row) => row.nick === nick) }));

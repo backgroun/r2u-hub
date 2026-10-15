@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "대회 일정" };
 
 const COURSES = ["5K", "10K", "Half", "Full"];
-const VIEWS = { upcoming: "다가오는 대회", cal: "달력", reg: "접수 일정", mine: "내 참가", past: "지난 대회", all: "전체" } as const;
+const VIEWS = { upcoming: "다가오는 대회", cal: "캘린더", reg: "접수 일정", mine: "참가 대회", past: "지난 대회", all: "전체" } as const;
 type View = keyof typeof VIEWS;
 
 export default async function RacesPage({ searchParams }: { searchParams: Promise<{ view?: string; m?: string; d?: string }> }) {
@@ -57,11 +57,11 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
         <p className="text-xs text-muted">참가 표시는 명단용, 접수는 주최 측에서 진행해요.</p>
       </header>
 
-      <nav className="tabs" aria-label="보기">
-        {(Object.keys(VIEWS) as View[]).filter((k) => k !== "past" && k !== "all").map((k) => (
-          <Link key={k} href={`/races?view=${k}`} aria-current={k === view ? "page" : undefined}>{VIEWS[k]}</Link>
-        ))}
-        <Link href="/races/find" className="tab-tinted">+ 대회 찾기</Link>
+      {/* 보기: 다가오는 대회 / 참가 대회 / 접수 일정 / 대회 찾기 / 캘린더 — 가로를 꽉 채운다 */}
+      <nav className="tabs tabs-fill" aria-label="보기">
+        {(["upcoming", "mine", "reg", "find", "cal"] as const).map((k) => k === "find"
+          ? <Link key={k} href="/races/find" className="tab-tinted">대회 찾기</Link>
+          : <Link key={k} href={`/races?view=${k}`} aria-current={k === view ? "page" : undefined}>{VIEWS[k]}</Link>)}
       </nav>
 
 
@@ -190,7 +190,7 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
         {/* 오른쪽: 참가할게요(코스 변경) · 응원 갈게요 버튼 (같은 크기) */}
         <div className="shrink-0 grid justify-items-end gap-1.5">
           {!past && !isStaffAccount(u) && (
-            <Submit form={`join-${r.id}`} className="btn btn-primary race-act text-xs justify-center" confirm={me ? "참가 코스를 바꿀까요?" : undefined}>{me ? "코스 변경" : "참가할게요"}</Submit>
+            <Submit form={`join-${r.id}`} className="btn btn-primary race-act text-xs justify-center" confirm={me ? "참가 코스를 바꿀까요?" : undefined}>{me ? "코스 변경" : "참가해요"}</Submit>
           )}
           {!past && !isStaffNick(u.nick) ? (
           <form action={toggleCheer}>

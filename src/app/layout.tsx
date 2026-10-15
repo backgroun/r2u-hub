@@ -8,6 +8,7 @@ import AppBar from "@/components/app-bar";
 import Toaster from "@/components/toaster";
 import BadgeClear from "@/components/badge-clear";
 import RunnerBuddy from "@/components/runner-buddy";
+import { currentSeason, seasonIcon } from "@/lib/season-icon";
 
 // 페이퍼로지 (무료 폰트, 이주원) — 제목에만 쓴다. 본문은 프리텐다드
 const paperlogy = localFont({
@@ -22,10 +23,14 @@ const paperlogy = localFont({
   display: "swap",
 });
 
-export const metadata: Metadata = {
+export const dynamic = "force-dynamic"; // 날짜에 따라 아이콘이 바뀌므로 빌드 시점에 굳히지 않는다
+
+export function generateMetadata(): Metadata {
+  const season = currentSeason();
+  return {
   title: { default: "R2U 크루", template: "%s · R2U" },
   description: "R2U 러닝크루 통합 페이지: 대회 일정, 월간 기록, 공구, 이벤트",
-  icons: { icon: [{ url: "/icon-192.png", sizes: "192x192" }, { url: "/icon-512.png", sizes: "512x512" }], apple: "/apple-touch-icon.png" },
+  icons: { icon: [{ url: seasonIcon(season, 192), sizes: "192x192" }, { url: seasonIcon(season, 512), sizes: "512x512" }], apple: seasonIcon(season, 180) },
   manifest: "/manifest.webmanifest",
   // 카카오톡·메신저에 링크를 보냈을 때 뜨는 미리보기(썸네일)
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://crew-groupbuy.vercel.app"),
@@ -37,7 +42,8 @@ export const metadata: Metadata = {
   // iOS 사파리가 숫자(기록·날짜·전화번호 꼴)를 멋대로 링크로 바꿔 hydration 오류를 내지 않게 한다
   formatDetection: { telephone: false, date: false, address: false, email: false },
   appleWebApp: { title: "R2U 크루", capable: true, statusBarStyle: "black-translucent" },
-};
+  };
+}
 
 // 화면 모드(라이트/다크)와 상관없이 항상 어두운 디자인으로 보여 준다 (data-theme="dark" + 브라우저 기본 요소도 다크)
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", colorScheme: "dark", themeColor: "#0f161d" };

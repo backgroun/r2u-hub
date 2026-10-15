@@ -104,6 +104,15 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
             </summary>
             <div className="grid gap-1 mt-2 text-sm">
               <p className="text-xs text-muted">다음 단계까지 {pts.left}P</p>
+              {pts.sources.length > 0 && (
+                <div className="pt-src">
+                  <b className="text-xs text-muted">어디서 모았나</b>
+                  {pts.sources.map((x) => (
+                    <p key={x.label} className="flex justify-between gap-2"><span className="truncate">{x.label} <small className="text-muted">{x.n}번</small></span><b className="num shrink-0">{x.p > 0 ? "+" : ""}{x.p}P</b></p>
+                  ))}
+                </div>
+              )}
+              <b className="text-xs text-muted mt-1">최근 내역</b>
               {pts.items.length === 0 && <p className="text-muted">아직 쌓인 포인트가 없어요. 출석·대회 참가·월간 기록으로 포인트를 모아 보세요.</p>}
               {pts.items.map((it, i) => (
                 <p key={i} className="flex justify-between gap-2"><span className="truncate">{it.why}</span><b className="num shrink-0">{it.p > 0 ? "+" : ""}{it.p}P</b></p>

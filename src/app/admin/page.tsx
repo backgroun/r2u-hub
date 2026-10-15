@@ -20,10 +20,10 @@ import { GEARS, GearArt } from "@/components/gear-art";
 import { RUNNER_RULES as RR } from "@/lib/runner-rules";
 import { gearBoard, gearLinks, gearSuggestions, gearClickStats, gearLinkEdits, type LinkEdit } from "@/lib/gear-collect";
 import { coupangReady } from "@/lib/coupang";
-import SpotTestButton from "@/components/spot-test-button";
+import SpotTestButton, { SpotCardButton } from "@/components/spot-test-button";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { rankMonth, shiftYm } from "@/lib/rank";
-import { getLevels, getPointConfig, getPointTotals, levelOf, PT_LABELS, VS_SETTLE, type PointRules, type VsSettle } from "@/lib/points";
+import { getLevels, getPointConfig, getPointSources, getPointTotals, levelOf, PT_LABELS, VS_SETTLE, type PointRules, type VsSettle } from "@/lib/points";
 import { getVsHistory } from "@/lib/versus";
 import { tierOf } from "@/lib/tiers";
 import { adjustMemberPoints, savePointRules, settleVersusByAdmin } from "@/app/actions";
@@ -788,6 +788,13 @@ async function GearCatalog({ mgr }: { mgr: boolean }) {
   const who = (i: number) => nicks.filter((n) => board[n]?.[i] != null).sort((a, b) => (board[a][i] ?? 0) - (board[b][i] ?? 0));
   return (
     <section className="grid gap-4">
+      <div className="panel p-4 gear-head">
+        <div className="min-w-0">
+          <h2 className="font-bold">스팟게임</h2>
+          <p className="text-xs text-muted">테스트는 용품이 바로 튕겨 나와요(포인트 반영 없음). 아래 용품을 누르면 카드를 볼 수 있어요.</p>
+        </div>
+        <SpotTestButton />
+      </div>
       {inbox.length > 0 && (
         <div className="panel p-4 grid gap-2">
           <h2 className="font-bold">🔔 제품 추천 {inbox.length}건</h2>
@@ -811,7 +818,6 @@ async function GearCatalog({ mgr }: { mgr: boolean }) {
       )}
       <details className="panel p-4 gear-fold">
         <summary>스팟게임 · 게임의 법칙</summary>
-        <div className="mt-3"><SpotTestButton /></div>
         <ul className="rules-list mt-3">
           <li><b>등장</b><span>{RR.chance >= 1 ? "앱을 열면 매일" : `앱을 열 때 ${Math.round(RR.chance * 100)}% 확률로`} 러닝 용품이 한 번 튕겨 나와요. 계정당 하루 한 번(놓쳐도 그날은 끝), 이미 잡은 용품은 되도록 안 나와요.</span></li>
           <li><b>잡기</b><span>{RR.need === 1 ? "한 번" : `${RR.need}번`} 누르면 성공이에요. {RR.life}초 안에 못 잡으면 사라지고, 중간에 한 번쯤 느려져요.</span></li>
@@ -866,9 +872,9 @@ async function GearCatalog({ mgr }: { mgr: boolean }) {
             return (
               <li key={g.name + i}>
                 <span className="gear-no num">{i + 1}</span>
-                <span className="gear-ico"><GearArt i={i} size={40} /></span>
+                <SpotCardButton g={i} className="gear-ico gear-card-btn" label={`${g.name} 카드 보기`}><GearArt i={i} size={40} /></SpotCardButton>
                 <span className="gear-txt">
-                  <b>{g.name} <small className="gear-cnt">{got.length}명</small>{mgr && g.shop !== false && <>{links[i] && <small className="gear-link-ok">쿠팡 링크 등록됨</small>}<small className="gear-clk">쿠팡 클릭 {clicks[i]?.n ?? 0}회</small></>}</b>
+                  <b><SpotCardButton g={i} className="gear-name-btn" label={`${g.name} 카드 보기`}>{g.name}</SpotCardButton> <small className="gear-cnt">{got.length}명</small>{mgr && g.shop !== false && <>{links[i] && <small className="gear-link-ok">쿠팡 링크 등록됨</small>}<small className="gear-clk">쿠팡 클릭 {clicks[i]?.n ?? 0}회</small></>}</b>
                   <span className="text-sm text-muted">{g.tip}</span>
                   <span className="text-sm gear-pitch">{g.pitch}</span>
                   <span className="gear-who">{got.length ? got.join(", ") : "아직 아무도 못 잡았어요"}</span>
@@ -916,6 +922,7 @@ async function PointsAdmin() {
   const crew = members.filter((m) => !isStaffNick(m.nick))
     .map((m) => ({ m, p: totals[m.nick] ?? 0 }))
     .sort((a, b) => b.p - a.p || a.m.nick.localeCompare(b.m.nick, "ko"));
+  const sources = await getPointSources(crew.map(({ m }) => m.nick)); // 누르면 어디서 모았는지 보인다
   return (
     <section className="grid gap-4">
       <div className="panel p-4 grid gap-3">
@@ -932,12 +939,20 @@ async function PointsAdmin() {
           {crew.map(({ m, p }) => {
             const lv = levelOf(p, cfg.step).lv;
             return (
-              <div key={m.nick} className="flex items-center gap-2 py-2 text-sm">
-                <LevelBadge lv={lv} />
-                <b className="truncate min-w-0">{m.nick}/{m.name?.trim() || "없음"}</b>
-                <span className="text-xs text-muted shrink-0">{tierOf(lv).label}</span>
-                <b className="num ml-auto shrink-0">{p.toLocaleString()}P</b>
-              </div>
+              <details key={m.nick} className="pt-member">
+                <summary className="flex items-center gap-2 py-2 text-sm">
+                  <LevelBadge lv={lv} />
+                  <b className="truncate min-w-0">{m.nick}/{m.name?.trim() || "없음"}</b>
+                  <span className="text-xs text-muted shrink-0">{tierOf(lv).label}</span>
+                  <b className="num ml-auto shrink-0">{p.toLocaleString()}P</b>
+                </summary>
+                <div className="pt-src pb-2">
+                  {(sources[m.nick] ?? []).length === 0 && <p className="text-muted text-xs">아직 쌓인 포인트가 없어요.</p>}
+                  {(sources[m.nick] ?? []).map((x) => (
+                    <p key={x.label} className="flex justify-between gap-2 text-sm"><span className="truncate">{x.label} <small className="text-muted">{x.n}번</small></span><b className="num shrink-0">{x.p > 0 ? "+" : ""}{x.p}P</b></p>
+                  ))}
+                </div>
+              </details>
             );
           })}
         </div>

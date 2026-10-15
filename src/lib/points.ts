@@ -149,12 +149,37 @@ export async function getLevels(): Promise<Record<string, number>> {
   return Object.fromEntries(Object.entries(totals).map(([n, p]) => [n, levelOf(p, step).lv]));
 }
 
-/** 내 포인트: 합계와 최근 내역 */
+/** 포인트 내역 키의 앞부분 → 어디서 모은 포인트인지 */
+const SOURCE_LABELS: Record<string, string> = {
+  day: "출석", race: "대회 참가", rec: "대회 기록", cheer: "대회 응원", after: "뒤풀이 참석", photo: "단사 올리기", drive: "카풀 운전", ride: "카풀 탑승",
+  goal: "월 목표 달성", km: "월간 기록(km)", vs: "1:1 대결 참가", vswin: "1:1 대결 승리", push: "알림 켜기", bingo: "빙고 미션", gb: "공구 주문", runner: "스팟게임", adj: "운영진 조정",
+};
+export type PointSource = { label: string; p: number; n: number };
+/** 포인트 내역을 출처별로 묶는다 (많이 모은 순) */
+function groupSources(log: Record<string, unknown> | null | undefined): PointSource[] {
+  const by = new Map<string, PointSource>();
+  for (const [key, v] of Object.entries(log ?? {})) {
+    const e = parse(v);
+    if (!e || !e.p) continue;
+    const label = SOURCE_LABELS[key.split(":")[0]] ?? "기타";
+    const cur = by.get(label) ?? { label, p: 0, n: 0 };
+    cur.p = r1(cur.p + e.p); cur.n += 1;
+    by.set(label, cur);
+  }
+  return [...by.values()].sort((a, b) => b.p - a.p);
+}
+/** 여러 크루원의 포인트 출처 (운영진 화면용) */
+export async function getPointSources(nicks: string[]): Promise<Record<string, PointSource[]>> {
+  const logs = await Promise.all(nicks.map((n) => redis.hgetall<Record<string, unknown>>(LOG(n)).catch(() => null)));
+  return Object.fromEntries(nicks.map((n, i) => [n, groupSources(logs[i])]));
+}
+
+/** 내 포인트: 합계와 최근 내역, 어디서 모았는지(출처별) */
 export async function getMyPoints(nick: string, limit = 8) {
   const [total, log] = await Promise.all([redis.hget<number | string>(TOTAL, nick), redis.hgetall<Record<string, unknown>>(LOG(nick))]);
   const items = Object.values(log ?? {}).map(parse).filter((e) => e.p !== 0).sort((a, b) => b.at - a.at).slice(0, limit);
   const { step } = await getPointConfig();
-  return { ...levelOf(Number(total) || 0, step), items };
+  return { ...levelOf(Number(total) || 0, step), items, sources: groupSources(log) };
 }
 
 /** 닉네임 변경 시 함께 옮길 키 (nickname.ts의 트랜잭션에서 쓴다) */

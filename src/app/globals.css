@@ -1498,3 +1498,14 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .gear-row-edit .gear-edit-form .btn { height: 26px !important; min-height: 0 !important; padding: 0 12px !important; border-radius: 8px; }
 .gear-row-edit .gear-edit-form { align-items: center; gap: 6px; margin-top: 4px; }
 .gear-row-edit .admin-member-search { gap: 0; }
+
+/* 포인트: 어디서 모았는지(출처별) */
+.pt-src { display: grid; gap: 2px; padding: 4px 0 0 2px; }
+.pt-member > summary { cursor: pointer; list-style: none; }
+.pt-member > summary::-webkit-details-marker { display: none; }
+
+/* 스팟게임 관리: 머리말(제목 + 테스트 버튼), 용품을 눌러 카드 보기 */
+.gear-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.gear-card-btn { border: 0; padding: 0; cursor: pointer; }
+.gear-card-btn:active { transform: scale(.94); }
+.gear-name-btn { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(255,106,51,.55); text-underline-offset: 3px; }

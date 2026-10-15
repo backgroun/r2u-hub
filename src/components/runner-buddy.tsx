@@ -28,7 +28,7 @@ const store = {
 };
 
 type Item = { id: number; g: number };
-type Reward = { g: number; pending?: boolean; points?: number; msg?: string; test?: boolean; link?: string | null };
+type Reward = { g: number; pending?: boolean; points?: number; msg?: string; test?: boolean; preview?: boolean; link?: string | null };
 
 export default function RunnerBuddy() {
   const path = usePathname();
@@ -63,6 +63,20 @@ export default function RunnerBuddy() {
     };
     window.addEventListener("r2u:spot-test", on);
     return () => window.removeEventListener("r2u:spot-test", on);
+  }, []);
+
+  // 운영진 화면에서 용품을 누르면: 잡지 않고 그 용품의 설명 카드만 바로 띄운다 (포인트·클릭 집계 없음)
+  useEffect(() => {
+    const on = (e: Event) => {
+      const g = (e as CustomEvent<{ g?: number }>).detail?.g;
+      if (typeof g !== "number" || g < 0 || g >= GEARS.length) return;
+      setItem(null); setFw(0); setSuggestOpen(false);
+      shownAt.current = Date.now();
+      setReward({ g, test: true, preview: true });
+      void gearLink(g).then((link) => setReward((r) => (r && r.g === g ? { ...r, link } : r))).catch(() => {});
+    };
+    window.addEventListener("r2u:spot-card", on);
+    return () => window.removeEventListener("r2u:spot-card", on);
   }, []);
 
   // 언제 나올지 정한다
@@ -214,7 +228,7 @@ export default function RunnerBuddy() {
           <div className="bi-reward-card">
             <div className="bi-reward-art"><GearArt i={reward.g} size={60} /></div>
             <div className="bi-reward-body">
-              {reward.pending ? <p className="bi-reward-p bi-reward-none">잡았어요! 포인트 확인 중…</p> : reward.points ? <p className="bi-reward-p">+{reward.points}P 획득!{reward.test && <small className="bi-reward-test">테스트 · 반영 안 됨</small>}</p> : reward.points === 0 ? <p className="bi-reward-p bi-reward-none">꽝! 이번엔 포인트가 없어요 😢{reward.test && <small className="bi-reward-test">테스트</small>}</p> : <p className="bi-reward-p bi-reward-none">{reward.msg}</p>}
+              {reward.preview ? <p className="bi-reward-p bi-reward-none">카드 미리보기<small className="bi-reward-test">포인트 없음</small></p> : reward.pending ? <p className="bi-reward-p bi-reward-none">잡았어요! 포인트 확인 중…</p> : reward.points ? <p className="bi-reward-p">+{reward.points}P 획득!{reward.test && <small className="bi-reward-test">테스트 · 반영 안 됨</small>}</p> : reward.points === 0 ? <p className="bi-reward-p bi-reward-none">꽝! 이번엔 포인트가 없어요 😢{reward.test && <small className="bi-reward-test">테스트</small>}</p> : <p className="bi-reward-p bi-reward-none">{reward.msg}</p>}
               <p className="bi-reward-name">{GEARS[reward.g].name}</p>
               <p className="bi-reward-tip">{GEARS[reward.g].tip}</p>
               <p className="bi-reward-pitch">{GEARS[reward.g].pitch}</p>

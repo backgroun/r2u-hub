@@ -1,6 +1,7 @@
 import "server-only";
 import { randomBytes } from "crypto";
 import { K, getMember, getMembers, isStaffNick, redis, type AfterParty, type Member, type Race } from "./hub";
+import { pointKeys } from "@/lib/points";
 import { renameBingoRecords } from "./bingo-store";
 import { makeTitle, type StoredOrder, type StoredRound } from "./types";
 
@@ -75,6 +76,7 @@ export async function approveNickChange(oldNick: string, newNick: string): Promi
       redis.hget(BINGO_PW, oldNick),
     ]);
     if (await redis.exists(K.raceRec(newNick))) throw new Error("새 닉네임의 대회 기록이 이미 있어요.");
+    const [ptLog, ptTotal] = await Promise.all([redis.hgetall<Record<string, unknown>>(pointKeys.log(oldNick)), redis.hget<number | string>(pointKeys.total, oldNick)]);
     const races = Object.entries(racesRaw ?? {}).map(([id, raw]) => ({ id, value: parse<Race>(raw) }));
     const afterByRace = await Promise.all(races.map(async ({ value }) => ({
       raceId: value.id,
@@ -151,6 +153,12 @@ export async function approveNickChange(oldNick: string, newNick: string): Promi
       tx.hset(K.raceRec(newNick), Object.fromEntries(Object.entries(oldRecord).map(([id, value]) => [id, typeof value === "string" ? value : JSON.stringify(value)])));
       tx.del(K.raceRec(oldNick));
     }
+    // 레벨 포인트도 새 닉네임으로
+    if (ptLog && Object.keys(ptLog).length) {
+      tx.hset(pointKeys.log(newNick), Object.fromEntries(Object.entries(ptLog).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)])));
+      tx.del(pointKeys.log(oldNick));
+    }
+    if (ptTotal != null) { tx.hset(pointKeys.total, { [newNick]: Number(ptTotal) || 0 }); tx.hdel(pointKeys.total, oldNick); }
     for (let i = 0; i < monthKeys.length; i++) {
       const raw = months[i] ?? {};
       if (Object.hasOwn(raw, oldNick)) {

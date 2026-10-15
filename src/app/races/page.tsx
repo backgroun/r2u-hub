@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getLevels } from "@/lib/points";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
@@ -23,7 +24,7 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
   const { view: v, m: mParam, d: dParam } = await searchParams;
   const view: View = v && v in VIEWS ? (v as View) : "upcoming";
   const today = kstToday();
-  const [all, admins, members] = await Promise.all([getRaces(), getAdminNicks(), getMembers()]);
+  const [all, admins, members, levels] = await Promise.all([getRaces(), getAdminNicks(), getMembers(), getLevels()]);
   const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const list = all.filter((r) =>
@@ -64,7 +65,7 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
       </nav>
 
 
-      {view === "cal" && <RaceCalendar races={all} u={u} admins={admins} managers={managers} names={names} today={today} ym={/^\d{4}-\d{2}$/.test(mParam ?? "") ? mParam! : today.slice(0, 7)} day={dParam} />}
+      {view === "cal" && <RaceCalendar races={all} u={u} admins={admins} managers={managers} names={names} levels={levels} today={today} ym={/^\d{4}-\d{2}$/.test(mParam ?? "") ? mParam! : today.slice(0, 7)} day={dParam} />}
 
       {view !== "cal" && list.length === 0 && <p className="text-sm text-muted">{view === "reg" ? "접수 중이거나 접수 예정인 대회가 없어요. 대회 정보에 접수 시작·마감을 넣으면 여기에 보여요." : "해당하는 대회가 없어요."}</p>}
 
@@ -72,7 +73,7 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
         <section key={ym} className="grid gap-2">
           <h2 className="label">{ym.slice(0, 4)}년 {Number(ym.slice(5))}월</h2>
           <div className="grid gap-3">
-            {races.map((r) => <RaceCard key={r.id} r={r} u={u} admins={admins} managers={managers} names={names} past={r.date < today}  showReg={view === "reg"} />)}
+            {races.map((r) => <RaceCard key={r.id} r={r} u={u} admins={admins} managers={managers} names={names} levels={levels} past={r.date < today}  showReg={view === "reg"} />)}
           </div>
         </section>
       ))}
@@ -81,7 +82,7 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
 }
 
 /** 달력 보기: 한 달 칸마다 대회 이름, 날짜를 누르면 그날 대회 카드가 아래에 열린다 */
-function RaceCalendar({ races, u, admins, managers, names, today, ym, day }: { races: RaceFull[]; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; today: string; ym: string; day?: string }) {
+function RaceCalendar({ races, u, admins, managers, names, levels, today, ym, day }: { races: RaceFull[]; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; today: string; ym: string; day?: string }) {
   const [y, m] = ym.split("-").map(Number);
   const last = new Date(y, m, 0).getDate();
   const first = new Date(y, m - 1, 1).getDay();
@@ -123,7 +124,7 @@ function RaceCalendar({ races, u, admins, managers, names, today, ym, day }: { r
         <div className="grid gap-3">
           <h3 className="label">{m}월 {sel}일 대회</h3>
           {picked.length === 0 && <p className="text-sm text-muted">이날은 대회가 없어요.</p>}
-          {picked.map((r) => <RaceCard key={r.id} r={r} u={u} admins={admins} managers={managers} names={names} past={r.date < today} />)}
+          {picked.map((r) => <RaceCard key={r.id} r={r} u={u} admins={admins} managers={managers} names={names} levels={levels} past={r.date < today} />)}
         </div>
       )}
     </section>
@@ -146,7 +147,7 @@ function groupByCourse(ps: RaceFull["participants"]) {
   return [...map.values()].sort((a, b) => rank(a.key) - rank(b.key));
 }
 
-function RaceCard({ r, u, admins, managers, names, past, showReg = false }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; past: boolean; showReg?: boolean }) {
+function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; past: boolean; showReg?: boolean }) {
   // 대회까지 남은 날(오늘 = 0, 지났으면 음수), 한국 날짜 기준
   const dd = Math.round((Date.parse(`${r.date}T00:00:00Z`) - Date.parse(`${kstToday()}T00:00:00Z`)) / 86400000);
   const d = fmtRaceDate(r.date);
@@ -211,7 +212,7 @@ function RaceCard({ r, u, admins, managers, names, past, showReg = false }: { r:
               <div className="flex flex-wrap gap-1.5">
                 {g.list.map((p) => (
                   <span key={p.nick} className={`pchip ${p.nick === u.nick ? "me" : ""}`}>
-                    <Nick n={p.nick} admins={admins} managers={managers} names={names} />
+                    <Nick n={p.nick} admins={admins} managers={managers} names={names} levels={levels} />
                     {p.nick === u.nick && !past && (
                       <form action={leaveRace} className="inline">
                         <input type="hidden" name="id" value={r.id} />
@@ -247,7 +248,7 @@ function RaceCard({ r, u, admins, managers, names, past, showReg = false }: { r:
         <span className="label">📣 응원 {r.cheers.length}명</span>
         {[...r.cheers].sort((a, b) => a.localeCompare(b, "ko")).map((n) => (
           <span key={n} className={`pchip cheer ${n === u.nick ? "me" : ""}`}>
-            <Nick n={n} admins={admins} managers={managers} names={names} />
+            <Nick n={n} admins={admins} managers={managers} names={names} levels={levels} />
           </span>
         ))}
         {!past && !isStaffNick(u.nick) && (
@@ -261,7 +262,7 @@ function RaceCard({ r, u, admins, managers, names, past, showReg = false }: { r:
         )}
       </div>
 
-      <AfterParties r={r} u={u} admins={admins} managers={managers} names={names}
+      <AfterParties r={r} u={u} admins={admins} managers={managers} names={names} levels={levels}
         top={(u.admin || raceAttendee) && noticeKinds.length > 0 ? <div className="flex justify-end"><ScheduleNoticePanel raceId={r.id} kinds={noticeKinds} /></div> : null} />
 
     </article>
@@ -322,13 +323,13 @@ function AfterFields({ kind, me, a }: { kind: AfterKind; me: string; a?: AfterFu
   );
 }
 
-function AfterParties({ r, u, admins, managers, names, top }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; top?: React.ReactNode }) {
+function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; top?: React.ReactNode }) {
   const order: AfterKind[] = ["photo", "carpool", "after"];
   const items = [...r.afters].sort((a, b) => order.indexOf(kindOf(a)) - order.indexOf(kindOf(b)) || a.at - b.at);
   return (
     <div className="after-wrap">
       {top}
-      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} admins={admins} managers={managers} names={names} />)}
+      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} admins={admins} managers={managers} names={names} levels={levels} />)}
       <div className="after-adds">
         {KINDS.filter((k) => k.kind === "carpool" || !items.some((a) => kindOf(a) === k.kind)).map((k) => (
           <details key={k.kind} className="after-add">
@@ -346,7 +347,7 @@ function AfterParties({ r, u, admins, managers, names, top }: { r: RaceFull; u: 
   );
 }
 
-function AfterItem({ a, raceId, u, admins, managers, names }: { a: AfterFull; raceId: string; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string> }) {
+function AfterItem({ a, raceId, u, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
   const kind = kindOf(a);
   const mine = a.yes.includes(u.nick) ? "yes" : a.no.includes(u.nick) ? "no" : "";
   const tag = KINDS.find((k) => k.kind === kind)!.tag;
@@ -379,16 +380,16 @@ function AfterItem({ a, raceId, u, admins, managers, names }: { a: AfterFull; ra
         <div className="min-w-0 grid gap-0.5" style={{ flex: 1 }}>
           <b className="leading-snug">{a.placeUrl ? <a href={a.placeUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--lane)] underline">{title}</a> : title}{a.time && title !== a.time && <span className="text-muted font-normal"> · {a.time}</span>}</b>
           {a.address && <span className="text-xs text-muted">{a.address}</span>}
-          {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} /></span>}
+          {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           {a.memo && <span className="text-sm">{a.memo}</span>}
         </div>
-        <span className="text-xs text-muted text-right shrink-0 ml-auto self-start leading-snug"><><Nick n={a.by} admins={admins} managers={managers} names={names} /> 님이 올림</></span>
+        <span className="text-xs text-muted text-right shrink-0 ml-auto self-start leading-snug"><><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림</></span>
       </div>
       {kind !== "photo" && (
         <div className="flex flex-wrap items-center gap-1.5">
           <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
-          {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><Nick n={n} admins={admins} managers={managers} names={names} /></span>)}
-          {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><Nick n={n} admins={admins} managers={managers} names={names} /></span>)}
+          {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></span>)}
+          {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></span>)}
           {actions}
         </div>
       )}

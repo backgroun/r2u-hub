@@ -2,6 +2,11 @@ import "server-only";
 import { K, redis, kstToday } from "./hub";
 import { SUSPECT_PACE_SEC, type GarminRun } from "./garmin/csv";
 import { applyDay, dayOf, type GarminMonthRec, type MergeMode } from "./garmin/merge";
+import { syncMonthPoints } from "./points";
+
+/** 월간 기록을 쓴 뒤 그달 포인트를 맞춘다 */
+const syncPoints = (nick: string, months: [string, string][]) =>
+  Promise.all(months.map(([key, rec]) => syncMonthPoints(nick, key.slice(-7), JSON.parse(rec))));
 
 /**
  * 가민 CSV로 올린 러닝 저장 (명세: garmin-csv-import-spec.md)
@@ -215,6 +220,7 @@ export async function importRuns(nick: string, incoming: IncomingRun[], opts: { 
     for (const [key, rec] of months) tx.hset(key, { [nick]: rec });
     tx.hset(UPLOADED_KEY, { [nick]: now }); // 새 기록이 없어도 ‘올린 시각’은 남긴다
     await tx.exec();
+    await syncPoints(nick, months);
   }
 
   return {
@@ -239,6 +245,7 @@ export async function deleteRun(nick: string, startedAt: string) {
   tx.hset(runsKey(nick), { [startedAt]: JSON.stringify(run) });
   for (const [key, rec] of months) tx.hset(key, { [nick]: rec });
   await tx.exec();
+  await syncPoints(nick, months);
   return true;
 }
 
@@ -252,6 +259,7 @@ export async function deleteAllRuns(nick: string) {
   tx.hdel(UPLOADED_KEY, nick);
   for (const [key, rec] of months) tx.hset(key, { [nick]: rec });
   await tx.exec();
+  await syncPoints(nick, months);
   return all.length;
 }
 

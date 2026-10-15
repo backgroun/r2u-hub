@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getLevels } from "@/lib/points";
 import { redirect } from "next/navigation";
 import { K, currentUser, getAdminNicks, getAllVs, getMembers, getMonth, isStaffAccount, isStaffNick, kstToday, redis } from "@/lib/hub";
 import { rankMonth, shiftYm, ymOf, type RankRow } from "@/lib/rank";
@@ -33,7 +34,7 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
   const currentMonth = ym === ymOf(today);
   const sort = sp.sort === "km" ? "km" : sp.sort === "goal" ? "goal" : "rate";
   const staff = isStaffAccount(u);
-  const [month, members, admins, allVs, vsReqs] = await Promise.all([getMonth(ym), getMembers(), getAdminNicks(), getAllVs(ym), getVsRequests(ym)]);
+  const [month, members, admins, allVs, vsReqs, levels] = await Promise.all([getMonth(ym), getMembers(), getAdminNicks(), getAllVs(ym), getVsRequests(ym), getLevels()]);
   const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const label = (nick: string) => `${nick}/${names[nick] || "없음"}`;
@@ -72,7 +73,7 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
 
       {!staff && <MatchBoard ym={ym} viewer={u.nick} />}
 
-      {!staff && opp && <Versus me={me} opp={opp} today={today} ym={ym} admins={admins} managers={managers} names={names} endRequest={endRequest} />}
+      {!staff && opp && <Versus me={me} opp={opp} today={today} ym={ym} admins={admins} managers={managers} names={names} levels={levels} endRequest={endRequest} />}
 
       <section className="grid gap-2">
         <div className="sec-head">
@@ -92,7 +93,7 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
                 <span className="crew-rank num">{i + 1}</span>
                 <div className="min-w-0 grid gap-1">
                   <div className="flex items-center gap-2">
-                    <b className="truncate"><Nick n={r.nick} admins={admins} managers={managers} names={names} badgeAfter /></b>
+                    <b className="truncate"><Nick n={r.nick} admins={admins} managers={managers} names={names} levels={levels} badgeAfter /></b>
                     {isMe && <span className="chip chip-open">나</span>}
                     {isOpp && <span className="chip chip-failed">⚔️ 내 상대</span>}
                     {allVs[r.nick] && !isMe && (allVs[r.nick] === u.nick ? <span className="chip chip-warn">⚔️ 나와 대결</span> : <span className="chip vs-chip">⚔️ vs {label(allVs[r.nick])}</span>)}
@@ -125,7 +126,7 @@ export default async function CrewPage({ searchParams }: { searchParams: Promise
   );
 }
 
-function Versus({ me, opp, today, ym, admins, managers, names, endRequest }: { me: RankRow; opp: RankRow; today: string; ym: string; admins: Set<string>; managers: Set<string>; names: Record<string, string>; endRequest: "incoming" | "outgoing" | null }) {
+function Versus({ me, opp, today, ym, admins, managers, names, levels, endRequest }: { me: RankRow; opp: RankRow; today: string; ym: string; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; endRequest: "incoming" | "outgoing" | null }) {
   const a = stats(me, today, ym), b = stats(opp, today, ym);
   const gap = r1(me.km - opp.km);
   const lead = gap > 0 ? "me" : gap < 0 ? "opp" : "tie";
@@ -151,9 +152,9 @@ function Versus({ me, opp, today, ym, admins, managers, names, endRequest }: { m
         <ActionForm action={manageVersusEnd}><input type="hidden" name="ym" value={ym} /><input type="hidden" name="act" value="reject" /><Submit className="btn btn-ghost">거절</Submit></ActionForm>
       </div>}
       <div className="vs-head">
-        <b className={`truncate ${lead === "me" ? "win" : ""}`}><Nick n={me.nick} admins={admins} managers={managers} names={names} /></b>
+        <b className={`truncate ${lead === "me" ? "win" : ""}`}><Nick n={me.nick} admins={admins} managers={managers} names={names} levels={levels} /></b>
         <span className="vs-x">VS</span>
-        <b className={`truncate text-right ${lead === "opp" ? "win" : ""}`}><Nick n={opp.nick} admins={admins} managers={managers} names={names} /></b>
+        <b className={`truncate text-right ${lead === "opp" ? "win" : ""}`}><Nick n={opp.nick} admins={admins} managers={managers} names={names} levels={levels} /></b>
       </div>
       <div className="vs-bar" aria-hidden><span style={{ width: `${(me.km / total) * 100}%` }} /></div>
       <p className="text-center text-sm font-bold">

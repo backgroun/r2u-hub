@@ -32,13 +32,18 @@ export function WheelIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-/** 닉네임 (운영진이면 앞에 왕관) */
-export function Nick({ n, admins, managers, names, badgeAfter = false }: { n: string; admins: Set<string>; managers?: Set<string>; names?: Record<string, string>; badgeAfter?: boolean }) {
+/** 레벨 배지 (Lv.3) */
+export function LevelBadge({ lv }: { lv?: number }) {
+  return lv ? <span className="lv-badge" title={`레벨 ${lv}`}>Lv.{lv}</span> : null;
+}
+
+/** 닉네임 (운영진이면 앞에 왕관, levels가 있으면 뒤에 레벨 배지) */
+export function Nick({ n, admins, managers, names, levels, badgeAfter = false }: { n: string; admins: Set<string>; managers?: Set<string>; names?: Record<string, string>; levels?: Record<string, number>; badgeAfter?: boolean }) {
   const badge = managers?.has(n) ? <GearIcon /> : admins.has(n) ? <CrownIcon /> : null;
-  return <>{!badgeAfter && badge}{n}/{names?.[n]?.trim() || "없음"}{badgeAfter && badge && <span className="badge-after">{badge}</span>}</>;
+  return <>{!badgeAfter && badge}{n}/{names?.[n]?.trim() || "없음"}{badgeAfter && badge && <span className="badge-after">{badge}</span>}{levels && <LevelBadge lv={levels[n] ?? 1} />}</>;
 }
 
 /** 닉네임 여러 개를 쉼표로 */
-export function Nicks({ list, admins, managers, names }: { list: string[]; admins: Set<string>; managers?: Set<string>; names?: Record<string, string> }) {
-  return <>{list.map((n, i) => <Fragment key={n}>{i > 0 && ", "}<Nick n={n} admins={admins} managers={managers} names={names} /></Fragment>)}</>;
+export function Nicks({ list, admins, managers, names, levels }: { list: string[]; admins: Set<string>; managers?: Set<string>; names?: Record<string, string>; levels?: Record<string, number> }) {
+  return <>{list.map((n, i) => <Fragment key={n}>{i > 0 && ", "}<Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></Fragment>)}</>;
 }

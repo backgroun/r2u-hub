@@ -17,6 +17,7 @@ import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
 import { detachGarminDay } from "@/lib/runs";
 import { BRAG_KEY, BRAG_MS, type Brag } from "@/lib/brag";
+import { PT, setPoints, syncMonthPoints } from "@/lib/points";
 import { getVsRequests, saveVsRequest, vsReqKey, vsVoteKey } from "@/lib/versus";
 import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
 
@@ -363,7 +364,9 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   const course = str(fd, "courseEtc", 20) || str(fd, "course", 20);
   if (!course) return fail("코스를 선택해 주세요.");
   if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
+  const isNew = !(await redis.hexists(K.raceP(id), who));
   await redis.hset(K.raceP(id), { [who]: course });
+  if (isNew) await setPoints(who, `race:${id}`, PT.race, "대회 크루 참가");
   revalidatePath("/races");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -376,8 +379,8 @@ export async function toggleCheer(fd: FormData) {
   const id = str(fd, "id");
   const who = u.admin ? str(fd, "nick", 30) || u.nick : u.nick;
   if (!(await redis.hexists(K.races, id))) return;
-  if (await redis.hexists(K.cheer(id), who)) await redis.hdel(K.cheer(id), who);
-  else await redis.hset(K.cheer(id), { [who]: Date.now() });
+  if (await redis.hexists(K.cheer(id), who)) { await redis.hdel(K.cheer(id), who); await setPoints(who, `cheer:${id}`, 0, ""); }
+  else { await redis.hset(K.cheer(id), { [who]: Date.now() }); await setPoints(who, `cheer:${id}`, PT.cheer, "대회 응원"); }
   revalidatePath("/races");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -391,6 +394,7 @@ export async function addCheer(_: Result, fd: FormData): Promise<Result> {
   if (!nick) return fail("응원할 크루원을 골라 주세요.");
   if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
   await redis.hset(K.cheer(id), { [nick]: Date.now() });
+  await setPoints(nick, `cheer:${id}`, PT.cheer, "대회 응원");
   revalidatePath("/races");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -419,7 +423,9 @@ export async function addAfter(_: Result, fd: FormData): Promise<Result> {
   if (!a.place && !a.time && !a.memo) return fail(kind === "photo" ? "단체사진 시간이나 장소를 적어 주세요." : "장소나 내용을 적어 주세요.");
   await redis.hset(K.after(id), { [a.id]: JSON.stringify(a) });
   // 뒷풀이는 올린 사람을 참석으로. 단사는 참석 표시가 없고, 카풀 운전자는 탑승자 수에서 뺀다
-  if (kind === "after") await redis.hset(K.rsvp(a.id), { [u.nick]: "yes" });
+  if (kind === "after") { await redis.hset(K.rsvp(a.id), { [u.nick]: "yes" }); await setPoints(u.nick, `after:${a.id}`, PT.after, "뒤풀이 참석"); }
+  if (kind === "photo") await setPoints(u.nick, `photo:${a.id}`, PT.photo, "단체사진 올리기");
+  if (kind === "carpool") await setPoints(a.driver || u.nick, `drive:${a.id}`, PT.drive, "카풀 운전");
   revalidatePath("/races");
   revalidatePath("/admin");
   return ok(kind === "photo" ? "단사시간을 올렸어요." : kind === "carpool" ? "카풀을 올렸어요." : "뒷풀이를 올렸어요.");
@@ -503,6 +509,8 @@ export async function rsvpAfter(fd: FormData) {
   }
   if (v === "yes" || v === "no") await redis.hset(K.rsvp(afterId), { [u.nick]: v });
   else await redis.hdel(K.rsvp(afterId), u.nick);
+  if (post.kind === "carpool") await setPoints(u.nick, `ride:${afterId}`, v === "yes" ? PT.ride : 0, "카풀 탑승");
+  else if ((post.kind ?? "after") === "after") await setPoints(u.nick, `after:${afterId}`, v === "yes" ? PT.after : 0, "뒤풀이 참석");
   revalidatePath("/races");
   revalidatePath("/admin");
 }
@@ -512,10 +520,16 @@ export async function deleteAfter(fd: FormData) {
   const id = str(fd, "id"), afterId = str(fd, "after");
   const raw = await redis.hget(K.after(id), afterId);
   if (!raw) return;
-  const a = (typeof raw === "string" ? JSON.parse(raw) : raw) as { by: string };
+  const a = (typeof raw === "string" ? JSON.parse(raw) : raw) as AfterParty;
   if (a.by !== u.nick && !u.admin) return;
+  const rsvps = (await redis.hgetall<Record<string, string>>(K.rsvp(afterId))) ?? {};
   await redis.hdel(K.after(id), afterId);
   await redis.del(K.rsvp(afterId));
+  // 글이 지워지면 그 글로 받은 포인트도 되돌린다
+  await Promise.all([
+    setPoints(a.by, `photo:${afterId}`, 0, ""), setPoints(a.driver || a.by, `drive:${afterId}`, 0, ""),
+    ...Object.keys(rsvps).flatMap((n) => [setPoints(n, `after:${afterId}`, 0, ""), setPoints(n, `ride:${afterId}`, 0, "")]),
+  ]);
   revalidatePath("/races");
   revalidatePath("/admin");
 }
@@ -525,6 +539,7 @@ export async function leaveRace(fd: FormData) {
   const nick = str(fd, "nick", 30);
   if (nick !== u.nick && !u.admin) return;
   await redis.hdel(K.raceP(str(fd, "id")), nick);
+  await setPoints(nick, `race:${str(fd, "id")}`, 0, "");
   revalidatePath("/races");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -554,6 +569,7 @@ export async function setGoal(_: Result, fd: FormData): Promise<Result> {
     goalEdits += 1;
   }
   await redis.hset(K.month(ym), { [nick]: JSON.stringify({ ...rec, goal, goalEdits }) });
+  await syncMonthPoints(nick, ym, { ...rec, goal });
   revalidatePath("/monthly");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -580,6 +596,7 @@ export async function setDay(_: Result, fd: FormData): Promise<Result> {
   if (total > 0) days[day] = total; else delete days[day];
   // 가민으로 합산된 날을 손으로 고치면 그 값을 그대로 쓴다 (다음 가민 업로드 때 다시 물어본다)
   await redis.hset(K.month(ym), { [nick]: JSON.stringify({ ...detachGarminDay(rec, day), days }) });
+  await syncMonthPoints(nick, ym, { ...rec, days });
   revalidatePath("/monthly");
   revalidatePath("/me/runs");
   revalidatePath("/");
@@ -655,6 +672,7 @@ export async function updateAfter(_: Result, fd: FormData): Promise<Result> {
 export async function removeRsvp(fd: FormData) {
   await admin();
   await redis.hdel(K.rsvp(str(fd, "after")), str(fd, "nick", 30));
+  await Promise.all([setPoints(str(fd, "nick", 30), `after:${str(fd, "after")}`, 0, ""), setPoints(str(fd, "nick", 30), `ride:${str(fd, "after")}`, 0, "")]);
   revalidatePath("/races");
   revalidatePath("/admin");
 }
@@ -664,6 +682,7 @@ export async function resetMonthRecord(fd: FormData) {
   const ym = str(fd, "ym", 7);
   if (!/^\d{4}-\d{2}$/.test(ym)) return;
   await redis.hdel(K.month(ym), str(fd, "nick", 30));
+  await syncMonthPoints(str(fd, "nick", 30), ym, null);
   revalidatePath("/monthly");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -921,6 +940,7 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   // DNF(미완주)·DNS(불참)는 기록 시간 없이 저장한다
   if (course === "DNF" || course === "DNS") {
     await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: 0, time: "", note: str(fd, "note", 100), at: Date.now(), ...extra }) });
+    await setPoints(u.nick, `rec:${id}`, PT.recDnf, "대회 기록");
     revalidatePath("/me");
     return ok(`${course}로 저장했어요.`);
   }
@@ -929,6 +949,7 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   const t = parseRaceTime(/^\d{1,2}:\d{2}$/.test(raw) ? `${raw}:00` : raw);
   if (!t) return fail("기록의 시간·분·초를 골라 주세요. (0시간 0분 0초는 저장할 수 없어요)");
   await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: t.sec, time: t.time, note: str(fd, "note", 100), at: Date.now(), ...extra }) });
+  await setPoints(u.nick, `rec:${id}`, PT.recFinish, "대회 기록 (완주)");
   revalidatePath("/me");
   return ok(`기록을 저장했어요. (${course} ${t.time}) 목록에서 ‘🎉 자랑하기’를 눌러 홈에 자랑해 보세요!`);
 }
@@ -965,7 +986,7 @@ export async function unbragRace(fd: FormData) {
 export async function deleteRaceRecord(fd: FormData) {
   const u = await me();
   const id = str(fd, "id", 20);
-  await Promise.all([redis.hdel(K.raceRec(u.nick), id), redis.hdel(BRAG_KEY, `${u.nick}|${id}`)]);
+  await Promise.all([redis.hdel(K.raceRec(u.nick), id), redis.hdel(BRAG_KEY, `${u.nick}|${id}`), setPoints(u.nick, `rec:${id}`, 0, "")]);
   revalidatePath("/me");
   revalidatePath("/");
 }
@@ -1039,6 +1060,7 @@ export async function acceptVersus(_: Result, fd: FormData): Promise<Result> {
   } finally {
     if (await redis.get(lock) === token) await redis.del(lock);
   }
+  await Promise.all([setPoints(u.nick, `vs:${ym}`, PT.versus, "1:1 대결 참가"), setPoints(from, `vs:${ym}`, PT.versus, "1:1 대결 참가")]);
   revalidatePath("/crew"); revalidatePath("/monthly");
   return ok(`${from}님과 1:1 매치가 시작됐어요!`);
 }
@@ -1134,6 +1156,7 @@ export async function cancelVersusByAdmin(_: Result, fd: FormData): Promise<Resu
   }
   revalidatePath("/admin");
   revalidatePath("/crew");
+  await Promise.all([setPoints(a, `vs:${ym}`, 0, ""), setPoints(b, `vs:${ym}`, 0, "")]);
   return ok(`${a}님과 ${b}님의 대결을 취소했어요.`);
 }
 

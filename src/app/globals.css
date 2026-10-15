@@ -1312,3 +1312,20 @@ fieldset.panel > legend + * { clear: both; }
 .brag-line { animation: brag-in .4s ease-out; }
 @keyframes brag-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .brag-line { animation: none; } }
+
+/* 레벨 포인트 */
+.lv-badge { display: inline-flex; align-items: center; margin-left: 4px; padding: 0 5px; border-radius: 6px; font-size: 10.5px; font-weight: 800; line-height: 16px; vertical-align: 1px;
+  color: #c4b5fd; background: color-mix(in srgb, #8b5cf6 22%, transparent); white-space: nowrap; letter-spacing: 0; }
+h1 .lv-badge { font-size: 12px; line-height: 20px; padding: 0 7px; flex: none; }
+.level-card { padding: 12px 14px; }
+.level-card > summary { display: grid; gap: 8px; cursor: pointer; }
+.level-head { display: flex; align-items: baseline; gap: 8px; }
+.level-head b { font-size: 17px; color: #c4b5fd; }
+.level-bar { display: block; height: 6px; border-radius: 99px; background: var(--fill, rgba(127,127,127,.2)); overflow: hidden; }
+.level-bar > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #8b5cf6, #c4b5fd); }
+/* 내 정보: 이번 달 요약을 낮게 */
+.stat-strip.stat-compact > div { padding: 8px 6px; gap: 0; }
+.stat-strip.stat-compact b { font-size: 17px; }
+.stat-strip.stat-compact .label { font-size: 11px; }
+/* 응원 예정: 연한 보라 박스 */
+.cheer-box { padding: 8px 12px; border-radius: 12px; color: var(--ink); background: color-mix(in srgb, #8b5cf6 14%, var(--card)); border: 1px solid color-mix(in srgb, #8b5cf6 35%, transparent); }

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { currentUser, isStaffNick } from "@/lib/hub";
 import { getRoster, isJoined } from "@/lib/event-blocks";
-import { myRecords, removeRow, saveMission, setRow, snapshot } from "@/lib/bingo-store";
+import { getInfo, myRecords, removeRow, saveMission, setRow, snapshot } from "@/lib/bingo-store";
+import { PT, setPoints } from "@/lib/points";
 
 // 빙고 화면이 예전 서버(Supabase)에 보내던 요청을 허브가 그대로 받아 처리한다.
 // 신원은 허브 로그인(쿠키)이고, 이름·비밀번호는 받지 않는다. 이벤트에 참가 신청한 크루원(또는 운영진)만 쓸 수 있다.
@@ -46,10 +47,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ fn: string }> 
     const photo = typeof body.p_photo === "string" ? body.p_photo : "";
     if (photo && !photo.startsWith(`${u.nick}/`)) return err("사진 경로가 올바르지 않아요.");
     const problem = await setRow(u.nick, no, String(body.p_date ?? ""), photo);
+    if (!problem) await setPoints(u.nick, `bingo:${(await getInfo()).start}:${no}`, PT.bingo, "빙고 미션");
     return problem ? err(problem) : NextResponse.json(await snapshot(), { headers });
   }
   if (fn === "app_remove") {
     const problem = await removeRow(u.nick, no);
+    if (!problem) await setPoints(u.nick, `bingo:${(await getInfo()).start}:${no}`, 0, "");
     return problem ? err(problem) : NextResponse.json(await snapshot(), { headers });
   }
   return err("알 수 없는 요청이에요.");

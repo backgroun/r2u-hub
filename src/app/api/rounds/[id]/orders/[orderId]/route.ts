@@ -3,6 +3,7 @@ import { checkPassword, deleteOrder, getOrder, getOrders, getRound, keyMatches, 
 import { nickKey, roundStatus, type StoredOrder, type StoredRound } from "@/lib/types";
 import { BadInput, parseOrderInput } from "@/lib/validate";
 import { currentUser } from "@/lib/hub";
+import { setPoints } from "@/lib/points";
 
 type Ctx = { params: Promise<{ id: string; orderId: string }> };
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
@@ -82,12 +83,15 @@ export async function DELETE(req: Request, ctx: Ctx) {
     const r = await getRound(id);
     if (!r) return NextResponse.json({ ok: true });
     if (!keyMatches(qKey, r.adminKey)) return fail("운영자 링크가 아니에요.", 403);
+    const o = await getOrder(id, orderId);
     await deleteOrder(id, orderId);
+    await setPoints(o?.owner, `gb:${id}`, 0, "");
     return NextResponse.json({ ok: true });
   }
   const a = await authorize(req, ctx);
   if (a.res) return a.res;
   if (a.who === "owner" && !isOpen(a.r)) return fail("마감된 뒤에는 공구 오픈자에게 취소를 요청해 주세요.", 409);
   await deleteOrder(a.id, a.o.id);
+  await setPoints(a.o.owner, `gb:${a.id}`, 0, "");
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CrownIcon, GearIcon } from "@/components/crown";
+import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { driverOf, currentUser, getMember, isStaffAccount, fmtRaceDate, getMonth, getRaceRecs, getRaces, kstToday, memberLabel, recRace, type RaceFull } from "@/lib/hub";
 import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
@@ -9,6 +9,7 @@ import { itemLabel, nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/t
 import { braggRace, unbragRace, cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
 import { getNickChangeRequest } from "@/lib/nickname";
 import { liveBrags } from "@/lib/brag";
+import { getMyPoints } from "@/lib/points";
 import RaceRecordForm from "@/components/race-record-form";
 import RaceRecordChart from "@/components/race-record-chart";
 import ActivitySummary from "@/components/activity-summary";
@@ -46,6 +47,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
     getMember(u.nick),
     liveBrags(),
   ]);
+  const pts = await getMyPoints(u.nick);
   const bragging = new Set(brags.filter((b) => b.nick === u.nick).map((b) => b.key));
 
   // 대회
@@ -82,11 +84,29 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
         <h1 className="hub-h1 hub-greeting flex items-center gap-2.5">
           {member?.manager ? <GearIcon size={20} /> : u.admin ? <CrownIcon size={20} /> : null}
           <span className="min-w-0 truncate">{greeting(memberLabel(member ?? u))}</span>
+          {!isStaffAccount(u) && <LevelBadge lv={pts.lv} />}
         </h1>
-        <p className="text-sm text-muted">내 대회, 월간 기록, 공구 내역을 모아 봤어요.</p>
       </header>
 
-      <section className="stat-strip">
+      {/* 레벨 포인트 */}
+      {!isStaffAccount(u) && (
+        <details className="panel level-card">
+          <summary>
+            <span className="level-head"><b>Lv.{pts.lv}</b><span className="num">{pts.points.toLocaleString()}P</span>
+              <span className="text-xs text-muted ml-auto">{pts.next == null ? "최고 레벨" : `다음 레벨까지 ${pts.next - pts.points}P`}</span></span>
+            <span className="level-bar" aria-hidden><span style={{ width: `${pts.pct}%` }} /></span>
+          </summary>
+          <div className="grid gap-1 mt-3 text-sm">
+            {pts.items.length === 0 && <p className="text-muted">아직 쌓인 포인트가 없어요. 출석·대회 참가·월간 기록으로 포인트를 모아 보세요.</p>}
+            {pts.items.map((it, i) => (
+              <p key={i} className="flex justify-between gap-2"><span className="truncate">{it.why}</span><b className="num shrink-0">+{it.p}P</b></p>
+            ))}
+            <p className="text-xs text-muted mt-1">출석 1 · 대회 참가 10 · 완주 기록 20 · 응원 5 · 뒤풀이·단사 5 · 카풀 운전 10/탑승 3 · 월간 1km당 1 · 목표 달성 30 · 대결 10 · 빙고 5 · 공구 3</p>
+          </div>
+        </details>
+      )}
+
+      <section className="stat-strip stat-compact">
         <div><span className="label">이번 달</span><b className="num">{thisMonth.km}<small>km</small></b></div>
         <div><span className="label">달성율</span><b className="num">{thisMonth.rate != null ? `${thisMonth.rate}%` : "–"}</b></div>
         <div><span className="label">참가 예정</span><b className="num">{upcoming.length}<small>개</small></b></div>
@@ -101,7 +121,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
           {upcoming.map((r) => <RaceRow key={r.id} r={r} nick={u.nick} />)}
         </div>
         {cheering.length > 0 && (
-          <p className="text-sm text-muted">📣 응원 예정: {cheering.map((r) => `${fmtRaceDate(r.date).md} ${r.name}`).join(", ")}</p>
+          <p className="cheer-box text-sm">📣 응원 예정: {cheering.map((r) => `${fmtRaceDate(r.date).md} ${r.name}`).join(", ")}</p>
         )}
       </section>
 
@@ -123,7 +143,6 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
             </li>
           ))}
         </ol>
-        <p className="text-xs text-muted">이번 달 {thisMonth.days}일 기록{thisMonth.rateRank ? ` · 달성율 ${thisMonth.rateRank}위` : ""}</p>
       </section>
 
       {/* 내 대회 기록 */}
@@ -267,14 +286,15 @@ function RaceRow({ r, nick }: { r: RaceFull; nick: string }) {
   return (
     <Link href={`/races#${r.id}`} className="flex items-center gap-3 py-3">
       <span className="datebox"><b>{d.md}</b><span>{d.w}요일</span></span>
+      {/* 2줄: 대회명 + 코스·카풀·뒷풀이 / 출발 시간·장소 */}
       <span className="min-w-0 grid gap-0.5">
-        <span className="font-bold truncate">{r.name}</span>
-        <span className="text-sm text-muted truncate">{r.time ? `${r.time} 출발 · ` : ""}{r.place || "장소 미정"}</span>
-        <span className="flex flex-wrap gap-1 mt-0.5">
-          {course && <span className="chip chip-open">{course}</span>}
-          {ride && <span className="chip chip-ship">{driverOf(ride) === nick ? "카풀 운전" : "카풀 탑승"}</span>}
-          {party && <span className="chip chip-warn">뒷풀이 참석</span>}
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="font-bold truncate min-w-0">{r.name}</span>
+          {course && <span className="chip chip-open shrink-0">{course}</span>}
+          {ride && <span className="chip chip-ship shrink-0">{driverOf(ride) === nick ? "카풀 운전" : "카풀 탑승"}</span>}
+          {party && <span className="chip chip-warn shrink-0">뒷풀이</span>}
         </span>
+        <span className="text-sm text-muted truncate">{r.time ? `${r.time} 출발 · ` : ""}{r.place || "장소 미정"}</span>
       </span>
     </Link>
   );

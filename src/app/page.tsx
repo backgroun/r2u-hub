@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CrownIcon, GearIcon } from "@/components/crown";
+import { LevelBadge, CrownIcon, GearIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, getMember, getMembers, getRaceRecs, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, kstNow, kstToday, memberLabel, regInfo } from "@/lib/hub";
 import { knownMemberLabel } from "@/lib/member-label";
@@ -11,6 +11,7 @@ import { listNews, timeAgo } from "@/lib/news";
 import WeatherCard from "@/components/weather-card";
 import { liveBrags } from "@/lib/brag";
 import BragTicker from "@/components/brag-ticker";
+import { getPointTotals, levelOf } from "@/lib/points";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   if (!u) redirect("/login");
   const today = kstToday();
   const ym = ymOf(today);
-  const [races, month, links, member, members, myRecs, brags] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers(), isStaffAccount(u) ? Promise.resolve({} as Awaited<ReturnType<typeof getRaceRecs>>) : getRaceRecs(u.nick), liveBrags()]);
+  const [races, month, links, member, members, myRecs, brags, myPoints] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers(), isStaffAccount(u) ? Promise.resolve({} as Awaited<ReturnType<typeof getRaceRecs>>) : getRaceRecs(u.nick), liveBrags(), getPointTotals().then((t) => t[u.nick] ?? 0)]);
   const names = Object.fromEntries(members.map((entry) => [entry.nick, entry.name || "없음"]));
   const news = await listNews({ limit: 3 }).catch(() => []);
   const notice = (await getNotices()).find((n) => noticeState(n, today) === "live");
@@ -55,6 +56,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
           <h1 className="hub-h1 hub-greeting flex items-center gap-2.5">
             {member?.manager ? <GearIcon size={20} /> : u.admin && !isStaffAccount(u) ? <CrownIcon size={20} /> : null}
             <span className="min-w-0 truncate">{greeting(memberLabel(member ?? u))}</span>
+            {!isStaffAccount(u) && <LevelBadge lv={levelOf(myPoints).lv} />}
           </h1>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getLevels } from "@/lib/points";
 import { redirect } from "next/navigation";
 import { currentUser, getAdminNicks, getMembers, isStaffAccount, isStaffNick, getMonth, kstToday, WEEK, GOAL_EDIT_LIMIT } from "@/lib/hub";
 import GoalPicker from "./goal-picker";
@@ -25,7 +26,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
   const today = kstToday();
   const ym = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? sp.m! : ymOf(today);
   const sort = sp.sort === "km" ? "km" : "rate";
-  const [month, admins, members, myRuns] = await Promise.all([getMonth(ym), getAdminNicks(), getMembers(), isStaffAccount(u) ? Promise.resolve([]) : getRuns(u.nick)]);
+  const [month, admins, members, myRuns, levels] = await Promise.all([getMonth(ym), getAdminNicks(), getMembers(), isStaffAccount(u) ? Promise.resolve([]) : getRuns(u.nick), getLevels()]);
   // 이 달에 가민으로 올린 러닝 (의심 기록 제외): 있으면 ‘가민 분석’ 버튼을 보여 준다
   const garminRuns = myRuns.filter((r) => !r.flagged && r.date.startsWith(ym));
   // 가민 기록이 있는 달은 가민 분석이 기본으로 열려 있다. 닫기(view=edit)나 날짜 선택(day)을 하면 입력 폼이 나온다
@@ -186,7 +187,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
               {[podium[1], podium[0], podium[2]].map((r, i) => r && (
                 <div key={r.nick} className={`pod p${[2, 1, 3][i]} ${r.nick === u.nick ? "me" : ""}`}>
                   <span className="pod-rank num">{[2, 1, 3][i]}</span>
-                  <b className="truncate"><Nick n={r.nick} admins={admins} managers={managers} names={names} badgeAfter /></b>
+                  <b className="truncate"><Nick n={r.nick} admins={admins} managers={managers} names={names} levels={levels} badgeAfter /></b>
                   <span className="num">{sort === "km" ? `${r.km}km` : `${r.rate ?? "–"}%`}</span>
                   <small className="num text-muted">{sort === "km" ? (r.goal ? `${r.rate}%` : "목표 없음") : `${r.km}/${r.goal}km`}</small>
                 </div>
@@ -196,7 +197,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
               {rest.map((r, i) => (
                 <li key={r.nick} className={r.nick === u.nick ? "me" : ""}>
                   <span className="num b-rank">{i + 4}</span>
-                  <span className="b-name truncate"><Nick n={r.nick} admins={admins} managers={managers} names={names} badgeAfter /></span>
+                  <span className="b-name truncate"><Nick n={r.nick} admins={admins} managers={managers} names={names} levels={levels} badgeAfter /></span>
                   <span className="b-bar" aria-hidden>
                     <span style={{ width: `${Math.min(100, sort === "km" ? (r.km / (ranked[0]?.km || 1)) * 100 : (r.rate ?? 0) / 1.2)}%` }} className={(r.rate ?? 0) >= 100 ? "done" : ""} />
                     {sort === "rate" && <i style={{ left: `${100 / 1.2}%` }} />}

@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 import { catchRunner } from "@/app/actions";
 import { showToast } from "@/components/toaster";
 
-/* 깜짝 러너: 아주 가끔 화면을 통통 뛰어 지나가는 캐릭터. 누르면 하루 한 번 포인트.
-   운영에서는 화면을 열 때 4% 확률로, 그날 아직 안 잡았을 때만 나온다. 로컬(개발)에서는 테스트로 매번 나온다. */
+/* 깜짝 러너: 아주 가끔 화면을 뛰어 지나가는 R2U 큐브 러너. 누르면 하루 한 번 포인트.
+   그날 한 번 잡으면 다시 나오지 않는다. 운영에서는 화면을 열 때 4% 확률로 나오고,
+   로컬(개발)에서는 테스트로 매번 나온다. 주소에 ?runner=1을 붙이면 잡은 날에도 나온다. */
 const CHANCE = 0.04;
 const TEST = process.env.NODE_ENV === "development";
 const HIDE_ON = ["/login", "/join"];
@@ -23,7 +24,8 @@ export default function RunnerBuddy() {
 
   useEffect(() => {
     if (HIDE_ON.some((p) => path.startsWith(p))) return;
-    if (!TEST && (store.get("runnerCaught") === today() || Math.random() > CHANCE)) return;
+    const force = new URLSearchParams(window.location.search).has("runner");
+    if (!force && (store.get("runnerCaught") === today() || (!TEST && Math.random() > CHANCE))) return;
     // 화면을 연 뒤 조금 있다가 나온다
     const t = setTimeout(() => {
       setCaught(false);
@@ -50,16 +52,19 @@ export default function RunnerBuddy() {
         setTimeout(() => setRun(null), 1100);
       }}
     >
-      <RunnerArt />
-      <span className="rb-bubble" aria-hidden>♥</span>
-      <span className="rb-dust" aria-hidden><i /><i /><i /></span>
+      <span className="rb-path">
+        <span className="rb-speed" aria-hidden><i /><i /><i /></span>
+        <RunnerArt />
+        <span className="rb-bubble" aria-hidden>♥</span>
+        <span className="rb-dust" aria-hidden><i /><i /><i /></span>
+      </span>
       {caught && <span className="rb-burst" aria-hidden><i>★</i><i>✦</i><i>★</i><i>✦</i><i>★</i><b>+P</b></span>}
     </button>
   );
 }
 
-/** R2U 로고 큐브 러너: 앞(왼쪽)면에 얼굴, 윗면 R, 옆면 U. 왼쪽을 보고 뛴다. */
-export function RunnerArt({ size = 74 }: { size?: number }) {
+/** R2U 로고 큐브 러너: 앞(왼쪽)면에 얼굴, 옆면에 R2U 배번표, 머리띠·운동화. 왼쪽을 보고 뛴다. */
+export function RunnerArt({ size = 86 }: { size?: number }) {
   const line = { stroke: "#1c1c1e", strokeWidth: 2.2, strokeLinejoin: "round" as const };
   return (
     <span className="rb-hopper">
@@ -84,10 +89,13 @@ export function RunnerArt({ size = 74 }: { size?: number }) {
         <path d="M40 8 L62 19 L40 30 L18 19Z" fill="#ffffff" {...line} />
         <path d="M18 19 L40 30 L40 57 L18 46Z" fill="#f1f1f4" {...line} />
         <path d="M40 30 L62 19 L62 46 L40 57Z" fill="#c8c8d0" {...line} />
-        {/* 윗면 R */}
-        <text transform="matrix(1.1,-0.55,1.1,0.55,18,19)" x="7" y="15" fontSize="13" fontWeight="900" fill="#1c1c1e" fontFamily="Arial Black, Arial, sans-serif">R</text>
-        {/* 옆면 U */}
-        <text transform="matrix(1.1,-0.55,0,1,40,30)" x="5.5" y="21" fontSize="15" fontWeight="900" fill="#1c1c1e" fontFamily="Arial Black, Arial, sans-serif">U</text>
+        {/* 옆면: R2U 대회 배번표 (옷핀 두 개) */}
+        <g transform="matrix(1.1,-0.55,0,1,40,30)">
+          <rect x="2.5" y="10" width="15" height="12" rx="1.5" fill="#fff" stroke="#1c1c1e" strokeWidth="1.1" />
+          <rect x="2.5" y="10" width="15" height="2.6" rx="1" fill="#ff7a2e" />
+          <circle cx="4.6" cy="14.2" r=".7" fill="#1c1c1e" /><circle cx="15.4" cy="14.2" r=".7" fill="#1c1c1e" />
+          <text x="10" y="20.4" textAnchor="middle" fontSize="6.2" fontWeight="900" fill="#1c1c1e" fontFamily="Arial Black, Arial, sans-serif">R2U</text>
+        </g>
         {/* 머리띠 (앞면·옆면을 감싼다) */}
         <path d="M18 23 L40 34 L62 23 L62 27.5 L40 38.5 L18 27.5Z" fill="#ff7a2e" {...line} strokeWidth={1.6} />
         {/* 앞면 얼굴 (앞면 기울기에 맞춰 그린다) */}

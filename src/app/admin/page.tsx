@@ -130,12 +130,12 @@ async function Members({ self }: { self: string }) {
           ))}
         </div>
       )}
-      <MemberSheetSync url={sheets.members} />
-      <ActionForm action={addMembers} className="panel p-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-        <h2 className="font-bold whitespace-nowrap">크루원 추가</h2>
-        <input name="names" className="input min-w-0" aria-label="추가할 크루원 닉네임" placeholder="닉네임 입력" title="여러 명은 쉼표로 구분해 주세요" required />
-        <Submit className="btn btn-primary">추가</Submit>
-      </ActionForm>
+      <MemberSheetSync url={sheets.members}>
+        <ActionForm action={addMembers} className="member-add-form">
+          <input name="names" className="input min-w-0" aria-label="추가할 크루원 닉네임" placeholder="크루원 추가 (닉네임)" title="여러 명은 쉼표로 구분해 주세요" required />
+          <Submit className="btn btn-primary">추가</Submit>
+        </ActionForm>
+      </MemberSheetSync>
       <p className="text-sm text-muted">전체 {members.length}명 · 비밀번호 미설정 {waiting}명 (첫 로그인 때 직접 정해요). 비밀번호를 잊은 크루원은 ‘비번 초기화’ 후 다시 정하게 하세요.</p>
       {(() => {
         const managers = members.filter((m) => m.manager);

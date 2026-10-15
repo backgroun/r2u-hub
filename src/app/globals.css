@@ -1280,3 +1280,11 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 .sync-bad { color: var(--bad); }
 .sync-note { font-size: 12px; color: var(--muted); line-height: 1.5; }
 .sync-apply { padding-top: 10px; border-top: 1px solid var(--line); }
+
+/* 운영진 회원 탭: 시트 회원 동기화 + 크루원 추가를 한 줄로 */
+.member-tools-row { display: flex; align-items: center; gap: 8px; }
+.member-tools-row > .btn-excel { flex: none; white-space: nowrap; }
+.member-add-form { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.member-add-form > p { flex: 1 0 100%; }
+.member-add-form .input { flex: 1 1 0; min-width: 0; }
+.member-add-form .btn { flex: none; }

@@ -4,15 +4,20 @@ import { syncMembersAction } from "@/app/actions";
 import type { MemberDiff, SyncResult } from "@/lib/member-sync-types";
 
 /** 시트 회원 동기화: 먼저 현재 회원과 시트의 차이를 비교해 보고, 담당자 비밀번호를 입력해야 적용된다 */
-export default function MemberSheetSync({ url }: { url: string }) {
+export default function MemberSheetSync({ url, children }: { url: string; children?: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
   const [state, run, pending] = useActionState<SyncResult, FormData>((_s, fd) => syncMembersAction(_s, fd), null);
   const [pw, setPw] = useState("");
   const diff = state?.diff;
   const applied = !!state?.applied;
   return (
-    <details className="sheet-sync-panel">
-      <summary className="btn btn-excel">시트 회원 동기화</summary>
-      <form action={run} className="panel p-4 grid gap-3 mt-2" data-af="1">
+    <div className="member-tools">
+      {/* 한 줄: 시트 회원 동기화 버튼 + (children) 크루원 추가 */}
+      <div className="member-tools-row">
+        <button type="button" className="btn btn-excel" aria-expanded={open} onClick={() => setOpen((v) => !v)}>시트 회원 동기화</button>
+        {children}
+      </div>
+      {open && <form action={run} className="panel p-4 grid gap-3 mt-2" data-af="1">
         <h2 className="font-bold">시트 회원 동기화</h2>
         <label className="field">
           <span className="label">시트 탭 주소</span>
@@ -35,8 +40,8 @@ export default function MemberSheetSync({ url }: { url: string }) {
             <button type="submit" name="mode" value="apply" className="btn btn-excel" disabled={pending || !pw}>{pending ? "적용 중…" : "동기화 적용"}</button>
           </div>
         )}
-      </form>
-    </details>
+      </form>}
+    </div>
   );
 }
 

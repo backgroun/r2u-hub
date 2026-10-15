@@ -1451,7 +1451,9 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 /* 대회 카드 오른쪽 위 버튼 두 개(참가할게요 · 응원 갈게요)를 같은 크기로 */
 .race-act { width: 6.2rem; min-height: 32px; padding: 6px 8px; }
 /* 대회 보기 탭: 다섯 칸이 가로를 꽉 채운다 (긴 이름은 두 줄) */
-.tabs.tabs-fill { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; flex-wrap: nowrap; overflow: visible; margin-inline: 0; padding: 0; }
-.tabs.tabs-fill a { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 40px; padding: 6px 3px; font-size: 13px; line-height: 1.2; white-space: normal; word-break: keep-all; }
+.tabs.tabs-fill { display: flex; gap: 4px; flex-wrap: nowrap; overflow: visible; margin-inline: 0; padding: 0; }
+/* 칸 너비는 글자 길이만큼 나눠 가지며 가로를 꽉 채우고, 좁은 화면에서는 글자를 줄여 늘 한 줄로 */
+.tabs.tabs-fill a { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; text-align: center; min-height: 38px; padding: 6px 4px;
+  font-size: clamp(11px, 3.25vw, 13px); letter-spacing: -0.02em; line-height: 1.2; white-space: nowrap; }
 /* 대회 카드 코스 선택: 제목·박스 없이 한 줄만 (입력칸 안내 글자로 대신) */
 .join-form { padding: 0; background: none; border: 0; border-radius: 0; }

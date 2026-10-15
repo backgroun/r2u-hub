@@ -1489,3 +1489,6 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .push-prompt .push-steps { padding: 12px 14px; border-radius: 12px; background: var(--fill, rgba(127,127,127,.12)); }
 @media (prefers-reduced-motion: reduce) { .push-prompt .push-bell { animation: none; } }
 .push-prompt .push-bonus { justify-self: center; padding: 4px 12px; border-radius: 99px; font-size: 14px; color: #CEFF1A; background: color-mix(in srgb, #CEFF1A 14%, transparent); }
+/* 캘린더 칸: 짧은 대회명을 두 줄까지 (한 줄 말줄임 대신) */
+.rcal-d { min-height: 74px; padding: 3px 2px; }
+.rcal-r { white-space: normal; word-break: break-all; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 10.5px; line-height: 1.2; padding: 2px 2px; letter-spacing: -0.03em; }

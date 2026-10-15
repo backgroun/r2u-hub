@@ -84,6 +84,16 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
 }
 
 /** 달력 보기: 한 달 칸마다 대회 이름, 날짜를 누르면 그날 대회 카드가 아래에 열린다 */
+/** 캘린더 칸용 짧은 대회명: 연도·회차와 ‘마라톤·대회·국제·전국’ 같은 말을 빼고 핵심만 (다 빠지면 원래 이름) */
+function calName(name: string) {
+  const short = name
+    .replace(/\(.*?\)/g, "")
+    .replace(/20\d\d\s*년?|제?\s*\d+\s*회/g, "")
+    .replace(/마라톤대회|마라톤|대회|국제|전국|기념|in\s/gi, "")
+    .replace(/\s+/g, " ").trim();
+  return short || name;
+}
+
 function RaceCalendar({ races, u, admins, managers, names, levels, today, ym, day }: { races: RaceFull[]; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; today: string; ym: string; day?: string }) {
   const [y, m] = ym.split("-").map(Number);
   const last = new Date(y, m, 0).getDate();
@@ -114,7 +124,7 @@ function RaceCalendar({ races, u, admins, managers, names, levels, today, ym, da
               className={`rcal-d ${rs.length ? "has" : ""} ${isThis && d === Number(today.slice(8)) ? "today" : ""} ${sel === d ? "sel" : ""}`}>
               <span className={`rcal-n ${dow === 0 ? "sun" : dow === 6 ? "sat" : ""}`}>{d}</span>
               {rs.slice(0, 2).map((r) => (
-                <span key={r.id} className={`rcal-r ${r.participants.some((p) => p.nick === u.nick) ? "mine" : ""}`}>{r.name.replace(/^(제?\d+회|20\d\d)\s*/, "")}</span>
+                <span key={r.id} className={`rcal-r ${r.participants.some((p) => p.nick === u.nick) ? "mine" : ""}`} title={r.name}>{calName(r.name)}</span>
               ))}
               {rs.length > 2 && <span className="rcal-more">+{rs.length - 2}</span>}
             </Link>

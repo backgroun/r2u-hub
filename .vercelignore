@@ -1,0 +1,6 @@
+# 배포에 필요 없는 디자인 원본
+/icon
+*.psd
+*.ai
+/run_big.png
+/KakaoTalk_Photo_*.png

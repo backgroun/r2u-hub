@@ -39,6 +39,7 @@ export default function GoalPicker({ ym, goal, editsLeft, limit, garmin }: { ym:
           {garmin && (
             <Link href={garmin.href} scroll={garmin.open ? false : undefined} className={`btn text-sm ${garmin.open ? "btn-primary" : ""}`} aria-pressed={garmin.open}>
               {garmin.open ? "가민 분석 닫기" : "가민 분석"}
+              <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden style={{ flex: "none", transition: "transform .25s ease", transform: garmin.open ? "rotate(180deg)" : "none" }}><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </Link>
           )}
           <button type="button" className="btn btn-primary text-sm" disabled={pending || locked} onClick={() => pick(Math.round(Number(custom.current?.value)))}>직접입력 저장</button>

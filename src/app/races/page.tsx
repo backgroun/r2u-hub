@@ -230,7 +230,8 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
         </ActionForm>
       )}
 
-      <details className="race-more">
+      {/* D-3 이내(오늘 포함) 대회는 펼쳐 둔다 */}
+      <details className="race-more" open={(dd >= 0 && dd <= 3) || undefined}>
         <summary className="race-sum">
           <span className="race-sum-text">
             <b>👥 참가 {r.participants.length}</b>

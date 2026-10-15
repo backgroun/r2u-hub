@@ -29,8 +29,8 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
   const [month, admins, members, myRuns, levels] = await Promise.all([getMonth(ym), getAdminNicks(), getMembers(), isStaffAccount(u) ? Promise.resolve([]) : getRuns(u.nick), getLevels()]);
   // 이 달에 가민으로 올린 러닝 (의심 기록 제외): 있으면 ‘가민 분석’ 버튼을 보여 준다
   const garminRuns = myRuns.filter((r) => !r.flagged && r.date.startsWith(ym));
-  // 가민 기록이 있는 달은 가민 분석이 기본으로 열려 있다. 닫기(view=edit)나 날짜 선택(day)을 하면 입력 폼이 나온다
-  const showGarmin = garminRuns.length > 0 && sp.view !== "edit" && !sp.day;
+  // 가민 분석은 기본으로 닫혀 있다. ‘가민 분석’ 버튼(view=garmin)을 눌러야 펼쳐지고, 날짜를 고르면(day) 다시 입력 폼이 나온다
+  const showGarmin = garminRuns.length > 0 && sp.view === "garmin" && !sp.day;
   const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const who = u.nick;
@@ -112,7 +112,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
         )}
 
         <GoalPicker ym={ym} goal={me.goal} editsLeft={GOAL_EDIT_LIMIT - (month[who]?.goalEdits ?? 0)} limit={GOAL_EDIT_LIMIT}
-          garmin={garminRuns.length ? { href: showGarmin ? q({ view: "edit" }) : `${q({})}#garmin-analysis`, open: showGarmin } : undefined} />
+          garmin={garminRuns.length ? { href: showGarmin ? q({}) : `${q({ view: "garmin" })}#garmin-analysis`, open: showGarmin } : undefined} />
       </section>
 
       {/* 달력 */}

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/hub";
 import { auditGhost } from "@/lib/ghost-cleanup";
 import { purgeGhostAction } from "./actions";
+import { ConfirmButton } from "@/components/action-form";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "중복 기록 정리" };
@@ -21,6 +22,6 @@ export default async function CleanupGhostPage() {
       <h2 className="font-bold">발견된 중복 항목 {total}건</h2>
       {total ? Object.entries(counts).map(([label, count]) => <p key={label} className="text-sm">{label} {count}건</p>) : <p className="text-sm text-muted">중복 항목이 없어요.</p>}
     </section>
-    {total > 0 && <form action={purgeGhostAction}><button className="btn btn-danger">‘마루(정곤)’ 중복 기록 삭제</button></form>}
+    {total > 0 && <form action={purgeGhostAction}><ConfirmButton className="btn btn-danger" message={`‘마루(정곤)’ 중복 기록 ${total}건을 삭제할까요?\n되돌릴 수 없어요.`}>‘마루(정곤)’ 중복 기록 삭제</ConfirmButton></form>}
   </main>;
 }

@@ -37,7 +37,7 @@ export default function AdminMemberRow({ m, self, pushEnabled, lastSeen }: { m: 
           <span className="label">{edit === "nick" ? "새 닉네임" : "이름 (1~4자)"}</span>
           <input name={edit === "nick" ? "newNick" : "name"} className="input" defaultValue={edit === "nick" ? m.nick : m.name === "없음" ? "" : m.name || ""} maxLength={edit === "nick" ? 5 : 4} required autoFocus />
         </label>
-        <Submit className="btn btn-primary text-sm">저장</Submit>
+        <Submit className="btn btn-primary text-sm" confirm={edit === "nick" ? `${m.nick} 님의 닉네임을 바꿀까요?` : `${m.nick} 님의 이름을 바꿀까요?`}>저장</Submit>
         <button type="button" className="btn btn-ghost text-sm" onClick={() => setEdit(null)}>닫기</button>
       </ActionForm>}
     </div>

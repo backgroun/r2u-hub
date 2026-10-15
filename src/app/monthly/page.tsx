@@ -47,9 +47,6 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
   const all = rankMonth(Object.fromEntries(Object.entries(month).filter(([n]) => !isStaffNick(n) || n === who)));
   const rows = all.filter((r) => (r.goal > 0 || r.km > 0) && !isStaffNick(r.nick));
   const me: RankRow = all.find((r) => r.nick === who) ?? { nick: who, goal: 0, km: 0, rate: null, kmRank: null, rateRank: null, days: {} };
-  const crewKm = r1(rows.reduce((a, r) => a + r.km, 0));
-  const achieved = rows.filter((r) => (r.rate ?? 0) >= 100).length;
-  const topKm = [...rows].sort((a, b) => b.km - a.km)[0];
 
   const sorted = [...rows].sort((a, b) =>
     sort === "km" ? b.km - a.km || b.goal - a.goal
@@ -82,14 +79,6 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
 
       {/* 매치 현황: 진행 중인 1:1 대결·신청·응원 투표 (이번 달, 있을 때만) */}
       <MatchBoard ym={ym} viewer={u.nick} />
-
-      {/* 크루 요약 */}
-      <section className="stat-strip">
-        <div><span className="label">크루 합계</span><b className="num">{crewKm}<small>km</small></b></div>
-        <div><span className="label">참여</span><b className="num">{ranked.length}<small>명</small></b></div>
-        <div><span className="label">목표 달성</span><b className="num">{achieved}<small>명</small></b></div>
-        <div><span className="label">거리 1위</span><b className="truncate">{topKm?.km ? `${topKm.nick}/${names[topKm.nick] || "없음"}` : "–"}</b></div>
-      </section>
 
       {staff ? (
         <p className="panel p-4 text-sm text-muted">운영진 모드에서는 개인 기록을 입력하지 않아요. 크루원 기록은 운영진 → 게시물 → 월간 기록에서 고칠 수 있어요.</p>
@@ -157,7 +146,7 @@ export default async function MonthlyPage({ searchParams }: { searchParams: Prom
             <span className="day-edit-date">{m}/{editDay}({WEEK[new Date(y, m - 1, editDay).getDay()]}) {mine ? "내 기록은?" : "기록 입력"}</span>
             <input name="km" type="number" inputMode="decimal" step="0.01" min={0} max={300} className="input day-edit-km"
               defaultValue={me.days[editDay] ?? ""} placeholder="km (0이면 삭제)" required aria-label={`${m}월 ${editDay}일 달린 거리 km`} />
-            <Submit>{me.days[editDay] ? "수정" : "입력"}</Submit>
+            <Submit confirm={me.days[editDay] ? `${m}/${editDay} 기록을 수정할까요? (0이면 삭제돼요)` : undefined}>{me.days[editDay] ? "수정" : "입력"}</Submit>
           </ActionForm>
         ) : maxDay === 0 ? (
           <p className="text-sm text-muted">아직 오지 않은 달이라 기록할 수 없어요.</p>

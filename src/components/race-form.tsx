@@ -22,7 +22,7 @@ export default function RaceForm({ r }: { r?: RaceFull }) {
         </p>
       )}
       <label className="field full"><span className="label">메모</span><input name="note" className="input" defaultValue={r?.note} placeholder="집결 장소, 링크 등" maxLength={200} /></label>
-      <div className="full"><Submit>{r ? "수정 저장" : "대회 추가"}</Submit></div>
+      <div className="full"><Submit confirm={r ? "수정한 내용으로 저장할까요?" : undefined}>{r ? "수정 저장" : "대회 추가"}</Submit></div>
     </ActionForm>
   );
 }

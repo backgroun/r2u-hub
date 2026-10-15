@@ -941,10 +941,21 @@ export async function braggRace(_: Result, fd: FormData): Promise<Result> {
   revalidatePath("/");
   return ok("홈에 3시간 동안 자랑했어요! 🎉");
 }
+/** 자랑 끄기: 올린 본인이나 운영진이 홈에서 내린다 (key = `${nick}|${raceId}`) */
+export async function unbragRace(fd: FormData) {
+  const u = await me();
+  const key = str(fd, "key", 60);
+  if (key.split("|")[0] !== u.nick && !u.admin) return;
+  await redis.hdel(BRAG_KEY, key);
+  revalidatePath("/");
+  revalidatePath("/me");
+}
 export async function deleteRaceRecord(fd: FormData) {
   const u = await me();
-  await redis.hdel(K.raceRec(u.nick), str(fd, "id", 20));
+  const id = str(fd, "id", 20);
+  await Promise.all([redis.hdel(K.raceRec(u.nick), id), redis.hdel(BRAG_KEY, `${u.nick}|${id}`)]);
   revalidatePath("/me");
+  revalidatePath("/");
 }
 
 /* ---------- 크루 현황: 대결 신청 → 상대가 받아주면 매치 → 응원 투표 ---------- */

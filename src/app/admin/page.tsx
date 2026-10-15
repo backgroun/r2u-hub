@@ -158,14 +158,14 @@ async function Members({ self }: { self: string }) {
                       <label className="role-choice"><input type="radio" name="role" value="manager" required /><span>관리자</span></label>
                     </div>
                   </fieldset>
-                  <Submit className="btn btn-primary text-sm">저장</Submit>
+                  <Submit className="btn btn-primary text-sm" confirm="선택한 크루원의 권한을 바꿀까요?">저장</Submit>
                 </ActionForm>
               </details>
               <details className="dropdown role-settings">
                 <summary>비번 초기화</summary>
                 <ActionForm action={resetMemberPassword} className="dropdown-menu role-settings-menu grid gap-2" collapse>
                   <AdminMemberSearch members={members.filter((m) => m.pw).map((m) => ({ nick: m.nick, name: m.name?.trim() || "없음" }))} />
-                  <Submit className="btn btn-primary text-sm">초기화</Submit>
+                  <Submit className="btn btn-primary text-sm" confirm="선택한 크루원의 비밀번호를 초기화할까요?">초기화</Submit>
                 </ActionForm>
               </details>
               </div>
@@ -272,7 +272,7 @@ async function Posts({ today }: { today: string }) {
                   <label className="field"><span className="label">시간</span><input name="time" className="input" defaultValue={a.time} maxLength={30} /></label>
                   {kind === "carpool" && <label className="field"><span className="label">자리 수</span><input name="seats" type="number" min={1} max={10} className="input" defaultValue={a.seats} /></label>}
                   <label className="field full"><span className="label">내용</span><input name="memo" className="input" defaultValue={a.memo} maxLength={200} /></label>
-                  <div className="full"><Submit className="btn text-sm">수정 저장</Submit></div>
+                  <div className="full"><Submit className="btn text-sm" confirm="수정한 내용으로 저장할까요?">수정 저장</Submit></div>
                 </ActionForm>
                 {kind !== "photo" && (a.yes.length + a.no.length > 0) && (
                   <div className="grid gap-1.5">
@@ -281,7 +281,7 @@ async function Posts({ today }: { today: string }) {
                       {[...a.yes.map((n) => [n, kind === "carpool" ? "탑승" : "참석"]), ...a.no.map((n) => [n, "불참"])].map(([n, v]) => (
                         <span key={n} className="pchip">{n}<span className="text-muted">· {v}</span>
                           <form action={removeRsvp} className="inline"><input type="hidden" name="after" value={a.id} /><input type="hidden" name="nick" value={n} />
-                            <button type="submit" aria-label={`${n} 빼기`}>✕</button></form>
+                            <ConfirmButton className="" label={`${n} 빼기`} message={`${n} 님을 명단에서 뺄까요?`}>✕</ConfirmButton></form>
                         </span>
                       ))}
                     </div>
@@ -326,7 +326,7 @@ async function Entries({ today }: { today: string }) {
                       <ActionForm action={joinRace} className="entry-person-edit" keep>
                         <input type="hidden" name="id" value={r.id} /><input type="hidden" name="nick" value={p.nick} />
                         <input name="courseEtc" className="input" defaultValue={p.course} maxLength={20} aria-label={`${p.nick} 코스`} />
-                        <Submit className="btn text-xs">저장</Submit>
+                        <Submit className="btn text-xs" confirm={`${p.nick} 님의 코스를 바꿀까요?`}>저장</Submit>
                       </ActionForm>
                       <form action={leaveRace} className="entry-person-remove">
                         <input type="hidden" name="id" value={r.id} /><input type="hidden" name="nick" value={p.nick} />
@@ -362,7 +362,7 @@ async function Entries({ today }: { today: string }) {
                 {r.cheers.map((n) => (
                   <span key={n} className="pchip">{label(n)}
                     <form action={toggleCheer} className="inline"><input type="hidden" name="id" value={r.id} /><input type="hidden" name="nick" value={n} />
-                      <button type="submit" aria-label={`${n} 응원 빼기`}>✕</button></form>
+                      <ConfirmButton className="" label={`${n} 응원 빼기`} message={`${n} 님의 응원 표시를 뺄까요?`}>✕</ConfirmButton></form>
                   </span>
                 ))}
               </div>
@@ -408,14 +408,14 @@ async function MonthlyRecords({ ym }: { ym: string }) {
             <input type="hidden" name="ym" value={ym} /><input type="hidden" name="admin" value="1" />
             <select name="nick" className="input" defaultValue="" required style={{ flex: 1, minWidth: 0 }} aria-label="크루원"><option value="" disabled>크루원</option>{crew.map((n) => <option key={n} value={n}>{n}/{names[n] || "없음"}</option>)}</select>
             <input name="goal" type="number" min={1} max={2000} className="input" placeholder="목표 km" required style={{ width: 92 }} />
-            <Submit className="btn text-xs">목표 저장</Submit>
+            <Submit className="btn text-xs" confirm="크루원의 목표를 바꿀까요?">목표 저장</Submit>
           </ActionForm>
           <ActionForm action={setDay} className="flex gap-1.5 items-center" keep>
             <input type="hidden" name="ym" value={ym} />
             <select name="nick" className="input" defaultValue="" required style={{ flex: 1, minWidth: 0 }} aria-label="크루원"><option value="" disabled>크루원</option>{crew.map((n) => <option key={n} value={n}>{n}/{names[n] || "없음"}</option>)}</select>
             <select name="day" className="input" defaultValue="1" style={{ width: 72 }} aria-label="날짜">{Array.from({ length: last }, (_, i) => <option key={i} value={i + 1}>{i + 1}일</option>)}</select>
             <input name="km" type="number" step="0.01" min={0} max={300} className="input" placeholder="km" required style={{ width: 72 }} />
-            <Submit className="btn text-xs">저장</Submit>
+            <Submit className="btn text-xs" confirm="크루원의 그날 기록을 바꿀까요? (0이면 지워져요)">저장</Submit>
           </ActionForm>
           <p className="text-xs text-muted">날짜 기록은 그날 합계로 저장돼요(0이면 지우기). 운영진이 바꾼 목표는 크루원의 목표 수정 횟수에 들어가지 않아요.</p>
         </div>
@@ -499,7 +499,7 @@ async function Menu() {
           </label>
         ))}
       </div>
-      <div><Submit>저장</Submit></div>
+      <div><Submit confirm="메뉴 이름을 바꿀까요?">저장</Submit></div>
     </ActionForm>
   );
 }
@@ -558,7 +558,7 @@ function LinkForm({ l }: { l?: HubLink }) {
       </label>
       <label className="field full"><span className="label">주소</span><input name="url" type="url" className="input" required placeholder="https://" defaultValue={l?.url} /></label>
       <label className="field full"><span className="label">한 줄 설명</span><input name="desc" className="input" maxLength={80} defaultValue={l?.desc} /></label>
-      <div className="full"><Submit>{l ? "수정 저장" : "링크 추가"}</Submit></div>
+      <div className="full"><Submit confirm={l ? "수정한 내용으로 저장할까요?" : undefined}>{l ? "수정 저장" : "링크 추가"}</Submit></div>
     </ActionForm>
   );
 }
@@ -694,7 +694,7 @@ async function Events() {
           <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
             <label className="field"><span className="label">오픈일</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
             <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>
-            <Submit className="btn btn-primary">저장</Submit>
+            <Submit className="btn btn-primary" confirm="이벤트 안내·기간을 바꿀까요?">저장</Submit>
           </div>
         </ActionForm>
       </details>
@@ -710,7 +710,7 @@ function Me() {
       <h2 className="font-bold">비밀번호 바꾸기</h2>
       <label className="field"><span className="label">지금 비밀번호</span><input name="cur" type="text" className="input pw-mask" required autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
       <label className="field"><span className="label">새 비밀번호 (4자 이상)</span><PasswordInput name="pw" className="input pw-mask" required minLength={4} data-lpignore="true" /></label>
-      <div><Submit>변경</Submit></div>
+      <div><Submit confirm="비밀번호를 바꿀까요?">변경</Submit></div>
     </ActionForm>
       <LogoutButton />
     </section>

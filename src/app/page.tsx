@@ -77,7 +77,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
       ))}
 
       {/* 자랑하기: 기록을 남긴 크루원이 올린 소식 (3시간 동안 공지처럼 보인다) */}
-      <BragTicker items={brags.map((b) => ({ key: `${b.nick}|${b.race}`, who: knownMemberLabel(b.nick, names), race: b.race, record: `${b.course} ${b.time}`, ago: timeAgo(b.at) }))} />
+      <BragTicker items={brags.map((b) => ({ key: b.key, who: knownMemberLabel(b.nick, names), race: b.race, record: `${b.course} ${b.time}`, ago: timeAgo(b.at), canOff: b.nick === u.nick || !!u.admin }))} />
 
       {/* 공지: 올라온 공지가 없으면 홈에서 아예 보이지 않는다 */}
       {notice && (

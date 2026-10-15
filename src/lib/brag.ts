@@ -5,13 +5,15 @@ export const BRAG_KEY = "r2u:brags"; // hash `${nick}|${raceId}` -> Brag
 export const BRAG_MS = 3 * 3600e3;
 export type Brag = { nick: string; race: string; course: string; time: string; at: number };
 
-export async function liveBrags(): Promise<Brag[]> {
+export type LiveBrag = Brag & { key: string };
+
+export async function liveBrags(): Promise<LiveBrag[]> {
   const h = (await redis.hgetall<Record<string, unknown>>(BRAG_KEY)) ?? {};
   const now = Date.now();
-  const live: Brag[] = [], stale: string[] = [];
+  const live: LiveBrag[] = [], stale: string[] = [];
   for (const [k, v] of Object.entries(h)) {
     const b = (typeof v === "string" ? JSON.parse(v) : v) as Brag;
-    if (b?.at && now - b.at < BRAG_MS) live.push(b); else stale.push(k);
+    if (b?.at && now - b.at < BRAG_MS) live.push({ ...b, key: k }); else stale.push(k);
   }
   if (stale.length) await redis.hdel(BRAG_KEY, ...stale);
   return live.sort((a, b) => b.at - a.at).slice(0, 5);

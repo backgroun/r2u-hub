@@ -6,13 +6,14 @@ import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
 import { getOrders, listRounds } from "@/lib/db";
 import { itemLabel, nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/types";
-import { braggRace, cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
+import { braggRace, unbragRace, cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
 import { getNickChangeRequest } from "@/lib/nickname";
+import { liveBrags } from "@/lib/brag";
 import RaceRecordForm from "@/components/race-record-form";
 import RaceRecordChart from "@/components/race-record-chart";
 import ActivitySummary from "@/components/activity-summary";
 import { activityStats } from "@/lib/activity-stats";
-import { ActionForm, Submit } from "@/components/action-form";
+import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import LogoutButton from "@/components/logout-button";
 import PasswordInput from "@/components/password-input";
 
@@ -36,14 +37,16 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
   const START_YM = "2026-10";
   const months = Array.from({ length: 6 }, (_, i) => shiftYm(ym, -i)).filter((m) => m >= START_YM);
 
-  const [races, monthRecs, rounds, recs, nickRequest, member] = await Promise.all([
+  const [races, monthRecs, rounds, recs, nickRequest, member, brags] = await Promise.all([
     getRaces(),
     Promise.all(months.map((m) => getMonth(m))),
     listRounds(100),
     getRaceRecs(u.nick),
     getNickChangeRequest(u.nick),
     getMember(u.nick),
+    liveBrags(),
   ]);
+  const bragging = new Set(brags.filter((b) => b.nick === u.nick).map((b) => b.key));
 
   // 대회
   const joined = races.filter((r) => r.participants.some((p) => p.nick === u.nick));
@@ -83,44 +86,12 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
         <p className="text-sm text-muted">내 대회, 월간 기록, 공구 내역을 모아 봤어요.</p>
       </header>
 
-      <div className="profile-edit-grid">
-      <details id="nickname-change" className="panel p-4">
-        <summary className="font-bold">닉네임 변경</summary>
-        <div className="grid gap-3 mt-3">
-          {nickRequest?.status === "pending" && <p className="text-sm">승인 대기: <b>{nickRequest.newNick}</b></p>}
-          {nickRequest?.status === "rejected" && (
-            <ActionForm action={cancelNickChange} className="flex items-center justify-between gap-2 text-sm text-[var(--bad)]">
-              <span className="min-w-0">‘{nickRequest.newNick}’ 신청 거절{nickRequest.reason ? ` · ${nickRequest.reason}` : ""}</span>
-              <Submit className="btn btn-ghost px-2">✓</Submit>
-            </ActionForm>
-          )}
-          <ActionForm action={requestNickChange} className="grid gap-3">
-            <label className="field"><span className="label">새 닉네임 (2~5자)</span><input name="newNick" className="input" required minLength={2} maxLength={5} defaultValue={nickRequest?.status === "pending" ? nickRequest.newNick : u.nick} /></label>
-            <div><Submit>{nickRequest?.status === "pending" ? "신청 내용 바꾸기" : "변경 신청"}</Submit></div>
-          </ActionForm>
-          {nickRequest?.status === "pending" && <ActionForm action={cancelNickChange} className="grid gap-2"><div><Submit className="btn btn-ghost btn-danger">신청 취소</Submit></div></ActionForm>}
-        </div>
-      </details>
-
-      <details id="name-change" className="panel p-4">
-        <summary className="font-bold">이름 변경</summary>
-        <div className="grid gap-3 mt-3">
-          <ActionForm action={editMyName} className="grid gap-3" keep>
-            <label className="field"><span className="label">새 이름 (1~4자)</span><input name="name" className="input" required maxLength={4} defaultValue={member?.name === "없음" ? "" : member?.name || ""} /></label>
-            <div><Submit>이름 저장</Submit></div>
-          </ActionForm>
-        </div>
-      </details>
-      </div>
-
       <section className="stat-strip">
         <div><span className="label">이번 달</span><b className="num">{thisMonth.km}<small>km</small></b></div>
         <div><span className="label">달성율</span><b className="num">{thisMonth.rate != null ? `${thisMonth.rate}%` : "–"}</b></div>
         <div><span className="label">참가 예정</span><b className="num">{upcoming.length}<small>개</small></b></div>
         <div><span className="label">공구</span><b className="num">{myOrders.length + opened.length}<small>건</small></b></div>
       </section>
-
-      <ActivitySummary stats={activity} />
 
       {/* 대회 */}
       <section className="grid gap-2">
@@ -185,14 +156,18 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {rec.sec ? <b className="num text-lg">{rec.time}</b> : <span className="chip chip-failed">{rec.course}</span>}
-                  {rec.sec ? <ActionForm action={braggRace} keep><input type="hidden" name="id" value={id} /><Submit className="btn text-xs py-1 px-2">🎉 자랑하기</Submit></ActionForm> : null}
-                  <form action={deleteRaceRecord}><input type="hidden" name="id" value={id} /><button className="btn btn-ghost btn-danger text-xs py-1 px-2" aria-label="기록 삭제">삭제</button></form>
+                  {!rec.sec ? null : bragging.has(`${u.nick}|${id}`)
+                    ? <form action={unbragRace}><input type="hidden" name="key" value={`${u.nick}|${id}`} /><ConfirmButton className="btn btn-ghost text-xs py-1 px-2" message="홈에 올린 자랑을 내릴까요?">자랑 끄기</ConfirmButton></form>
+                    : <ActionForm action={braggRace} keep><input type="hidden" name="id" value={id} /><Submit className="btn text-xs py-1 px-2">🎉 자랑하기</Submit></ActionForm>}
+                  <form action={deleteRaceRecord}><input type="hidden" name="id" value={id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2" label="기록 삭제" message={"이 대회 기록을 삭제할까요?\n되돌릴 수 없어요."}>삭제</ConfirmButton></form>
                 </div>
               </div>
             );
           })}
         </div>
       </section>
+
+      <ActivitySummary stats={activity} />
 
       {/* 공구 내역: 주문한 공구가 있을 때만 보인다 */}
       {myOrders.length > 0 && (
@@ -245,9 +220,38 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
         <ActionForm action={changePassword} className="grid gap-3 mt-3">
           <label className="field"><span className="label">지금 비밀번호</span><input name="cur" type="text" className="input pw-mask" required autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
           <label className="field"><span className="label">새 비밀번호 (4자 이상)</span><PasswordInput name="pw" className="input pw-mask" required minLength={4} data-lpignore="true" /></label>
-          <div><Submit>변경</Submit></div>
+          <div><Submit confirm="비밀번호를 바꿀까요?">변경</Submit></div>
         </ActionForm>
       </details>
+      <div className="profile-edit-grid">
+      <details id="nickname-change" className="panel p-4">
+        <summary className="font-bold">닉네임 변경</summary>
+        <div className="grid gap-3 mt-3">
+          {nickRequest?.status === "pending" && <p className="text-sm">승인 대기: <b>{nickRequest.newNick}</b></p>}
+          {nickRequest?.status === "rejected" && (
+            <ActionForm action={cancelNickChange} className="flex items-center justify-between gap-2 text-sm text-[var(--bad)]">
+              <span className="min-w-0">‘{nickRequest.newNick}’ 신청 거절{nickRequest.reason ? ` · ${nickRequest.reason}` : ""}</span>
+              <Submit className="btn btn-ghost px-2">✓</Submit>
+            </ActionForm>
+          )}
+          <ActionForm action={requestNickChange} className="grid gap-3">
+            <label className="field"><span className="label">새 닉네임 (2~5자)</span><input name="newNick" className="input" required minLength={2} maxLength={5} defaultValue={nickRequest?.status === "pending" ? nickRequest.newNick : u.nick} /></label>
+            <div><Submit>{nickRequest?.status === "pending" ? "신청 내용 바꾸기" : "변경 신청"}</Submit></div>
+          </ActionForm>
+          {nickRequest?.status === "pending" && <ActionForm action={cancelNickChange} className="grid gap-2"><div><Submit className="btn btn-ghost btn-danger">신청 취소</Submit></div></ActionForm>}
+        </div>
+      </details>
+
+      <details id="name-change" className="panel p-4">
+        <summary className="font-bold">이름 변경</summary>
+        <div className="grid gap-3 mt-3">
+          <ActionForm action={editMyName} className="grid gap-3" keep>
+            <label className="field"><span className="label">새 이름 (1~4자)</span><input name="name" className="input" required maxLength={4} defaultValue={member?.name === "없음" ? "" : member?.name || ""} /></label>
+            <div><Submit confirm="이름을 바꿀까요?">이름 저장</Submit></div>
+          </ActionForm>
+        </div>
+      </details>
+      </div>
       <LogoutButton />
     </main>
   );

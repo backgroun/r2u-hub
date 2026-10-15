@@ -187,7 +187,7 @@ function RaceCard({ r, u, admins, managers, names, past, showReg = false }: { r:
         {/* 오른쪽: 크루 참가 표시 버튼, 그 아래에 참석 인원 */}
         <div className="shrink-0 grid justify-items-end gap-1.5">
           {!past && !isStaffAccount(u) && (
-            <Submit form={`join-${r.id}`} className="btn btn-primary text-sm py-1.5 px-4">{me ? "코스 변경" : "크루 참가 표시"}</Submit>
+            <Submit form={`join-${r.id}`} className="btn btn-primary text-sm py-1.5 px-4" confirm={me ? "참가 코스를 바꿀까요?" : undefined}>{me ? "코스 변경" : "크루 참가 표시"}</Submit>
           )}
           <span className="chip count-badge" aria-label={`크루 참가 ${r.participants.length}명`}>👥 {r.participants.length}명</span>
         </div>
@@ -216,7 +216,7 @@ function RaceCard({ r, u, admins, managers, names, past, showReg = false }: { r:
                       <form action={leaveRace} className="inline">
                         <input type="hidden" name="id" value={r.id} />
                         <input type="hidden" name="nick" value={p.nick} />
-                        <button type="submit" aria-label={`${p.nick} 참가 취소`}>✕</button>
+                        <ConfirmButton className="" label={`${p.nick} 참가 취소`} message={`${r.name} 참가를 취소할까요?`}>✕</ConfirmButton>
                       </form>
                     )}
                   </span>
@@ -361,7 +361,7 @@ function AfterItem({ a, raceId, u, admins, managers, names }: { a: AfterFull; ra
           <input type="hidden" name="id" value={raceId} />
           <input type="hidden" name="after" value={a.id} />
           <AfterFields kind={kind} me={u.nick} a={a} />
-          <div className="full"><Submit>수정 저장</Submit></div>
+          <div className="full"><Submit confirm="수정한 내용으로 저장할까요?">수정 저장</Submit></div>
         </ActionForm>
       </details>
       {a.by === u.nick && (

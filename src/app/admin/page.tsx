@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CrownIcon, GearIcon } from "@/components/crown";
+import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
 import { addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, removeNotice, decideJoin, bingoInfo, bingoMember, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction } from "@/app/actions";
@@ -18,11 +18,14 @@ import AdminMemberRow from "@/components/admin-member-row";
 import AdminMemberSearch from "@/components/admin-member-search";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { rankMonth, shiftYm } from "@/lib/rank";
+import { getPointConfig, getPointTotals, levelOf, PT_LABELS, type PointRules } from "@/lib/points";
+import { tierOf } from "@/lib/tiers";
+import { adjustMemberPoints, savePointRules } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "운영진" };
 
-const TABS = { members: "회원", content: "게시물", notice: "공지", menu: "메뉴", links: "링크", races: "대회", versus: "대결", groupbuy: "공구", bingo: "이벤트", me: "내 비밀번호" } as const;
+const TABS = { members: "회원", content: "게시물", notice: "공지", menu: "메뉴", links: "링크", races: "대회", points: "포인트", versus: "대결", groupbuy: "공구", bingo: "이벤트", me: "내 비밀번호" } as const;
 type Tab = keyof typeof TABS;
 const TAGS = ["커뮤니티", "기록", "공지", "이벤트", "공구", "기타"];
 
@@ -55,6 +58,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === "menu" && <Menu />}
       {tab === "links" && <Links />}
       {tab === "races" && <Races past={past === "1"} edit={edit} />}
+      {tab === "points" && <PointsAdmin />}
       {tab === "versus" && <VersusAdmin />}
       {tab === "groupbuy" && <Groupbuy />}
       {tab === "bingo" && <Events />}
@@ -713,6 +717,58 @@ function Me() {
       <div><Submit confirm="비밀번호를 바꿀까요?">변경</Submit></div>
     </ActionForm>
       <LogoutButton />
+    </section>
+  );
+}
+
+/** 포인트: 회원별 등급·포인트와 조정, 포인트·등급 기준 바꾸기 */
+async function PointsAdmin() {
+  const [members, totals, cfg] = await Promise.all([getMembers(), getPointTotals(), getPointConfig()]);
+  const crew = members.filter((m) => !isStaffNick(m.nick))
+    .map((m) => ({ m, p: totals[m.nick] ?? 0 }))
+    .sort((a, b) => b.p - a.p || a.m.nick.localeCompare(b.m.nick, "ko"));
+  return (
+    <section className="grid gap-4">
+      <div className="panel p-4 grid gap-3">
+        <h2 className="font-bold">회원별 포인트 조정</h2>
+        <ActionForm action={adjustMemberPoints} className="grid gap-2" keep>
+          <AdminMemberSearch members={crew.map(({ m }) => ({ nick: m.nick, name: m.name?.trim() || "없음" }))} />
+          <div className="flex gap-2">
+            <input name="delta" type="number" step="0.1" className="input" style={{ width: 96 }} placeholder="+10 / -5" required aria-label="더하거나 뺄 포인트" />
+            <input name="why" className="input flex-1 min-w-0" maxLength={40} placeholder="사유 (예: 대회 진행 도움)" required aria-label="사유" />
+          </div>
+          <div><Submit confirm="이 크루원의 포인트를 조정할까요?">반영</Submit></div>
+        </ActionForm>
+        <div className="row-list">
+          {crew.map(({ m, p }) => {
+            const lv = levelOf(p, cfg.step).lv;
+            return (
+              <div key={m.nick} className="flex items-center gap-2 py-2 text-sm">
+                <LevelBadge lv={lv} />
+                <b className="truncate min-w-0">{m.nick}/{m.name?.trim() || "없음"}</b>
+                <span className="text-xs text-muted shrink-0">{tierOf(lv).label}</span>
+                <b className="num ml-auto shrink-0">{p.toLocaleString()}P</b>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <details className="panel p-4">
+        <summary className="font-bold">포인트 · 등급 기준 바꾸기</summary>
+        <ActionForm action={savePointRules} className="grid gap-2 mt-3" keep>
+          <p className="text-xs text-muted">바꾼 기준은 저장한 뒤 새로 쌓이는 포인트부터 적용돼요. 이미 쌓인 포인트는 그대로예요.</p>
+          <div className="pt-rules">
+            {(Object.keys(PT_LABELS) as (keyof PointRules)[]).map((k) => (
+              <label key={k} className="field"><span className="label">{PT_LABELS[k]}</span>
+                <input name={k} type="number" step="0.1" min={0} className="input" defaultValue={cfg.pt[k]} required /></label>
+            ))}
+            <label className="field"><span className="label">한 단계에 필요한 포인트</span>
+              <input name="step" type="number" min={10} className="input" defaultValue={cfg.step} required /></label>
+          </div>
+          <div><Submit confirm="포인트 기준을 바꿀까요?">기준 저장</Submit></div>
+        </ActionForm>
+      </details>
     </section>
   );
 }

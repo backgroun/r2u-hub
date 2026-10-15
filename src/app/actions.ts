@@ -17,7 +17,8 @@ import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
 import { detachGarminDay } from "@/lib/runs";
 import { BRAG_KEY, BRAG_MS, type Brag } from "@/lib/brag";
-import { PT, POINTS_START, awardOnce, setPoints, syncMonthPoints } from "@/lib/points";
+import { pts, POINTS_START, awardOnce, setPoints, syncMonthPoints } from "@/lib/points";
+import { adjustPoints, DEFAULT_PT, savePointConfig, type PointRules } from "@/lib/points";
 import { applyExternal, sameRace } from "@/lib/race-link";
 import { getVsRequests, saveVsRequest, vsReqKey, vsVoteKey } from "@/lib/versus";
 import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
@@ -377,7 +378,7 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   // 참가 포인트는 앞으로 열릴 대회에만 (이미 지난 대회를 표시해도 없음)
   const raceRaw = isNew ? await redis.hget<unknown>(K.races, id) : null;
   const raceDate = raceRaw ? ((typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as { date: string }).date : "";
-  if (isNew && raceDate >= kstToday()) await setPoints(who, `race:${id}`, PT.race, "대회 크루 참가");
+  if (isNew && raceDate >= kstToday()) await setPoints(who, `race:${id}`, (await pts()).race, "대회 크루 참가");
   revalidatePath("/races");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -391,7 +392,7 @@ export async function toggleCheer(fd: FormData) {
   const who = u.admin ? str(fd, "nick", 30) || u.nick : u.nick;
   if (!(await redis.hexists(K.races, id))) return;
   if (await redis.hexists(K.cheer(id), who)) { await redis.hdel(K.cheer(id), who); await setPoints(who, `cheer:${id}`, 0, ""); }
-  else { await redis.hset(K.cheer(id), { [who]: Date.now() }); await setPoints(who, `cheer:${id}`, PT.cheer, "대회 응원"); }
+  else { await redis.hset(K.cheer(id), { [who]: Date.now() }); await setPoints(who, `cheer:${id}`, (await pts()).cheer, "대회 응원"); }
   revalidatePath("/races");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -405,7 +406,7 @@ export async function addCheer(_: Result, fd: FormData): Promise<Result> {
   if (!nick) return fail("응원할 크루원을 골라 주세요.");
   if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
   await redis.hset(K.cheer(id), { [nick]: Date.now() });
-  await setPoints(nick, `cheer:${id}`, PT.cheer, "대회 응원");
+  await setPoints(nick, `cheer:${id}`, (await pts()).cheer, "대회 응원");
   revalidatePath("/races");
   revalidatePath("/admin");
   revalidatePath("/");
@@ -434,9 +435,9 @@ export async function addAfter(_: Result, fd: FormData): Promise<Result> {
   if (!a.place && !a.time && !a.memo) return fail(kind === "photo" ? "단체사진 시간이나 장소를 적어 주세요." : "장소나 내용을 적어 주세요.");
   await redis.hset(K.after(id), { [a.id]: JSON.stringify(a) });
   // 뒷풀이는 올린 사람을 참석으로. 단사는 참석 표시가 없고, 카풀 운전자는 탑승자 수에서 뺀다
-  if (kind === "after") { await redis.hset(K.rsvp(a.id), { [u.nick]: "yes" }); await setPoints(u.nick, `after:${a.id}`, PT.after, "뒤풀이 참석"); }
-  if (kind === "photo") await setPoints(u.nick, `photo:${a.id}`, PT.photo, "단체사진 올리기");
-  if (kind === "carpool") await setPoints(a.driver || u.nick, `drive:${a.id}`, PT.drive, "카풀 운전");
+  if (kind === "after") { await redis.hset(K.rsvp(a.id), { [u.nick]: "yes" }); await setPoints(u.nick, `after:${a.id}`, (await pts()).after, "뒤풀이 참석"); }
+  if (kind === "photo") await setPoints(u.nick, `photo:${a.id}`, (await pts()).photo, "단체사진 올리기");
+  if (kind === "carpool") await setPoints(a.driver || u.nick, `drive:${a.id}`, (await pts()).drive, "카풀 운전");
   revalidatePath("/races");
   revalidatePath("/admin");
   return ok(kind === "photo" ? "단사시간을 올렸어요." : kind === "carpool" ? "카풀을 올렸어요." : "뒷풀이를 올렸어요.");
@@ -520,8 +521,8 @@ export async function rsvpAfter(fd: FormData) {
   }
   if (v === "yes" || v === "no") await redis.hset(K.rsvp(afterId), { [u.nick]: v });
   else await redis.hdel(K.rsvp(afterId), u.nick);
-  if (post.kind === "carpool") await setPoints(u.nick, `ride:${afterId}`, v === "yes" ? PT.ride : 0, "카풀 탑승");
-  else if ((post.kind ?? "after") === "after") await setPoints(u.nick, `after:${afterId}`, v === "yes" ? PT.after : 0, "뒤풀이 참석");
+  if (post.kind === "carpool") await setPoints(u.nick, `ride:${afterId}`, v === "yes" ? (await pts()).ride : 0, "카풀 탑승");
+  else if ((post.kind ?? "after") === "after") await setPoints(u.nick, `after:${afterId}`, v === "yes" ? (await pts()).after : 0, "뒤풀이 참석");
   revalidatePath("/races");
   revalidatePath("/admin");
 }
@@ -954,7 +955,7 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   // DNF(미완주)·DNS(불참)는 기록 시간 없이 저장한다
   if (course === "DNF" || course === "DNS") {
     await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: 0, time: "", note: str(fd, "note", 100), at: Date.now(), ...extra }) });
-    await setPoints(u.nick, `rec:${id}`, raceDate >= POINTS_START ? PT.recDnf : 0, "대회 기록");
+    await setPoints(u.nick, `rec:${id}`, raceDate >= POINTS_START ? (await pts()).recDnf : 0, "대회 기록");
     revalidatePath("/me");
     return ok(`${course}로 저장했어요.`);
   }
@@ -964,7 +965,7 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   if (!t) return fail("기록의 시간·분·초를 골라 주세요. (0시간 0분 0초는 저장할 수 없어요)");
   await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: t.sec, time: t.time, note: str(fd, "note", 100), at: Date.now(), ...extra }) });
   // 기록 포인트는 포인트 시작일(오늘 포함) 이후에 열린 대회만
-  await setPoints(u.nick, `rec:${id}`, raceDate >= POINTS_START ? PT.recFinish : 0, "대회 기록 (완주)");
+  await setPoints(u.nick, `rec:${id}`, raceDate >= POINTS_START ? (await pts()).recFinish : 0, "대회 기록 (완주)");
   revalidatePath("/me");
   return ok(`기록을 저장했어요. (${course} ${t.time}) 목록에서 ‘🎉 자랑’을 눌러 홈에 자랑해 보세요!`);
 }
@@ -1075,7 +1076,7 @@ export async function acceptVersus(_: Result, fd: FormData): Promise<Result> {
   } finally {
     if (await redis.get(lock) === token) await redis.del(lock);
   }
-  await Promise.all([setPoints(u.nick, `vs:${ym}`, PT.versus, "1:1 대결 참가"), setPoints(from, `vs:${ym}`, PT.versus, "1:1 대결 참가")]);
+  await Promise.all([setPoints(u.nick, `vs:${ym}`, (await pts()).versus, "1:1 대결 참가"), setPoints(from, `vs:${ym}`, (await pts()).versus, "1:1 대결 참가")]);
   revalidatePath("/crew"); revalidatePath("/monthly");
   return ok(`${from}님과 1:1 매치가 시작됐어요!`);
 }
@@ -1199,7 +1200,35 @@ export async function catchRunner(): Promise<Result> {
   const u = await currentUser();
   if (!u) return fail("로그인하면 러너를 잡을 수 있어요.");
   if (isStaffNick(u.nick)) return ok("러너를 잡았어요! (운영진 계정은 포인트가 없어요)");
-  const got = await awardOnce(u.nick, `runner:${kstToday()}`, PT.runner, "깜짝 러너 잡기");
-  if (got) { revalidatePath("/me"); return ok(`러너를 잡았어요! +${PT.runner}P 🏃`); }
+  const got = await awardOnce(u.nick, `runner:${kstToday()}`, (await pts()).runner, "깜짝 러너 잡기");
+  if (got) { revalidatePath("/me"); return ok(`러너를 잡았어요! +${(await pts()).runner}P 🏃`); }
   return ok("러너를 또 만났네요! 포인트는 하루 한 번이에요.");
+}
+
+/* ---------- 운영진: 포인트 기준 바꾸기 · 회원별 포인트 조정 ---------- */
+export async function savePointRules(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const pt = { ...DEFAULT_PT } as PointRules;
+  for (const k of Object.keys(DEFAULT_PT) as (keyof PointRules)[]) {
+    const v = Number(fd.get(k));
+    if (!(v >= 0 && v <= 1000)) return fail("포인트는 0~1000 사이 숫자로 적어 주세요.");
+    if (k === "kmPer" && !(v > 0)) return fail("월간 기록은 1km 이상마다로 적어 주세요.");
+    pt[k] = Math.round(v * 10) / 10;
+  }
+  const step = Math.round(Number(fd.get("step")));
+  if (!(step >= 10 && step <= 10000)) return fail("한 단계 포인트는 10~10000 사이로 적어 주세요.");
+  await savePointConfig(pt, step);
+  revalidatePath("/", "layout");
+  return ok("포인트 기준을 저장했어요. 이제부터 쌓이는 포인트에 적용돼요.");
+}
+export async function adjustMemberPoints(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const nick = str(fd, "nick", 30), why = str(fd, "why", 40);
+  const delta = Math.round(Number(fd.get("delta")) * 10) / 10;
+  if (!nick || isStaffNick(nick) || !(await getMember(nick))) return fail("크루원을 골라 주세요.");
+  if (!delta || Math.abs(delta) > 10000) return fail("더하거나 뺄 포인트를 적어 주세요. (빼려면 -5처럼)");
+  if (!why) return fail("사유를 적어 주세요.");
+  await adjustPoints(nick, delta, `운영진 ${delta > 0 ? "보너스" : "차감"}: ${why}`);
+  revalidatePath("/", "layout");
+  return ok(`${nick} 님에게 ${delta > 0 ? "+" : ""}${delta}P를 반영했어요.`);
 }

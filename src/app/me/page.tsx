@@ -9,7 +9,7 @@ import { itemLabel, nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/t
 import { braggRace, unbragRace, cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
 import { getNickChangeRequest } from "@/lib/nickname";
 import { liveBrags } from "@/lib/brag";
-import { getMyPoints, LEVEL_STEP, POINT_GUIDE, POINTS_START } from "@/lib/points";
+import { getMyPoints, getPointConfig, pointGuide, POINTS_START } from "@/lib/points";
 import PointGuide from "@/components/point-guide";
 import { tierOf } from "@/lib/tiers";
 import RaceRecordForm from "@/components/race-record-form";
@@ -49,7 +49,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
     getMember(u.nick),
     liveBrags(),
   ]);
-  const pts = await getMyPoints(u.nick);
+  const [pts, cfg] = await Promise.all([getMyPoints(u.nick), getPointConfig()]);
   const tier = tierOf(pts.lv);
   const bragging = new Set(brags.filter((b) => b.nick === u.nick).map((b) => b.key));
 
@@ -93,22 +93,24 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
 
       {/* 레벨 포인트 */}
       {!isStaffAccount(u) && (
-        <section className="panel level-card grid gap-2">
-          <span className="level-head"><LevelBadge lv={pts.lv} /><b style={{ color: tier.key === "black" ? "var(--ink)" : tier.color }}>{tier.label}</b><span className="num">{pts.points.toLocaleString()}P</span>
-            <span className="text-xs text-muted ml-auto">다음 단계까지 {pts.left}P</span></span>
-          <span className="level-bar" aria-hidden><span style={{ width: `${pts.pct}%`, background: tier.key === "black" ? "#666" : tier.color }} /></span>
-          <div className="flex items-start justify-between gap-2">
-            <details className="level-log min-w-0 flex-1">
-              <summary className="text-xs text-muted">최근 포인트 내역</summary>
-              <div className="grid gap-1 mt-2 text-sm">
-                {pts.items.length === 0 && <p className="text-muted">아직 쌓인 포인트가 없어요. 출석·대회 참가·월간 기록으로 포인트를 모아 보세요.</p>}
-                {pts.items.map((it, i) => (
-                  <p key={i} className="flex justify-between gap-2"><span className="truncate">{it.why}</span><b className="num shrink-0">+{it.p}P</b></p>
-                ))}
-              </div>
-            </details>
-            <PointGuide rows={POINT_GUIDE} step={LEVEL_STEP} start={POINTS_START} />
-          </div>
+        <section className="panel level-card level-compact">
+          {/* 한 줄: 등급 색·이름·포인트·진행 막대 (누르면 최근 내역) + 기준 보기 */}
+          <details className="level-log">
+            <summary className="level-row">
+              <LevelBadge lv={pts.lv} />
+              <b className="shrink-0" style={{ color: tier.key === "black" ? "var(--ink)" : tier.color }}>{tier.label}</b>
+              <span className="num text-sm shrink-0">{pts.points.toLocaleString()}P</span>
+              <span className="level-bar" title={`다음 단계까지 ${pts.left}P`}><span style={{ width: `${pts.pct}%`, background: tier.key === "black" ? "#666" : tier.color }} /></span>
+            </summary>
+            <div className="grid gap-1 mt-2 text-sm">
+              <p className="text-xs text-muted">다음 단계까지 {pts.left}P</p>
+              {pts.items.length === 0 && <p className="text-muted">아직 쌓인 포인트가 없어요. 출석·대회 참가·월간 기록으로 포인트를 모아 보세요.</p>}
+              {pts.items.map((it, i) => (
+                <p key={i} className="flex justify-between gap-2"><span className="truncate">{it.why}</span><b className="num shrink-0">{it.p > 0 ? "+" : ""}{it.p}P</b></p>
+              ))}
+            </div>
+          </details>
+          <PointGuide rows={pointGuide(cfg.pt)} step={cfg.step} start={POINTS_START} />
         </section>
       )}
 

@@ -92,8 +92,8 @@ async function markSeen(nick: string) {
     if (await redis.set(K.seenThrottle(nick), "1", { nx: true, ex: 300 }) === "OK") {
       await redis.hset(K.lastSeen, { [nick]: Date.now() });
       // 출석 포인트: 하루 한 번 (points.ts가 이 파일을 불러오므로 여기서는 나중에 불러온다)
-      const { awardOnce, PT } = await import("@/lib/points");
-      await awardOnce(nick, `day:${kstToday()}`, PT.day, "출석");
+      const { awardOnce, pts } = await import("@/lib/points");
+      await awardOnce(nick, `day:${kstToday()}`, (await pts()).day, "출석");
     }
   } catch { /* 접속 기록 오류로 로그인을 막지 않는다 */ }
 }
@@ -238,8 +238,8 @@ function sign(s: string) {
 }
 export async function startSession(nick: string) {
   await redis.hset(K.lastSeen, { [nick]: Date.now() });
-  const { awardOnce, PT } = await import("@/lib/points");
-  await awardOnce(nick, `day:${kstToday()}`, PT.day, "출석");
+  const { awardOnce, pts } = await import("@/lib/points");
+  await awardOnce(nick, `day:${kstToday()}`, (await pts()).day, "출석");
   await redis.set(K.seenThrottle(nick), "1", { ex: 300 });
   (await cookies()).delete(PREVIEW_COOKIE); // 이전 사람의 이벤트 미리보기 허용이 남지 않게
   const body = `${Buffer.from(nick).toString("base64url")}.${Date.now()}`;

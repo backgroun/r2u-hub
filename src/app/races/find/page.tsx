@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser, fmtRaceDate, getRaces, kstToday } from "@/lib/hub";
 import { AREAS, listExternal, viewUrl, type ExtRace } from "@/lib/roadrun";
+import { sameRace } from "@/lib/race-link";
 import { addExternalRace } from "@/app/actions";
 import { ActionForm, Submit } from "@/components/action-form";
 import ScrollToCurrent from "@/components/scroll-current";
@@ -28,13 +29,14 @@ export default async function FindRaces({ searchParams }: { searchParams: Promis
     list = [...a, ...b];
   } catch (e) { error = e instanceof Error ? e.message : "불러오지 못했어요."; }
   const mine = await getRaces();
-  const added = new Set(mine.flatMap((r) => [r.src ? `no:${r.src}` : "", `${r.name}|${r.date}`]));
+  const srcs = new Set(mine.map((r) => r.src).filter(Boolean));
   const matches = (r: ExtRace) => !q || r.name.includes(q) || r.place.includes(q);
   const cal = sp.view === "cal";
   const shown = list.filter((r) => r.date >= today && matches(r));
   const href = (o: Record<string, string>) => `/races/find?${new URLSearchParams({ area, ...(q ? { q } : {}), ...(cal ? { view: "cal" } : {}), ...o })}`;
   const ym = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? sp.m! : today.slice(0, 7);
-  const isAdded = (r: ExtRace) => added.has(`no:${r.no}`) || added.has(`${r.name}|${r.date}`);
+  // 대회 번호로 이어졌거나, 날짜가 같고 이름이 거의 같은 대회(시트에서 옮긴 대회)가 있으면 ‘우리 일정에 있음’
+  const isAdded = (r: ExtRace) => srcs.has(r.no) || mine.some((m) => sameRace(m, r));
 
   return (
     <main className="hub-wrap">

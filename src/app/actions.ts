@@ -18,6 +18,7 @@ import { collectNews, patchNews } from "@/lib/news";
 import { detachGarminDay } from "@/lib/runs";
 import { BRAG_KEY, BRAG_MS, type Brag } from "@/lib/brag";
 import { PT, POINTS_START, awardOnce, setPoints, syncMonthPoints } from "@/lib/points";
+import { applyExternal, sameRace } from "@/lib/race-link";
 import { getVsRequests, saveVsRequest, vsReqKey, vsVoteKey } from "@/lib/versus";
 import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
 
@@ -334,7 +335,14 @@ export async function addExternalRace(_: Result, fd: FormData): Promise<Result> 
   try {
     const d = await detailExternal(no);
     if (!d.name || !d.date) return fail("대회 정보를 읽지 못했어요. 잠시 후 다시 시도해 주세요.");
-    if (existing.some((r) => r.src === no || (r.name === d.name && r.date === d.date))) return ok("이미 우리 일정에 있어요.");
+    if (existing.some((r) => r.src === no)) return ok("이미 우리 일정에 있어요.");
+    // 시트에서 옮긴 같은 대회가 있으면 새로 만들지 않고 마라톤온라인 정보로 고친다
+    const same = existing.find((r) => !r.src && sameRace(r, d));
+    if (same) {
+      await redis.hset(K.races, { [same.id]: JSON.stringify(applyExternal(same, d, no)) });
+      revalidatePath("/", "layout");
+      return ok(`우리 일정의 ${same.name}을(를) 마라톤온라인 정보로 고쳤어요.`);
+    }
     const race: Race = {
       id: newId(), name: d.name, date: d.date, time: d.time, place: d.place, reg: "",
       regStart: d.regStart, regEnd: d.regEnd, src: no, addedBy: u.nick,

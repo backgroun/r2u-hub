@@ -234,7 +234,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
               <Submit className="btn btn-ghost px-2">✓</Submit>
             </ActionForm>
           )}
-          <ActionForm action={requestNickChange} className="grid gap-3">
+          <ActionForm action={requestNickChange} className="inline-edit">
             <label className="field"><span className="label">새 닉네임 (2~5자)</span><input name="newNick" className="input" required minLength={2} maxLength={5} defaultValue={nickRequest?.status === "pending" ? nickRequest.newNick : u.nick} /></label>
             <div><Submit>{nickRequest?.status === "pending" ? "신청 내용 바꾸기" : "변경 신청"}</Submit></div>
           </ActionForm>
@@ -245,7 +245,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
       <details id="name-change">
         <summary className="font-bold">이름 변경</summary>
         <div className="grid gap-3 mt-3">
-          <ActionForm action={editMyName} className="grid gap-3" keep>
+          <ActionForm action={editMyName} className="inline-edit" keep>
             <label className="field"><span className="label">새 이름 (1~4자)</span><input name="name" className="input" required maxLength={4} defaultValue={member?.name === "없음" ? "" : member?.name || ""} /></label>
             <div><Submit confirm="이름을 바꿀까요?">이름 저장</Submit></div>
           </ActionForm>

@@ -1208,6 +1208,9 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 .account-group { padding: 0; overflow: hidden; }
 .account-group > details { padding: 14px 16px; }
 .account-group > details + details { border-top: 1px solid var(--line); }
+/* 입력칸 + 버튼 한 줄 (닉네임·이름 변경) */
+.inline-edit { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.inline-edit .btn { white-space: nowrap; min-height: 44px; }
 
 /* 이벤트 노출/비노출 스위치 (운영진 바) */
 .event-admin-bar .btn.event-vis.on { color: #8fd6a3; border-color: rgba(143,214,163,.45); }

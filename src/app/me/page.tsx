@@ -6,7 +6,7 @@ import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
 import { getOrders, listRounds } from "@/lib/db";
 import { itemLabel, nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/types";
-import { cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
+import { braggRace, cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
 import { getNickChangeRequest } from "@/lib/nickname";
 import RaceRecordForm from "@/components/race-record-form";
 import RaceRecordChart from "@/components/race-record-chart";
@@ -185,6 +185,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {rec.sec ? <b className="num text-lg">{rec.time}</b> : <span className="chip chip-failed">{rec.course}</span>}
+                  {rec.sec ? <ActionForm action={braggRace} keep><input type="hidden" name="id" value={id} /><Submit className="btn text-xs py-1 px-2">🎉 자랑하기</Submit></ActionForm> : null}
                   <form action={deleteRaceRecord}><input type="hidden" name="id" value={id} /><button className="btn btn-ghost btn-danger text-xs py-1 px-2" aria-label="기록 삭제">삭제</button></form>
                 </div>
               </div>

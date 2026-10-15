@@ -16,6 +16,7 @@ import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster
 import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
 import { detachGarminDay } from "@/lib/runs";
+import { BRAG_KEY, BRAG_MS, type Brag } from "@/lib/brag";
 import { getVsRequests, saveVsRequest, vsReqKey, vsVoteKey } from "@/lib/versus";
 import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
 
@@ -917,7 +918,28 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   if (!t) return fail("기록의 시간·분·초를 골라 주세요. (0시간 0분 0초는 저장할 수 없어요)");
   await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: t.sec, time: t.time, note: str(fd, "note", 100), at: Date.now() }) });
   revalidatePath("/me");
-  return ok(`기록을 저장했어요. (${course} ${t.time})`);
+  return ok(`기록을 저장했어요. (${course} ${t.time}) 목록에서 ‘🎉 자랑하기’를 눌러 홈에 자랑해 보세요!`);
+}
+/** 기록 자랑하기: 홈에 3시간 동안 공지처럼 보인다 (같은 기록은 3시간에 한 번) */
+export async function braggRace(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  if (isStaffNick(u.nick)) return fail("크루원 계정으로 자랑해 주세요.");
+  const id = str(fd, "id", 20);
+  const [raw, race] = await Promise.all([redis.hget(K.raceRec(u.nick), id), redis.hget<unknown>(K.races, id)]);
+  if (!raw || !race) return fail("자랑할 기록을 찾을 수 없어요.");
+  const rec = (typeof raw === "string" ? JSON.parse(raw) : raw) as { course: string; sec: number; time: string };
+  if (!rec.sec) return fail("완주 기록만 자랑할 수 있어요.");
+  const r = (typeof race === "string" ? JSON.parse(race) : race) as { name: string };
+  const field = `${u.nick}|${id}`;
+  const cur = await redis.hget<unknown>(BRAG_KEY, field);
+  if (cur) {
+    const c = (typeof cur === "string" ? JSON.parse(cur) : cur) as Brag;
+    const left = Math.ceil((BRAG_MS - (Date.now() - c.at)) / 60000);
+    if (left > 0) return fail(`이미 홈에 자랑 중이에요. (${left}분 남음)`);
+  }
+  await redis.hset(BRAG_KEY, { [field]: JSON.stringify({ nick: u.nick, race: r.name, course: rec.course, time: rec.time, at: Date.now() } satisfies Brag) });
+  revalidatePath("/");
+  return ok("홈에 3시간 동안 자랑했어요! 🎉");
 }
 export async function deleteRaceRecord(fd: FormData) {
   const u = await me();

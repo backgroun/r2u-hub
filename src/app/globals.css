@@ -1296,3 +1296,6 @@ fieldset.panel > legend + * { clear: both; }
 .round-form .input { min-height: 40px; padding-block: 8px; }
 .round-form .field { gap: 4px; }
 .round-form .seg .btn { min-height: 42px; }
+
+/* 홈: 기록 자랑 카드 */
+.brag-card { border-color: color-mix(in srgb, #f5c542 70%, var(--line)); background: color-mix(in srgb, #f5c542 8%, var(--card)); }

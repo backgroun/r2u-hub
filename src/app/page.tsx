@@ -9,6 +9,7 @@ import { rankMonth, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
 import { listNews, timeAgo } from "@/lib/news";
 import WeatherCard from "@/components/weather-card";
+import { liveBrags } from "@/lib/brag";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   if (!u) redirect("/login");
   const today = kstToday();
   const ym = ymOf(today);
-  const [races, month, links, member, members, myRecs] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers(), isStaffAccount(u) ? Promise.resolve({} as Awaited<ReturnType<typeof getRaceRecs>>) : getRaceRecs(u.nick)]);
+  const [races, month, links, member, members, myRecs, brags] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers(), isStaffAccount(u) ? Promise.resolve({} as Awaited<ReturnType<typeof getRaceRecs>>) : getRaceRecs(u.nick), liveBrags()]);
   const names = Object.fromEntries(members.map((entry) => [entry.nick, entry.name || "없음"]));
   const news = await listNews({ limit: 3 }).catch(() => []);
   const notice = (await getNotices()).find((n) => noticeState(n, today) === "live");
@@ -74,7 +75,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
         </Link>
       ))}
 
-      <section className={`panel ${notice ? "panel-alert p-4" : "px-4 py-2.5"}`}>
+      {/* 자랑하기: 기록을 남긴 크루원이 올린 소식 (3시간 동안 공지처럼 보인다) */}
+      {brags.map((b) => (
+        <section key={`${b.nick}|${b.race}`} className="panel brag-card p-3.5 flex items-center gap-3">
+          <span className="text-2xl" aria-hidden>🎉</span>
+          <span className="min-w-0 grid">
+            <b className="leading-snug">{knownMemberLabel(b.nick, names)} 님 {b.race} 완주!</b>
+            <span className="text-sm"><b className="num">{b.course} {b.time}</b> <span className="text-xs text-muted">· {Math.max(1, Math.round((Date.now() - b.at) / 60000))}분 전 · 응원해 주세요 👏</span></span>
+          </span>
+        </section>
+      ))}
+
+      {/* 공지: 올라온 공지가 없으면 홈에서 아예 보이지 않는다 */}
+      {notice && (
+      <section className="panel panel-alert p-4">
         {/* 새 공지가 있으면 펼친 채로, 없으면 접어서 보여 준다 */}
         <details open={!!notice} className="notice-fold">
           <summary className="sec-head"><h2 className="label">📢 공지</h2><Link href="/notices">공지 전체 보기 →</Link></summary>
@@ -92,6 +106,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
           </div>
         </details>
       </section>
+      )}
 
       {!isStaffAccount(u) && <section className="grid gap-2">
         <div className="grid grid-cols-2 gap-2">

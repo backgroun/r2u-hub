@@ -6,7 +6,7 @@ import { redis, isStaffNick, type MonthRec } from "@/lib/hub";
 export const POINTS_START = "2026-10-15";
 export const PT = {
   day: 1, // 출석 (하루 첫 접속)
-  race: 10, // 대회 크루 참가 표시
+  race: 5, // 대회 크루 참가 표시 (아직 열리지 않은 대회만)
   recFinish: 20, recDnf: 5, // 대회 기록 (완주 / DNF)
   cheer: 5, // 대회 응원 신청
   after: 5, photo: 5, // 뒤풀이 참석, 단체사진 올리기
@@ -21,7 +21,7 @@ export const PT = {
 /** 포인트 기준 안내표 (내 정보의 ‘포인트 기준 보기’) */
 export const POINT_GUIDE: { what: string; p: string; how: string }[] = [
   { what: "출석", p: `${PT.day}P`, how: "하루 첫 접속 때 한 번" },
-  { what: "대회 크루 참가 표시", p: `${PT.race}P`, how: "대회마다 한 번 · 참가 취소하면 빠짐" },
+  { what: "대회 크루 참가 표시", p: `${PT.race}P`, how: "앞으로 열릴 대회만 · 대회마다 한 번 · 참가 취소하면 빠짐" },
   { what: "대회 기록 (완주)", p: `${PT.recFinish}P`, how: `기록마다 한 번 · DNF·DNS는 ${PT.recDnf}P · 기록 삭제하면 빠짐` },
   { what: "대회 응원 신청", p: `${PT.cheer}P`, how: "대회마다 한 번 · 응원 취소하면 빠짐" },
   { what: "뒤풀이 참석", p: `${PT.after}P`, how: "뒤풀이마다 ‘참석’ 표시 · 불참·취소하면 빠짐" },

@@ -366,7 +366,10 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
   const isNew = !(await redis.hexists(K.raceP(id), who));
   await redis.hset(K.raceP(id), { [who]: course });
-  if (isNew) await setPoints(who, `race:${id}`, PT.race, "대회 크루 참가");
+  // 참가 포인트는 앞으로 열릴 대회에만 (이미 지난 대회를 표시해도 없음)
+  const raceRaw = isNew ? await redis.hget<unknown>(K.races, id) : null;
+  const raceDate = raceRaw ? ((typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as { date: string }).date : "";
+  if (isNew && raceDate >= kstToday()) await setPoints(who, `race:${id}`, PT.race, "대회 크루 참가");
   revalidatePath("/races");
   revalidatePath("/admin");
   revalidatePath("/");

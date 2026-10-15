@@ -788,13 +788,6 @@ async function GearCatalog({ mgr }: { mgr: boolean }) {
   const who = (i: number) => nicks.filter((n) => board[n]?.[i] != null).sort((a, b) => (board[a][i] ?? 0) - (board[b][i] ?? 0));
   return (
     <section className="grid gap-4">
-      <div className="panel p-4 gear-head">
-        <div className="min-w-0">
-          <h2 className="font-bold">스팟게임</h2>
-          <p className="text-xs text-muted">테스트는 용품이 바로 튕겨 나와요(포인트 반영 없음). 아래 용품을 누르면 카드를 볼 수 있어요.</p>
-        </div>
-        <SpotTestButton />
-      </div>
       {inbox.length > 0 && (
         <div className="panel p-4 grid gap-2">
           <h2 className="font-bold">🔔 제품 추천 {inbox.length}건</h2>
@@ -825,6 +818,10 @@ async function GearCatalog({ mgr }: { mgr: boolean }) {
           <li><b>제한</b><span>포인트는 하루 한 번, 주 {RR.perWeek}번까지(최대 {RR.perWeek * RR.maxP}P, 꽝도 1번). 그 뒤에도 매일 나오지만 설명 카드만 보여요. 운영진도 똑같이 참가해요.</span></li>
           <li><b>교체</b><span>크루원의 {Math.round(RR.replaceRatio * 100)}% 이상이 {total}종을 모두 모으면 새 용품으로 교체해요.</span></li>
         </ul>
+        <div className="gear-test-row">
+          <p className="text-xs text-muted">테스트하면 용품이 바로 튕겨 나와요. 포인트는 반영되지 않아요. 아래 용품 목록에서 아이콘·이름을 누르면 카드를 볼 수 있어요.</p>
+          <SpotTestButton />
+        </div>
       </details>
       <div className="panel p-4 grid gap-2">
         <h2 className="font-bold">수집 현황</h2>

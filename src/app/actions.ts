@@ -966,7 +966,7 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   // 기록 포인트는 포인트 시작일(오늘 포함) 이후에 열린 대회만
   await setPoints(u.nick, `rec:${id}`, raceDate >= POINTS_START ? PT.recFinish : 0, "대회 기록 (완주)");
   revalidatePath("/me");
-  return ok(`기록을 저장했어요. (${course} ${t.time}) 목록에서 ‘🎉 자랑하기’를 눌러 홈에 자랑해 보세요!`);
+  return ok(`기록을 저장했어요. (${course} ${t.time}) 목록에서 ‘🎉 자랑’을 눌러 홈에 자랑해 보세요!`);
 }
 /** 기록 자랑하기: 홈에 3시간 동안 공지처럼 보인다 (같은 기록은 3시간에 한 번) */
 export async function braggRace(_: Result, fd: FormData): Promise<Result> {

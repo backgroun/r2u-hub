@@ -1457,3 +1457,11 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
   font-size: clamp(11px, 3.25vw, 13px); letter-spacing: -0.02em; line-height: 1.2; white-space: nowrap; }
 /* 대회 카드 코스 선택: 제목·박스 없이 한 줄만 (입력칸 안내 글자로 대신) */
 .join-form { padding: 0; background: none; border: 0; border-radius: 0; }
+/* 포인트 기준: 아래에서 올라오는 시트 */
+.point-guide.sheet { width: 100%; max-width: 560px; max-height: 85dvh; margin: auto auto 0; padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: 20px 20px 0 0; border-bottom: 0; }
+.point-guide.sheet[open] { animation: sheet-up .28s cubic-bezier(.2,.8,.3,1); }
+.point-guide.sheet[open]::backdrop { animation: sheet-fade .28s ease-out; }
+.point-guide .sheet-grip { display: block; width: 40px; height: 5px; margin: 0 auto 10px; border-radius: 99px; background: color-mix(in srgb, var(--ink) 25%, transparent); }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .point-guide.sheet[open], .point-guide.sheet[open]::backdrop { animation: none; } }

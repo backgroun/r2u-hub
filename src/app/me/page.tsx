@@ -181,7 +181,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
                   {rec.sec ? <b className="num text-lg">{rec.time}</b> : <span className="chip chip-failed">{rec.course}</span>}
                   {!rec.sec ? null : bragging.has(`${u.nick}|${id}`)
                     ? <form action={unbragRace}><input type="hidden" name="key" value={`${u.nick}|${id}`} /><ConfirmButton className="btn btn-ghost text-xs py-1 px-2" message="홈에 올린 자랑을 내릴까요?">자랑 끄기</ConfirmButton></form>
-                    : <ActionForm action={braggRace} keep><input type="hidden" name="id" value={id} /><Submit className="btn text-xs py-1 px-2">🎉 자랑하기</Submit></ActionForm>}
+                    : <ActionForm action={braggRace} keep><input type="hidden" name="id" value={id} /><Submit className="btn text-xs py-1 px-2">🎉 자랑</Submit></ActionForm>}
                   <form action={deleteRaceRecord}><input type="hidden" name="id" value={id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2" label="기록 삭제" message={"이 대회 기록을 삭제할까요?\n되돌릴 수 없어요."}>삭제</ConfirmButton></form>
                 </div>
               </div>

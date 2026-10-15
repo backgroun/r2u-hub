@@ -9,7 +9,9 @@ export default function PointGuide({ rows, step, start }: { rows: { what: string
   return (
     <>
       <button type="button" className="btn btn-ghost text-xs py-1 px-2.5" style={{ minHeight: 0 }} onClick={() => ref.current?.showModal()}>포인트 기준 보기</button>
-      <dialog ref={ref} className="point-guide" onClick={(e) => { if (e.target === ref.current) ref.current?.close(); }}>
+      {/* 아래에서 올라오는 시트: 바깥(어두운 곳)을 누르거나 ✕로 닫는다 */}
+      <dialog ref={ref} className="point-guide sheet" onClick={(e) => { if (e.target === ref.current) ref.current?.close(); }}>
+        <span className="sheet-grip" aria-hidden />
         <div className="grid gap-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-bold text-lg">포인트 · 컬러 등급 기준</h2>

@@ -217,15 +217,14 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
       {!past && !isStaffAccount(u) && (
         <ActionForm action={joinRace} className="join-form" id={`join-${r.id}`} alertError>
           <input type="hidden" name="id" value={r.id} />
-          <span className="label">코스 선택</span>
-          <div className="course-row" role="radiogroup" aria-label="코스">
+          <div className="course-row" role="radiogroup" aria-label="코스 선택">
             {COURSES.map((c) => (
               <label key={c} className="cchip">
                 <input type="radio" name="course" value={c} defaultChecked={me?.course === c} />
                 <span>{c}</span>
               </label>
             ))}
-            <input name="courseEtc" className="input cchip-etc" placeholder="직접입력" maxLength={20} aria-label="코스 직접입력" />
+            <input name="courseEtc" className="input cchip-etc" placeholder="코스 선택 및 입력" maxLength={20} aria-label="코스 직접입력" />
           </div>
         </ActionForm>
       )}

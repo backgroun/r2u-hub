@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import { ViewModeStack } from "@/components/view-mode";
-import { currentUser, getMenu, isStaffAccount } from "@/lib/hub";
+import { currentUser, getMember, getMenu, isStaffAccount } from "@/lib/hub";
 import { eventOpen } from "@/lib/event";
 import { pendingJoinCount } from "@/lib/join";
 import { listNickChangeRequests } from "@/lib/nickname";
@@ -12,7 +12,7 @@ const ICONS: Record<string, React.ReactNode> = {
   "/races": <><path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" /></>,
   "/monthly": <><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M21 20H3" /></>,
   "/groupbuy": <><path d="M6 7h12l-1 13H7z" /><path d="M9 7a3 3 0 0 1 6 0" /></>,
-  "/bingo": <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 9.3h16M4 14.6h16M9.3 4v16M14.6 4v16" /></>,
+  "/bingo": <><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8" /><path d="M12 8v13" /><path d="M12 8C10 8 7.5 7 7.5 5.5S9.5 3 12 8c2.5-5 4.5-3.5 4.5-2.5S14 8 12 8z" /></>,
   "/me": <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   "/admin": <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" /></>,
 };
@@ -25,6 +25,8 @@ export default async function HubNav() {
   if (!u) return null;
   const [menu, open, joinTodo, nickTodo] = await Promise.all([getMenu(), eventOpen(), u.admin ? pendingJoinCount() : Promise.resolve(0), u.admin ? listNickChangeRequests() : Promise.resolve([])]);
   const todo = joinTodo + nickTodo.length;
+  // 관리 메뉴 이름: 관리자로 지정된 계정은 "관리자", 그 외 운영진은 "운영진" (공용 계정은 계정 이름 그대로)
+  const adminLabel = isStaffAccount(u) ? u.nick : u.admin && (await getMember(u.nick))?.manager ? "관리자" : "운영진";
   // 운영진이 처리할 닉네임 생성·변경 요청 개수
   const TABS = [
     { href: "/", label: "홈" },
@@ -35,7 +37,7 @@ export default async function HubNav() {
     { href: "/bingo", label: menu.bingo },
     // 운영진 모드(관리용 계정)는 개인 페이지 대신 운영진 화면, 크루원은 내 페이지
     // 운영진으로 지정된 크루원은 내 페이지와 운영진 메뉴를 모두 본다 (PC·휴대폰 동일)
-    ...(isStaffAccount(u) ? [{ href: "/admin", label: "운영진" }] : [{ href: "/me", label: `${u.nick}님` }, ...(u.admin ? [{ href: "/admin", label: "운영진" }] : [])]),
+    ...(isStaffAccount(u) ? [{ href: "/admin", label: adminLabel }] : [{ href: "/me", label: `${u.nick}님` }, ...(u.admin ? [{ href: "/admin", label: adminLabel }] : [])]),
   ];
   const tab = (t: { href: string; label: string }) => {
     const badge = t.href === "/admin" && todo > 0 ? <b className="tab-badge" aria-label={`처리할 일 ${todo}건`}>{todo > 9 ? "9+" : todo}</b> : null;

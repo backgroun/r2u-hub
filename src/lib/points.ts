@@ -1,3 +1,4 @@
+import { RUNNER_RULES } from "@/lib/runner-rules";
 import "server-only";
 import { cache } from "react";
 import { redis, isStaffNick, type MonthRec } from "@/lib/hub";
@@ -20,7 +21,6 @@ export const DEFAULT_PT = {
   push: 10, // 알림 켜기 (처음 한 번)
   bingo: 5, // 빙고 미션 완료
   gb: 3, // 공구 주문
-  runner: 5, // 가끔 나타나는 러너 캐릭터 잡기 (하루 한 번)
 };
 export type PointRules = typeof DEFAULT_PT;
 export const DEFAULT_STEP = 100; // 한 단계(색 안의 단계)에 필요한 포인트
@@ -28,7 +28,7 @@ export const DEFAULT_STEP = 100; // 한 단계(색 안의 단계)에 필요한 �
 export const PT_LABELS: Record<keyof PointRules, string> = {
   day: "출석", race: "대회 참가 표시", recFinish: "대회 기록 (완주)", recDnf: "대회 기록 (DNF·DNS)", cheer: "대회 응원",
   after: "뒤풀이 참석", photo: "단사 올리기", drive: "카풀 운전", ride: "카풀 탑승", goal: "월 목표 달성",
-  kmPer: "월간 기록 (몇 km마다 1P)", versus: "1:1 대결 참가", versusWin: "1:1 대결 승리", push: "알림 켜기 (처음 한 번)", bingo: "빙고 미션", gb: "공구 주문", runner: "깜짝 러너",
+  kmPer: "월간 기록 (몇 km마다 1P)", versus: "1:1 대결 참가", versusWin: "1:1 대결 승리", push: "알림 켜기 (처음 한 번)", bingo: "빙고 미션", gb: "공구 주문",
 };
 const CONFIG = "r2u:ptConfig"; // { pt, step, vsSettle }
 /** 1:1 대결 승리 정산 시점 */
@@ -72,7 +72,7 @@ export function pointGuide(PT: PointRules, vsSettle: VsSettle = "monthEnd"): { w
     { what: "알림 켜기 🔔", p: `${PT.push}P`, how: "처음 알림을 켤 때 한 번" },
     { what: "빙고 미션 완료", p: `${PT.bingo}P`, how: "미션 칸마다 · 인증 취소하면 빠짐" },
     { what: "공구 주문", p: `${PT.gb}P`, how: "공구마다 한 번 · 주문 삭제하면 빠짐" },
-    { what: "깜짝 러너 잡기 🏃", p: `${PT.runner}P`, how: "앱에 아주 가끔 뛰어가는 러너를 누르면 · 하루 한 번" },
+    { what: "스팟게임 👟", p: `꽝 또는 ${RUNNER_RULES.minP}~${RUNNER_RULES.maxP}P`, how: `앱을 열면 매일 한 번 튕겨 나오는 러닝 용품을 눌러 잡는 게임 · 포인트는 일주일에 ${RUNNER_RULES.perWeek}번까지` },
   ];
 }
 
@@ -99,12 +99,24 @@ export async function setPoints(nick: string | null | undefined, key: string, p:
 }
 
 /** 출석처럼 한 번만 주는 포인트 (이미 받았으면 그대로) */
-export async function awardOnce(nick: string, key: string, p: number, why: string): Promise<boolean> {
-  if (!nick || isStaffNick(nick)) return false;
+export async function awardOnce(nick: string, key: string, p: number, why: string, opts?: { allowStaff?: boolean }): Promise<boolean> {
+  if (!nick || (isStaffNick(nick) && !opts?.allowStaff)) return false;
   try {
     if (await redis.hsetnx(LOG(nick), key, JSON.stringify({ p, why, at: Date.now() } satisfies PointEntry))) { await redis.hincrbyfloat(TOTAL, nick, p); return true; }
   } catch { /* 포인트는 덤 */ }
   return false;
+}
+
+/** 깜짝 러너: 한 계정이 한 주(월~일)에 잡을 수 있는 횟수 */
+export const RUNNER_PER_WEEK = RUNNER_RULES.perWeek;
+/** 이번 주(월~일, 한국 날짜)에 이 계정이 러너를 잡은 횟수와, 오늘 잡았는지 */
+export async function runnerCaught(nick: string, today: string): Promise<{ week: number; today: boolean }> {
+  try {
+    const t = new Date(`${today}T00:00:00Z`);
+    const mon = new Date(t.getTime() - ((t.getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
+    const days = ((await redis.hkeys(LOG(nick))) ?? []).filter((k) => k.startsWith("runner:")).map((k) => k.slice(7));
+    return { week: days.filter((d) => d >= mon && d <= today).length, today: days.includes(today) };
+  } catch { return { week: 0, today: false }; }
 }
 
 /** 월간 기록이 바뀌면 그달 km 포인트와 목표 달성 포인트를 다시 맞춘다 (시작일 이후 날짜만 센다) */
@@ -140,7 +152,7 @@ export async function getLevels(): Promise<Record<string, number>> {
 /** 내 포인트: 합계와 최근 내역 */
 export async function getMyPoints(nick: string, limit = 8) {
   const [total, log] = await Promise.all([redis.hget<number | string>(TOTAL, nick), redis.hgetall<Record<string, unknown>>(LOG(nick))]);
-  const items = Object.values(log ?? {}).map(parse).sort((a, b) => b.at - a.at).slice(0, limit);
+  const items = Object.values(log ?? {}).map(parse).filter((e) => e.p !== 0).sort((a, b) => b.at - a.at).slice(0, limit);
   const { step } = await getPointConfig();
   return { ...levelOf(Number(total) || 0, step), items };
 }

@@ -35,5 +35,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // 로그인 화면, API, 정적 파일(빙고 css/js/이미지 포함)은 제외. 빙고 화면(/bingo, /bingo/index.html)은 보호.
-  matcher: ["/((?!login|join|api|_next|favicon\\.ico|logo\\.png|apple-touch-icon\\.png|og\\.png|sw\\.js|icon-.+\\.png|manifest\\.webmanifest|bingo/.+\\.(?:js|css|png|webmanifest|woff2)).*)"],
+  matcher: ["/((?!login|join|api|_next|favicon\\.ico|logo\\.png|apple-touch-icon\\.png|og\\.png|sw\\.js|icon-.+\\.png|gear/.+\\.webp|manifest\\.webmanifest|bingo/.+\\.(?:js|css|png|webmanifest|woff2)).*)"],
 };

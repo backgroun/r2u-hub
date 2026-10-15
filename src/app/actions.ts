@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
-  K, redis, checkPw, hashPw, currentUser, currentRealUser, VIEW_COOKIE, startSession, endSession, getMember, saveMember, getMembers, getAllVs, isStaffNick,
+  K, redis, checkPw, hashPw, currentUser, currentRealUser, isManagerUser, VIEW_COOKIE, startSession, endSession, getMember, saveMember, getMembers, getAllVs, isStaffNick,
   getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type RaceRec, OWN_RACE_PREFIX, type SheetKind,
 } from "@/lib/hub";
 import { syncMembers } from "@/lib/sheet";
@@ -17,7 +17,11 @@ import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
 import { detachGarminDay } from "@/lib/runs";
 import { BRAG_KEY, BRAG_MS, type Brag } from "@/lib/brag";
-import { pts, POINTS_START, awardOnce, setPoints, syncMonthPoints } from "@/lib/points";
+import { rollPoints } from "@/lib/runner-rules";
+import { GEARS } from "@/components/gear-art";
+import { pickGear, markGear, claimShown, trackGearClick, clickGate, addLinkEdit, clearLatestEditBy, setGearLink, addGearSuggestion, removeGearSuggestion, gearLinkOf, gearLinks, parseGearLinks, replaceGearLinks, isCoupangLink } from "@/lib/gear-collect";
+import { makeDeeplinks, coupangReady } from "@/lib/coupang";
+import { pts, POINTS_START, RUNNER_PER_WEEK, runnerCaught, awardOnce, setPoints, syncMonthPoints } from "@/lib/points";
 import { adjustPoints, DEFAULT_PT, getPointConfig, savePointConfig, VS_SETTLE, type PointRules, type VsSettle } from "@/lib/points";
 import { applyExternal, sameRace } from "@/lib/race-link";
 import { getVsHistory, getVsRequests, recordVsPair, removeVsPair, saveVsRequest, settleVsPair, vsReqKey, vsVoteKey } from "@/lib/versus";
@@ -39,6 +43,12 @@ const registrationUrl = (fd: FormData): string | null => {
 async function me() {
   const u = await currentUser();
   if (!u) redirect("/login");
+  return u;
+}
+/** 관리자(운영진이 아닌 관리자 지정 계정)만. 쿠팡 링크·클릭처럼 돈과 관련된 일에 쓴다. */
+async function manager() {
+  const u = await admin();
+  if (!(await isManagerUser(u))) throw new Error("관리자만 할 수 있어요.");
   return u;
 }
 async function admin() {
@@ -1216,13 +1226,141 @@ export async function pinNews(fd: FormData) {
 }
 
 /* ---------- 깜짝 러너: 가끔 화면을 뛰어가는 캐릭터를 누르면 하루 한 번 포인트 ---------- */
-export async function catchRunner(): Promise<Result> {
+/** 스팟게임 용품을 지금 보여 줄지 정하고, 보여 줄 용품 번호를 돌려준다(보여 주지 않으면 null).
+ *  로그인했으면(운영진 포함) 계정당 매일 한 번 나온다. 이 사람이 아직 못 잡은 용품 중에서 뽑는다. null=로그인 안 함, -1=오늘은 이미 나옴.
+ *  주 {perWeek}번 제한은 보여 주는 것이 아니라 포인트에만 적용한다(넘으면 용품·카드는 나오지만 포인트는 없다). */
+export async function runnerNext(): Promise<number | null> {
   const u = await currentUser();
-  if (!u) return fail("로그인하면 러너를 잡을 수 있어요.");
-  if (isStaffNick(u.nick)) return ok("러너를 잡았어요! (운영진 계정은 포인트가 없어요)");
-  const got = await awardOnce(u.nick, `runner:${kstToday()}`, (await pts()).runner, "깜짝 러너 잡기");
-  if (got) { revalidatePath("/me"); return ok(`러너를 잡았어요! +${(await pts()).runner}P 🏃`); }
-  return ok("러너를 또 만났네요! 포인트는 하루 한 번이에요.");
+  if (!u) return null;
+  const g = await pickGear(u.nick, GEARS.length);
+  if (!(await claimShown(u.nick, kstToday(), g))) return -1; // -1: 오늘은 이미 나왔다 (못 잡았어도 다시 안 나온다)
+  return g;
+}
+/** 잡은 용품의 쿠팡 파트너스 링크 (없으면 null) */
+export async function gearLink(g: number): Promise<string | null> {
+  const u = await currentUser();
+  if (!u || GEARS[g]?.shop === false) return null;
+  return gearLinkOf(g);
+}
+/** 운영진: 용품별 쿠팡 파트너스 링크를 통째로 저장 */
+export async function saveGearLinks(_: Result, fd: FormData): Promise<Result> {
+  const u = await manager();
+  const r = parseGearLinks(String(fd.get("links") ?? ""), GEARS.length);
+  if ("error" in r) return fail(r.error);
+  const blocked = Object.keys(r.map).map(Number).find((i) => GEARS[i]?.shop === false);
+  if (blocked != null) return fail(`${blocked + 1}번 ${GEARS[blocked].name}은 구매하는 용품이 아니라 링크를 넣지 않아요.`);
+  const before = await gearLinks();
+  await replaceGearLinks(r.map);
+  await logLinkChanges(before, r.map, u.nick, "일괄");
+  revalidatePath("/admin");
+  return ok(`쿠팡 링크 ${Object.keys(r.map).length}개를 저장했어요.`);
+}
+/** 바뀐 링크마다 수정 기록을 남긴다 (일괄 저장·자동 생성용) */
+async function logLinkChanges(before: Record<number, string>, after: Record<number, string>, editor: string, via: "일괄" | "자동") {
+  const ids = Array.from(new Set([...Object.keys(before), ...Object.keys(after)].map(Number)));
+  const changed = ids.filter((i) => before[i] !== after[i]);
+  for (let k = 0; k < changed.length; k += 20) {
+    await Promise.all(changed.slice(k, k + 20).map((i) => addLinkEdit(i, { at: Date.now(), editor, via, ...(after[i] ? { url: after[i] } : { removed: true }) })));
+  }
+}
+/** 관리자: 링크 수정 기록에서 "추천한 사람" 표시를 지운다 */
+export async function clearLinkEditBy(fd: FormData) {
+  await manager();
+  const g = Number(fd.get("g"));
+  if (!Number.isInteger(g) || g < 0 || g >= GEARS.length) return;
+  await clearLatestEditBy(g);
+  revalidatePath("/admin");
+}
+/** 운영진: 용품 하나의 쿠팡 링크를 바꾼다 (다른 제품으로 연결할 때). 비워서 저장하면 링크가 지워진다. */
+export async function saveGearLink(_: Result, fd: FormData): Promise<Result> {
+  const u = await manager();
+  const no = Number(fd.get("no"));
+  const url = String(fd.get("url") ?? "").trim();
+  const by = String(fd.get("by") ?? "").trim().slice(0, 30); // 누구 추천으로 바꿨는지 (선택)
+  if (!Number.isInteger(no) || no < 1 || no > GEARS.length) return fail("용품 번호가 올바르지 않아요.");
+  if (GEARS[no - 1].shop === false) return fail(`${no}번 ${GEARS[no - 1].name}은 구매하는 용품이 아니라 링크를 넣지 않아요.`);
+  if (url && !isCoupangLink(url)) return fail("쿠팡 파트너스 링크(https://link.coupang.com/…)만 넣을 수 있어요.");
+  await setGearLink(no - 1, url || null);
+  await addLinkEdit(no - 1, { at: Date.now(), editor: u.nick, via: "직접", ...(by ? { by } : {}), ...(url ? { url } : { removed: true }) });
+  revalidatePath("/admin");
+  return ok(url ? `${no}번 ${GEARS[no - 1].name} 링크를 바꿨어요.${by ? ` (추천: ${by})` : ""}` : `${no}번 ${GEARS[no - 1].name} 링크를 지웠어요.`);
+}
+/** 카드의 [쿠팡에서 보기]를 눌렀다고 기록한다 (어느 용품에서 눌렀는지). 링크 이동은 이 기록과 상관없이 된다. */
+export async function trackCoupangClick(g: number): Promise<void> {
+  const u = await currentUser();
+  if (!u || !Number.isInteger(g) || g < 0 || g >= GEARS.length || GEARS[g].shop === false) return;
+  if (!(await clickGate(g, u.nick))) return;
+  await trackGearClick(g, u.nick, kstToday());
+}
+/** 크루원: 용품 카드에서 "제품 추천하기" — 추천하고 싶은 제품 링크를 보낸다. 주소 모양(http/https)만 받고, 하루 10건까지. */
+export async function suggestGear(g: number, url: string, test = false): Promise<{ ok: boolean; msg: string }> {
+  const u = await currentUser();
+  if (!u) return { ok: false, msg: "로그인하면 추천할 수 있어요." };
+  if (!Number.isInteger(g) || g < 0 || g >= GEARS.length) return { ok: false, msg: "용품을 찾지 못했어요." };
+  if (GEARS[g].shop === false) return { ok: false, msg: "구매하는 용품이 아니라서 추천을 받지 않아요." };
+  const clean = String(url ?? "").trim();
+  if (!clean) return { ok: false, msg: "링크를 붙여 넣어 주세요." };
+  if (clean.length > 500) return { ok: false, msg: "링크가 너무 길어요." };
+  let parsed: URL;
+  try { parsed = new URL(clean); } catch { return { ok: false, msg: "링크 모양이 아니에요. https://… 주소를 붙여 넣어 주세요." }; }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return { ok: false, msg: "https://… 로 시작하는 링크만 받아요." };
+  const k = `r2u:gearSuggestCnt:${u.nick}:${kstToday()}`;
+  const n = await redis.incr(k);
+  if (n === 1) await redis.expire(k, 86400);
+  if (n > 10) return { ok: false, msg: "오늘은 추천을 많이 보냈어요. 내일 또 부탁해요!" };
+  await addGearSuggestion(g, u.nick, parsed.toString(), test);
+  revalidatePath("/admin");
+  return { ok: true, msg: test ? "(테스트) 추천이 저장됐어요. 관리자 → 스팟게임 맨 위에서 확인하세요." : "추천해 주셔서 고마워요! 운영진이 확인해요." };
+}
+/** 운영진: 추천 링크 하나 지우기 */
+export async function deleteGearSuggestion(fd: FormData) {
+  await admin();
+  const g = Number(fd.get("g")), nick = String(fd.get("nick") ?? "");
+  if (!Number.isInteger(g) || !nick) return;
+  await removeGearSuggestion(g, nick);
+  revalidatePath("/admin");
+}
+/** 운영진: 링크가 비어 있는 용품만, 쿠팡 "검색 결과" 주소를 파트너스 링크로 바꿔 자동으로 채운다 (직접 넣은 링크는 건드리지 않는다) */
+export async function generateGearLinks(): Promise<Result> {
+  const u = await manager();
+  if (!coupangReady()) return fail("쿠팡 키가 아직 설정되지 않았어요. .env.local(배포는 Vercel 환경변수)에 COUPANG_ACCESS_KEY, COUPANG_SECRET_KEY를 넣어 주세요.");
+  const have = await gearLinks();
+  const todo = GEARS.map((g, i) => ({ i, url: `https://www.coupang.com/np/search?component=&q=${encodeURIComponent(g.name)}&channel=user` })).filter((t) => !have[t.i] && GEARS[t.i].shop !== false);
+  if (!todo.length) return ok("이미 모든 용품에 링크가 있어요.");
+  const merged = { ...have };
+  const BATCH = 10; // 한 번에 보내는 개수 (문서에 상한이 적혀 있지 않아 작게)
+  let done = 0;
+  try {
+    for (let k = 0; k < todo.length; k += BATCH) {
+      const part = todo.slice(k, k + BATCH);
+      const out = await makeDeeplinks(part.map((t) => t.url));
+      part.forEach((t, n) => {
+        const hit = out.length === part.length ? out[n] : out.find((o) => o.originalUrl === t.url);
+        if (hit && isCoupangLink(hit.shortenUrl)) { merged[t.i] = hit.shortenUrl; done++; }
+      });
+      if (k + BATCH < todo.length) await new Promise((r) => setTimeout(r, 700)); // 호출 사이 간격
+    }
+  } catch (e) {
+    if (done) { await replaceGearLinks(merged); await logLinkChanges(have, merged, u.nick, "자동"); } // 중간까지 된 것은 저장
+    revalidatePath("/admin");
+    return fail(`${done}개 만든 뒤 멈췄어요. ${e instanceof Error ? e.message : "알 수 없는 오류"}`);
+  }
+  await replaceGearLinks(merged);
+  await logLinkChanges(have, merged, u.nick, "자동");
+  revalidatePath("/admin");
+  return ok(`쿠팡 검색 링크 ${done}개를 만들어 저장했어요. (이미 있던 ${Object.keys(have).length}개는 그대로)`);
+}
+export type CatchResult = { ok: boolean; msg?: string; points?: number } | null;
+export async function catchRunner(g?: number): Promise<CatchResult> {
+  const u = await currentUser();
+  if (!u) return fail("로그인하면 잡을 수 있어요.");
+  if (Number.isInteger(g) && (g as number) >= 0 && (g as number) < GEARS.length) await markGear(u.nick, g as number); // 어떤 용품을 잡았는지 수집 기록(포인트와 별개)
+  if ((await runnerCaught(u.nick, kstToday())).week >= RUNNER_PER_WEEK) return ok(`이번 주 포인트는 다 받았어요. (주 ${RUNNER_PER_WEEK}번까지)`);
+  const p = rollPoints(); // 0.1~3P 랜덤 (0.1 단위)
+  const gear = Number.isInteger(g) ? GEARS[g as number]?.name : undefined; // 어떤 용품을 잡았는지 기록에 남긴다
+  const got = await awardOnce(u.nick, `runner:${kstToday()}`, p, (gear ? `스팟게임: ${gear}` : "스팟게임") + (p === 0 ? " (꽝)" : ""), { allowStaff: true }); // 운영진도 참가해서 포인트를 받는다
+  if (got) { revalidatePath("/me"); return { ok: true, points: p }; }
+  return ok("오늘 포인트는 이미 받았어요. (하루 한 번)");
 }
 
 /* ---------- 운영진: 포인트 기준 바꾸기 · 회원별 포인트 조정 ---------- */

@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { LevelBadge, CrownIcon, GearIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { currentUser, getMember, getMembers, getRaceRecs, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, kstNow, kstToday, memberLabel, regInfo } from "@/lib/hub";
+import { currentUser, getMember, getMembers, getRaceRecs, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, fmtDtKo, kstNow, kstToday, memberLabel, regInfo } from "@/lib/hub";
 import { knownMemberLabel } from "@/lib/member-label";
 import PushToggle from "@/components/push-toggle";
+import { InfoTip } from "@/components/run-charts";
 import PushPrompt from "@/components/push-prompt";
 import MatchBoard from "@/components/match-board";
-import { getNotices, noticeState } from "@/lib/notice";
+import { getNotices, getPushEnabledNicks, noticeState } from "@/lib/notice";
 import { rankMonth, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
 import { listNews, timeAgo } from "@/lib/news";
-import WeatherCard from "@/components/weather-card";
 import { liveBrags } from "@/lib/brag";
 import BragTicker from "@/components/brag-ticker";
 import { getPointConfig, getPointTotals, levelOf } from "@/lib/points";
@@ -28,6 +28,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   const [races, month, links, member, members, myRecs, brags, myPoints] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers(), isStaffAccount(u) ? Promise.resolve({} as Awaited<ReturnType<typeof getRaceRecs>>) : getRaceRecs(u.nick), liveBrags(), getPointTotals().then((t) => t[u.nick] ?? 0)]);
   const names = Object.fromEntries(members.map((entry) => [entry.nick, entry.name || "없음"]));
   const news = await listNews({ limit: 3 }).catch(() => []);
+  const pushOn = isStaffAccount(u) ? new Set<string>() : await getPushEnabledNicks().catch(() => new Set<string>());
   const notice = (await getNotices()).find((n) => noticeState(n, today) === "live");
   const upcoming = races.filter((r) => r.date >= today).slice(0, 4);
   // 접수 마감 전인 대회: 접수중 먼저(마감 임박 순), 그다음 접수예정(시작 순)
@@ -55,8 +56,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
 
   return (
     <main className="hub-wrap">
-      {/* 알림을 안 켠 크루원에게 알림 켜기 팝업 (운영진 계정 제외) */}
-      {!isStaffAccount(u) && <PushPrompt bonus={(await getPointConfig()).pt.push} />}
+      {/* 알림을 안 켠 크루원에게 알림 켜기 팝업 (운영진 계정, 이미 알림을 설정한 크루원은 새 기기에서 작은 안내만) */}
+      {!isStaffAccount(u) && <PushPrompt bonus={(await getPointConfig()).pt.push} subscribed={pushOn.has(u.nick)} />}
       <header className="flex items-center justify-between gap-4 pt-2">
         <div className="min-w-0">
           <h1 className="hub-h1 hub-greeting flex items-center gap-2.5">
@@ -71,7 +72,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
         </div>
       </header>
 
-      <WeatherCard />
 
       {recordDue.map((r) => (
         <Link key={r.id} href={`/me?rec=${r.id}#race-record`} className="panel panel-alert p-3.5 flex items-center gap-3">
@@ -152,7 +152,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
 
       <section className="grid gap-2">
         <div className="sec-head">
-          <h2 className="label">다가오는 접수 일정</h2>
+          <h2 className="label inline-flex items-center gap-1.5">다가오는 접수 일정
+            <InfoTip warn text={"✓ 대량 수집 자료로 일정 오류 가능성 있음!\n✓ 접수 전 공식 사이트에서 필수 확인!"} />
+          </h2>
           <Link href="/races?view=reg">접수 일정 전체 →</Link>
         </div>
         <div className="row-list">
@@ -160,12 +162,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
           {regs.map((r) => {
             const g = regInfo(r, now);
             return (
-              <Link key={r.id} href={`/races#${r.id}`} className="flex items-center gap-3 py-3 px-1 hover:bg-[var(--card)]">
+              <Link key={r.id} href={`/races?view=reg#${r.id}`} className="flex items-center gap-3 py-3 px-1 hover:bg-[var(--card)]">
                 <span className={`chip shrink-0 ${g.status === "open" ? "chip-open" : "chip-warn"}`}>{g.status === "open" ? "접수중" : "접수예정"}</span>
-                <span className="min-w-0 grid">
-                  <span className="font-bold truncate">{r.name}</span>
-                  <span className="text-sm text-muted truncate">접수 {g.text}</span>
-                </span>
+                <span className="font-bold truncate min-w-0 flex-1">{r.name}</span>
+                <span className="text-sm text-muted shrink-0 whitespace-nowrap">{r.regStart ? `${fmtDtKo(r.regStart)} 시작` : g.text}</span>
               </Link>
             );
           })}

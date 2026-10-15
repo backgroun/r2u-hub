@@ -12,15 +12,25 @@ import { showToast } from "@/components/toaster";
 type Kind = "off" | "install" | "denied";
 const KEY = "pushPromptHide";
 const today = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+const DEVICE_KEY = "pushDeviceHintDone"; // 이미 알림을 설정한 사람에게 새 기기 안내는 기기마다 한 번만
 const get = () => { try { return localStorage.getItem(KEY); } catch { return null; } };
 const set = (v: string) => { try { localStorage.setItem(KEY, v); } catch { /* 저장 못 해도 괜찮다 */ } };
 
-export default function PushPrompt({ bonus = 0 }: { bonus?: number }) {
+export default function PushPrompt({ bonus = 0, subscribed = false }: { bonus?: number; subscribed?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [kind, setKind] = useState<Kind | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState(false);
 
   useEffect(() => {
+    if (subscribed) {
+      // 다른 기기에서 이미 켠 사람: 큰 팝업 대신, 이 기기가 꺼져 있을 때 작은 안내를 한 번만
+      let done = false;
+      try { done = localStorage.getItem(DEVICE_KEY) === "1"; } catch { /* 무시 */ }
+      if (done) return;
+      pushStatus().then((st) => { if (st === "off") setHint(true); }).catch(() => {});
+      return;
+    }
     if (get() === today()) return;
     const t = setTimeout(async () => {
       const st = await pushStatus().catch(() => "unsupported" as const);
@@ -32,7 +42,28 @@ export default function PushPrompt({ bonus = 0 }: { bonus?: number }) {
       ref.current?.showModal();
     }, 1200);
     return () => clearTimeout(t);
-  }, []);
+  }, [subscribed]);
+
+  const closeHint = () => { try { localStorage.setItem(DEVICE_KEY, "1"); } catch { /* 무시 */ } setHint(false); };
+  if (subscribed) {
+    if (!hint) return null;
+    return (
+      <div className="toaster" role="status" style={{ pointerEvents: "auto" }}>
+        <div className="toast-item ok flex items-center gap-2" style={{ pointerEvents: "auto" }}>
+          <span className="text-sm">이 기기에서도 알림 받을까요?</span>
+          <button type="button" className="btn btn-primary text-xs !py-1 !px-2.5" disabled={busy} onClick={async () => {
+            setBusy(true);
+            const r = await enablePush().catch(() => ({ state: "off" as const, msg: "알림을 켜지 못했어요." }));
+            setBusy(false);
+            if (r.state === "on") { window.dispatchEvent(new Event("r2u:push-on")); showToast("이 기기에서도 알림을 켰어요! 🔔"); closeHint(); }
+            else if (r.msg) showToast(r.msg, "err");
+            else closeHint();
+          }}>켜기</button>
+          <button type="button" className="btn btn-ghost text-xs !py-1 !px-2" onClick={closeHint}>닫기</button>
+        </div>
+      </div>
+    );
+  }
 
   const close = (hideToday: boolean) => { if (hideToday) set(today()); ref.current?.close(); };
 

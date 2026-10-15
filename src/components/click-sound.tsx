@@ -40,7 +40,7 @@ export default function ClickSound() {
     }
 
     function onDown(e: PointerEvent) {
-      const el = (e.target as HTMLElement | null)?.closest<HTMLElement>("button, a.btn, .btn, .tabs a, .tabbar a, .chip-scroll a, .cchip, .goal-chip, .nick-chip");
+      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>("button, a.btn, .btn, .tabs a, .tabbar a, .chip-scroll a, .cchip, .goal-chip, .nick-chip");
       if (!el || (el as HTMLButtonElement).disabled) return;
       click(el.classList.contains("btn-primary"));
     }

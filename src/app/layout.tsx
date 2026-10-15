@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import ClickSound from "@/components/click-sound";
+import PressFeel from "@/components/press-feel";
 import HubNav from "@/components/hub-nav";
 import AppBar from "@/components/app-bar";
 import Toaster from "@/components/toaster";
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ClickSound />
+        <PressFeel />
         <BadgeClear />
         <AppBar />
         <Toaster />

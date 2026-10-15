@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { currentUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, removeNotice, decideJoin, bingoInfo, bingoMember, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction } from "@/app/actions";
+import { currentUser, isManagerUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
+import { addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, removeNotice, decideJoin, bingoInfo, bingoMember, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { bingoView } from "@/lib/bingo-admin";
 import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
@@ -16,6 +16,11 @@ import GroupbuyStaff from "@/components/groupbuy-staff";
 import PasswordInput from "@/components/password-input";
 import AdminMemberRow from "@/components/admin-member-row";
 import AdminMemberSearch from "@/components/admin-member-search";
+import { GEARS, GearArt } from "@/components/gear-art";
+import { RUNNER_RULES as RR } from "@/lib/runner-rules";
+import { gearBoard, gearLinks, gearSuggestions, gearClickStats, gearLinkEdits, type LinkEdit } from "@/lib/gear-collect";
+import { coupangReady } from "@/lib/coupang";
+import SpotTestButton from "@/components/spot-test-button";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { rankMonth, shiftYm } from "@/lib/rank";
 import { getLevels, getPointConfig, getPointTotals, levelOf, PT_LABELS, VS_SETTLE, type PointRules, type VsSettle } from "@/lib/points";
@@ -26,7 +31,7 @@ import { adjustMemberPoints, savePointRules, settleVersusByAdmin } from "@/app/a
 export const dynamic = "force-dynamic";
 export const metadata = { title: "운영진" };
 
-const TABS = { members: "회원", content: "게시물", notice: "공지", menu: "메뉴", links: "링크", races: "대회", points: "포인트", versus: "대결", groupbuy: "공구", bingo: "이벤트", me: "내 비밀번호" } as const;
+const TABS = { members: "회원", content: "게시물", notice: "공지", menu: "메뉴·링크", races: "대회", points: "포인트", gear: "스팟게임", versus: "대결", groupbuy: "공구", bingo: "이벤트", me: "내 비밀번호" } as const;
 type Tab = keyof typeof TABS;
 const TAGS = ["커뮤니티", "기록", "공지", "이벤트", "공구", "기타"];
 
@@ -35,6 +40,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   if (!u) redirect("/login?next=/admin");
   const { tab: t, sec, m, past, edit } = await searchParams;
   if (t === "nicknames") redirect("/admin?tab=members");
+  if (t === "links") redirect("/admin?tab=menu"); // 링크는 메뉴와 합쳐졌다
   const tab: Tab = t && t in TABS ? (t as Tab) : u.admin ? "members" : "me";
   if (!u.admin && tab !== "me") redirect("/admin?tab=me");
   const [pendingJoins, pendingNicknames] = u.admin ? await Promise.all([pendingJoinCount(), listNickChangeRequests()]) : [0, []];
@@ -44,7 +50,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     <main className="hub-wrap">
       <header className="grid gap-1">
         <h1 className="hub-h1">{u.admin ? "운영진 관리" : "내 계정"}</h1>
-        {u.admin && <p className="text-sm text-muted">회원·메뉴·대회·공구·이벤트를 한곳에서 관리해요.</p>}
+        {u.admin && <p className="text-sm text-muted">회원·메뉴·링크·대회·공구·이벤트를 한곳에서 관리해요.</p>}
       </header>
       {u.admin && (
         <nav className="tabs" aria-label="관리 메뉴">
@@ -56,10 +62,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === "members" && <Members self={u.nick} />}
       {tab === "content" && <Content sec={sec} ym={m} />}
       {tab === "notice" && <Notices />}
-      {tab === "menu" && <Menu />}
-      {tab === "links" && <Links />}
+      {tab === "menu" && <section className="grid gap-4"><Menu /><Links /></section>}
       {tab === "races" && <Races past={past === "1"} edit={edit} />}
       {tab === "points" && <PointsAdmin />}
+      {tab === "gear" && <GearCatalog mgr={await isManagerUser(u)} />}
       {tab === "versus" && <VersusAdmin />}
       {tab === "groupbuy" && <Groupbuy />}
       {tab === "bingo" && <Events />}
@@ -141,7 +147,7 @@ async function Members({ self }: { self: string }) {
           <Submit className="btn btn-primary">추가</Submit>
         </ActionForm>
       </MemberSheetSync>
-      <p className="text-sm text-muted">전체 {members.length}명 · 비밀번호 미설정 {waiting}명 (첫 로그인 때 직접 정해요). 비밀번호를 잊은 크루원은 ‘비번 초기화’ 후 다시 정하게 하세요.</p>
+      <p className="text-sm text-muted">전체 {members.length}명 · 비번 미설정 {waiting}명 (첫 로그인 때 설정 · 분실 시 ‘비번 초기화’)</p>
       {(() => {
         const managers = members.filter((m) => m.manager);
         const staff = members.filter((m) => m.role === "admin" && !m.manager);
@@ -184,6 +190,7 @@ async function Members({ self }: { self: string }) {
               <div className="row-list">{managers.map((m) => <AdminMemberRow key={m.nick} m={m} self={self} pushEnabled={pushEnabled.has(m.nick)} lastSeen={lastSeen[m.nick]} lv={isStaffNick(m.nick) ? undefined : levels[m.nick] ?? 1} />)}</div>
             </>}
             <h3 className="label">크루원 {crew.length}명</h3>
+            <p className="text-xs text-muted" style={{ marginTop: -6 }}>알림 설정 {crew.filter((m) => pushEnabled.has(m.nick)).length}명</p>
             <div className="row-list">
               {crew.map((m) => <AdminMemberRow key={m.nick} m={m} self={self} pushEnabled={pushEnabled.has(m.nick)} lastSeen={lastSeen[m.nick]} lv={isStaffNick(m.nick) ? undefined : levels[m.nick] ?? 1} />)}
             </div>
@@ -271,27 +278,33 @@ async function Posts({ today }: { today: string }) {
                     <ConfirmButton className="btn btn-ghost btn-danger text-xs">글 삭제</ConfirmButton>
                   </form>
                 </div>
-                <ActionForm action={updateAfter} className="grid-2" keep>
-                  <input type="hidden" name="id" value={r.id} /><input type="hidden" name="after" value={a.id} />
-                  <KakaoPlaceField label={kind === "carpool" ? "출발지" : "장소"} place={a.place} address={a.address} placeUrl={a.placeUrl} />
-                  <label className="field"><span className="label">시간</span><input name="time" className="input" defaultValue={a.time} maxLength={30} /></label>
-                  {kind === "carpool" && <label className="field"><span className="label">자리 수</span><input name="seats" type="number" min={1} max={10} className="input" defaultValue={a.seats} /></label>}
-                  <label className="field full"><span className="label">내용</span><input name="memo" className="input" defaultValue={a.memo} maxLength={200} /></label>
-                  <div className="full"><Submit className="btn text-sm" confirm="수정한 내용으로 저장할까요?">수정 저장</Submit></div>
-                </ActionForm>
-                {kind !== "photo" && (a.yes.length + a.no.length > 0) && (
-                  <div className="grid gap-1.5">
-                    <span className="label">{kind === "carpool" ? "탑승" : "참석·불참"} (✕로 빼기)</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[...a.yes.map((n) => [n, kind === "carpool" ? "탑승" : "참석"]), ...a.no.map((n) => [n, "불참"])].map(([n, v]) => (
-                        <span key={n} className="pchip">{n}<span className="text-muted">· {v}</span>
-                          <form action={removeRsvp} className="inline"><input type="hidden" name="after" value={a.id} /><input type="hidden" name="nick" value={n} />
-                            <ConfirmButton className="" label={`${n} 빼기`} message={`${n} 님을 명단에서 뺄까요?`}>✕</ConfirmButton></form>
-                        </span>
-                      ))}
+                <p className="text-sm">{[a.place, a.time, a.memo].filter(Boolean).join(" · ") || "내용 없음"}{kind === "carpool" && a.seats ? ` · ${a.seats}자리` : ""}</p>
+                <details className="edit-fold">
+                  <summary className="btn btn-ghost text-xs py-1 px-3">수정 · 명단 관리</summary>
+                  <div className="grid gap-2 mt-2">
+                  <ActionForm action={updateAfter} className="grid-2" keep>
+                    <input type="hidden" name="id" value={r.id} /><input type="hidden" name="after" value={a.id} />
+                    <KakaoPlaceField label={kind === "carpool" ? "출발지" : "장소"} place={a.place} address={a.address} placeUrl={a.placeUrl} />
+                    <label className="field"><span className="label">시간</span><input name="time" className="input" defaultValue={a.time} maxLength={30} /></label>
+                    {kind === "carpool" && <label className="field"><span className="label">자리 수</span><input name="seats" type="number" min={1} max={10} className="input" defaultValue={a.seats} /></label>}
+                    <label className="field full"><span className="label">내용</span><input name="memo" className="input" defaultValue={a.memo} maxLength={200} /></label>
+                    <div className="full"><Submit className="btn text-sm" confirm="수정한 내용으로 저장할까요?">수정 저장</Submit></div>
+                  </ActionForm>
+                  {kind !== "photo" && (a.yes.length + a.no.length > 0) && (
+                    <div className="grid gap-1.5">
+                      <span className="label">{kind === "carpool" ? "탑승" : "참석·불참"} (✕로 빼기)</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[...a.yes.map((n) => [n, kind === "carpool" ? "탑승" : "참석"]), ...a.no.map((n) => [n, "불참"])].map(([n, v]) => (
+                          <span key={n} className="pchip">{n}<span className="text-muted">· {v}</span>
+                            <form action={removeRsvp} className="inline"><input type="hidden" name="after" value={a.id} /><input type="hidden" name="nick" value={n} />
+                              <ConfirmButton className="" label={`${n} 빼기`} message={`${n} 님을 명단에서 뺄까요?`}>✕</ConfirmButton></form>
+                          </span>
+                        ))}
+                      </div>
                     </div>
+                  )}
                   </div>
-                )}
+                </details>
               </div>
             );
           })}
@@ -310,7 +323,7 @@ async function Entries({ today }: { today: string }) {
   if (!races.length) return <p className="text-sm text-muted">다가오는 대회가 없어요.</p>;
   return (
     <div className="grid gap-3">
-      <p className="text-xs text-muted">다가오는 대회만 보여요. 크루원을 참가자·응원으로 넣거나, 코스를 고치거나, 뺄 수 있어요.</p>
+      <p className="text-xs text-muted">다가오는 대회만 보여요. 크루원을 검색해서 참가자·응원으로 넣거나, 코스를 고치거나, 뺄 수 있어요.</p>
       {races.map((r) => (
         <div key={r.id} className="panel p-4 grid gap-2 entries-panel">
           <h3 className="font-bold">{raceLabel(r)}</h3>
@@ -345,19 +358,15 @@ async function Entries({ today }: { today: string }) {
           )}
           <ActionForm action={joinRace} className="flex gap-1.5 items-center" keep>
             <input type="hidden" name="id" value={r.id} />
-            <select name="nick" className="input" defaultValue="" required style={{ flex: 1, minWidth: 0 }} aria-label="참가자로 넣을 크루원">
-              <option value="" disabled>참가자 추가</option>
-              {crew.filter((n) => !r.participants.some((p) => p.nick === n)).map((n) => <option key={n} value={n}>{label(n)}</option>)}
-            </select>
+            <AdminMemberSearch label={null} required placeholder="참가자 검색해서 추가" style={{ flex: 1, minWidth: 0 }}
+              members={crew.filter((n) => !r.participants.some((p) => p.nick === n)).map((n) => ({ nick: n, name: names[n] || "없음" }))} />
             <input name="courseEtc" className="input" placeholder="코스" maxLength={20} required style={{ width: 76 }} aria-label="코스" />
             <Submit className="btn text-xs">추가</Submit>
           </ActionForm>
           <ActionForm action={addCheer} className="flex gap-1.5 items-center" keep>
             <input type="hidden" name="id" value={r.id} />
-            <select name="nick" className="input" defaultValue="" required style={{ flex: 1, minWidth: 0 }} aria-label="응원으로 넣을 크루원">
-              <option value="" disabled>응원 추가</option>
-              {crew.filter((n) => !r.cheers.includes(n)).map((n) => <option key={n} value={n}>{label(n)}</option>)}
-            </select>
+            <AdminMemberSearch label={null} required placeholder="응원 검색해서 추가" style={{ flex: 1, minWidth: 0 }}
+              members={crew.filter((n) => !r.cheers.includes(n)).map((n) => ({ nick: n, name: names[n] || "없음" }))} />
             <Submit className="btn text-xs">추가</Submit>
           </ActionForm>
           {r.cheers.length > 0 && (
@@ -754,6 +763,154 @@ function Me() {
 }
 
 /** 포인트: 회원별 등급·포인트와 조정, 포인트·등급 기준 바꾸기 */
+/** 스팟게임: 규칙, 수집 현황(누가 몇 종을 모았나), 용품별 받은 사람. 같은 용품이 한 사람에게 되도록 다시 안 나오게 하는 게 목적이라 포인트 액수는 보지 않는다. */
+async function GearCatalog({ mgr }: { mgr: boolean }) {
+  const members = await getMembers();
+  const crew = members.filter((m) => !isStaffNick(m.nick));
+  const names = Object.fromEntries(members.map((m) => [m.nick, m.name?.trim() || "없음"]));
+  const nicks = Array.from(new Set([...members.map((m) => m.nick), "운영진", "관리자"]));
+  // 쿠팡 링크·클릭·수정 기록은 운영진이 아닌 "관리자"만 읽는다 (아니면 아예 불러오지 않는다)
+  const [board, links, sugs, clicks, edits] = await Promise.all([
+    gearBoard(nicks),
+    mgr ? gearLinks() : Promise.resolve({} as Record<number, string>),
+    gearSuggestions(),
+    mgr ? gearClickStats() : Promise.resolve({} as Awaited<ReturnType<typeof gearClickStats>>),
+    mgr ? gearLinkEdits() : Promise.resolve({} as Record<number, LinkEdit[]>),
+  ]);
+  // 크루원이 보낸 제품 추천: 최근 것이 위로
+  const inbox = Object.entries(sugs).flatMap(([g, list]) => list.map((x) => ({ g: Number(g), ...x }))).sort((a, b) => b.at - a.at);
+  const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+  const total = GEARS.length;
+  const count = (n: string) => Object.keys(board[n] ?? {}).length;
+  const done = crew.filter((m) => count(m.nick) >= total).length;
+  const ratio = crew.length ? done / crew.length : 0;
+  const progress = crew.map((m) => ({ nick: m.nick, n: count(m.nick) })).sort((a, b) => b.n - a.n || a.nick.localeCompare(b.nick, "ko"));
+  const who = (i: number) => nicks.filter((n) => board[n]?.[i] != null).sort((a, b) => (board[a][i] ?? 0) - (board[b][i] ?? 0));
+  return (
+    <section className="grid gap-4">
+      {inbox.length > 0 && (
+        <div className="panel p-4 grid gap-2">
+          <h2 className="font-bold">🔔 제품 추천 {inbox.length}건</h2>
+          <p className="text-xs text-muted">크루원이 보낸 주소예요. 열기 전에 주소를 확인하세요. 쓸 제품이면 파트너스 링크를 만들어 아래 용품의 [링크 수정]에 넣어요.</p>
+          <div className="row-list">
+            {inbox.map((x) => (
+              <div key={`${x.g}:${x.nick}`} className="gear-sug-row">
+                <span className="gear-ico"><GearArt i={x.g} size={32} /></span>
+                <span className="gear-txt">
+                  <b>{x.g + 1}. {GEARS[x.g]?.name} {x.test && <small className="gear-test">테스트</small>}<small className="gear-cnt">{names[x.nick] && !isStaffNick(x.nick) ? `${x.nick}/${names[x.nick]}` : x.nick} · {new Date(x.at + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ").replace("-", "/")}</small></b>
+                  <a className="gear-sug-link" href={x.url} target="_blank" rel="noopener noreferrer nofollow ugc"><b>{host(x.url)}</b> {x.url.length > 60 ? `${x.url.slice(0, 60)}…` : x.url}</a>
+                </span>
+                <form action={deleteGearSuggestion}>
+                  <input type="hidden" name="g" value={x.g} /><input type="hidden" name="nick" value={x.nick} />
+                  <ConfirmButton className="btn btn-ghost btn-danger text-xs">삭제</ConfirmButton>
+                </form>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <details className="panel p-4 gear-fold">
+        <summary>스팟게임 · 게임의 법칙</summary>
+        <div className="mt-3"><SpotTestButton /></div>
+        <ul className="rules-list mt-3">
+          <li><b>등장</b><span>{RR.chance >= 1 ? "앱을 열면 매일" : `앱을 열 때 ${Math.round(RR.chance * 100)}% 확률로`} 러닝 용품이 한 번 튕겨 나와요. 계정당 하루 한 번(놓쳐도 그날은 끝), 이미 잡은 용품은 되도록 안 나와요.</span></li>
+          <li><b>잡기</b><span>{RR.need === 1 ? "한 번" : `${RR.need}번`} 누르면 성공이에요. {RR.life}초 안에 못 잡으면 사라지고, 중간에 한 번쯤 느려져요.</span></li>
+          <li><b>보상</b><span>꽝(약 {Math.round(RR.missRate * 100)}%) 또는 {RR.minP}~{RR.maxP}P 랜덤(큰 값은 드물게) + 색종이 축포 + 용품 설명 카드.</span></li>
+          <li><b>제한</b><span>포인트는 하루 한 번, 주 {RR.perWeek}번까지(최대 {RR.perWeek * RR.maxP}P, 꽝도 1번). 그 뒤에도 매일 나오지만 설명 카드만 보여요. 운영진도 똑같이 참가해요.</span></li>
+          <li><b>교체</b><span>크루원의 {Math.round(RR.replaceRatio * 100)}% 이상이 {total}종을 모두 모으면 새 용품으로 교체해요.</span></li>
+        </ul>
+      </details>
+      <div className="panel p-4 grid gap-2">
+        <h2 className="font-bold">수집 현황</h2>
+        <p className="text-sm">{total}종을 모두 모은 크루원 <b>{done}/{crew.length}명</b> ({Math.round(ratio * 100)}%)</p>
+        <div className="gear-bar" aria-hidden><i style={{ width: `${Math.round(ratio * 100)}%` }} /><s style={{ left: `${Math.round(RR.replaceRatio * 100)}%` }} /></div>
+        {ratio >= RR.replaceRatio
+          ? <p className="gear-replace">🔔 교체할 때예요! 크루원의 {Math.round(RR.replaceRatio * 100)}% 이상이 {total}종을 모두 모았어요. 새 용품으로 바꾸면 수집 기록이 새로 시작돼요.</p>
+          : <p className="text-xs text-muted">{Math.round(RR.replaceRatio * 100)}%({Math.ceil(crew.length * RR.replaceRatio)}명)가 모두 모으면 교체할 때예요.</p>}
+        <details className="edit-fold">
+          <summary className="btn btn-ghost text-xs py-1 px-3">크루원별 진행 보기</summary>
+          <div className="row-list mt-2">
+            {progress.map((r) => (
+              <div key={r.nick} className="flex items-center gap-2 py-1.5 text-sm">
+                <b className="truncate min-w-0">{r.nick}/{names[r.nick]}</b>
+                <span className="num ml-auto shrink-0 text-muted">{r.n}/{total}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      </div>
+      {mgr && (
+        <details className="panel p-4 gear-fold">
+          <summary>쿠팡 파트너스 링크 <small className="gear-cnt">{Object.keys(links).length}/{GEARS.filter((x) => x.shop !== false).length}개 등록</small></summary>
+          <div className="grid gap-2 mt-3">
+            <p className="text-sm text-muted">자동 생성하거나, 아래 칸에 <b>번호 링크</b>를 한 줄씩 넣어 저장해요.</p>
+            <ActionForm action={generateGearLinks} className="grid gap-1" keep>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Submit className="btn text-sm" confirm="비어 있는 용품에 쿠팡 검색 링크를 자동으로 만들까요? (이미 넣은 링크는 그대로 둬요)">쿠팡 검색 링크 자동 생성</Submit>
+                <span className="text-xs text-muted">{coupangReady() ? "키 설정됨 · 링크가 비어 있는 용품만 채워요" : "키가 아직 설정되지 않았어요 (.env.local의 COUPANG_ACCESS_KEY · COUPANG_SECRET_KEY)"}</span>
+              </div>
+            </ActionForm>
+            <ActionForm action={saveGearLinks} className="grid gap-2" keep>
+              <textarea name="links" className="input gear-links-text" wrap="off" spellCheck={false} placeholder={"1 https://link.coupang.com/a/xxxxx\n2 https://link.coupang.com/a/yyyyy"}
+                defaultValue={Object.entries(links).sort((a, b) => Number(a[0]) - Number(b[0])).map(([i, u]) => `${Number(i) + 1} ${u}`).join("\n")} />
+              <div><Submit confirm="쿠팡 링크를 저장할까요?">저장</Submit></div>
+            </ActionForm>
+          </div>
+        </details>
+      )}
+      <div className="panel p-4 grid gap-1">
+        <h2 className="font-bold">용품별 받은 사람</h2>
+        <ol className="row-list gear-list">
+          {GEARS.map((g, i) => {
+            const got = who(i);
+            return (
+              <li key={g.name + i}>
+                <span className="gear-no num">{i + 1}</span>
+                <span className="gear-ico"><GearArt i={i} size={40} /></span>
+                <span className="gear-txt">
+                  <b>{g.name} <small className="gear-cnt">{got.length}명</small>{mgr && g.shop !== false && <>{links[i] && <small className="gear-link-ok">쿠팡 링크 등록됨</small>}<small className="gear-clk">쿠팡 클릭 {clicks[i]?.n ?? 0}회</small></>}</b>
+                  <span className="text-sm text-muted">{g.tip}</span>
+                  <span className="text-sm gear-pitch">{g.pitch}</span>
+                  <span className="gear-who">{got.length ? got.join(", ") : "아직 아무도 못 잡았어요"}</span>
+                </span>
+              {mgr && g.shop !== false && (
+                <div className="gear-row-edit">
+                  <details className="edit-fold gear-edit">
+                    <summary className="gear-find">링크 수정</summary>
+                    <ActionForm action={saveGearLink} collapse keep className="gear-edit-form">
+                      <input type="hidden" name="no" value={i + 1} />
+                      <input name="url" className="input" defaultValue={links[i] ?? ""} placeholder="https://link.coupang.com/a/…" aria-label={`${g.name} 쿠팡 링크`} />
+                      <AdminMemberSearch name="by" label={null} placeholder="추천한 사람 검색" style={{ flex: "none", width: 168 }}
+                        members={crew.map((m) => ({ nick: m.nick, name: names[m.nick] }))} />
+                      <Submit className="btn text-xs">저장</Submit>
+                    </ActionForm>
+                  </details>
+                  {edits[i]?.[0] && (
+                    <div className="gear-edit-log">
+                      <span>
+                        링크 {edits[i][0].removed ? "삭제" : "수정"} {new Date(edits[i][0].at + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ").replace("-", "/")}
+                        {edits[i][0].by ? ` · 추천 ${edits[i][0].by}` : ""} · {edits[i][0].via === "직접" ? "수정" : edits[i][0].via} {edits[i][0].editor}
+                        {edits[i].length > 1 ? ` (총 ${edits[i].length}회)` : ""}
+                      </span>
+                      {edits[i][0].by && (
+                        <form action={clearLinkEditBy}>
+                          <input type="hidden" name="g" value={i} />
+                          <ConfirmButton className="gear-by-x" message="이 기록의 추천자 표시를 지울까요?" label="추천자 삭제">추천자 삭제</ConfirmButton>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
 async function PointsAdmin() {
   const [members, totals, cfg] = await Promise.all([getMembers(), getPointTotals(), getPointConfig()]);
   const crew = members.filter((m) => !isStaffNick(m.nick))

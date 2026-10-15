@@ -37,7 +37,7 @@ const ts = (s: string) => Date.parse(`${s.length > 10 ? s.replace(" ", "T") : `$
 
 /** 제목 옆 (i) 도움말: PC는 마우스를 올리면 뜨고, 모바일은 눌러서 본다.
  *  닫기: 다시 누르기 · 풍선 누르기 · 바깥 누르기 · 스크롤 · Esc */
-export function InfoTip({ text }: { text: string }) {
+export function InfoTip({ text, warn = false }: { text: string; warn?: boolean }) {
   const id = gid(useId());
   const box = useRef<HTMLSpanElement>(null);
   const [hover, setHover] = useState(false); // 마우스를 올린 동안 (터치는 제외)
@@ -61,15 +61,18 @@ export function InfoTip({ text }: { text: string }) {
       <button type="button" aria-label="설명 보기" aria-expanded={open} aria-describedby={open ? id : undefined}
         onClick={() => (open ? close() : setPin(true))}
         style={{ ...noSelect, width: 16, height: 16, borderRadius: 999, padding: 0, display: "inline-grid", placeItems: "center", cursor: "pointer", transition: "background .15s, color .15s",
-          border: "1.4px solid var(--ink)", fontFamily: "var(--font-body)", fontStyle: "normal", fontWeight: 700, fontSize: 10, lineHeight: 1,
-          background: open ? "var(--ink)" : "transparent", color: open ? "var(--paper)" : "var(--ink)" }}>
-        i
+          border: `1.4px solid ${warn ? "var(--warn)" : "var(--ink)"}`, fontFamily: "var(--font-body)", fontStyle: "normal", fontWeight: 700, fontSize: 10, lineHeight: 1, textTransform: "none",
+          background: open ? (warn ? "var(--warn)" : "var(--ink)") : "transparent", color: open ? (warn ? "#1c1300" : "var(--paper)") : warn ? "var(--warn)" : "var(--ink)" }}>
+        {/* 글자 대신 그려서, 어느 글꼴·대문자 설정에서도 항상 소문자 i로 보인다 */}
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden><circle cx="5" cy="2" r="1.1" fill="currentColor" /><path d="M5 4.2v4.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
       </button>
       {open && (
         <span role="tooltip" id={id} onClick={close}
-          style={{ position: "absolute", zIndex: 30, top: "calc(100% + 10px)", left: -8, width: "max-content", maxWidth: "min(280px, calc(100vw - 72px))", padding: "11px 14px", borderRadius: 13, background: "var(--ink)", color: "var(--paper)", fontSize: 13, fontWeight: 500, lineHeight: 1.6, letterSpacing: 0, textTransform: "none", boxShadow: "0 10px 28px rgba(0,0,0,.38)", textAlign: "left", whiteSpace: "normal", cursor: "pointer" }}>
+          style={{ position: "absolute", zIndex: 30, top: "calc(100% + 10px)", left: -8, width: "max-content", maxWidth: "min(280px, calc(100vw - 72px))", padding: "11px 14px", borderRadius: 13, background: "var(--ink)", color: "var(--paper)", fontSize: 13, fontWeight: 500, lineHeight: 1.6, letterSpacing: 0, textTransform: "none", boxShadow: "0 10px 28px rgba(0,0,0,.38)", textAlign: "left", whiteSpace: "normal", wordBreak: "keep-all", textWrap: "wrap", cursor: "pointer" }}>
           <span aria-hidden style={{ position: "absolute", top: -4, left: 16, width: 10, height: 10, background: "var(--ink)", transform: "rotate(45deg)", borderRadius: 2 }} />
-          {text}
+          {text.split("\n").map((l, i) => /^[•✓] /.test(l)
+            ? <span key={i} style={{ display: "flex", gap: 6, marginTop: i ? 4 : 0 }}><span aria-hidden style={{ flex: "none" }}>{l[0]}</span><span style={{ flex: 1, minWidth: 0 }}>{l.slice(2)}</span></span>
+            : <span key={i} style={{ display: "block", marginTop: i ? 4 : 0 }}>{l}</span>)}
         </span>
       )}
     </span>

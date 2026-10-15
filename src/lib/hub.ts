@@ -72,6 +72,12 @@ export type User = { nick: string; admin: boolean; realAdmin?: boolean }; // adm
 /** 운영진 모드(관리용 ‘운영진’ 계정): 개인 기록·참가 입력을 하지 않는다 */
 export const isStaffNick = (nick: string | null | undefined) => nick === "운영진" || nick === "관리자";
 export const isStaffAccount = (u: { nick: string } | null) => isStaffNick(u?.nick);
+/** "관리자" 여부: 관리자로 지정된 계정, 또는 공용 "관리자" 계정. 운영진 권한만 있는 계정은 해당하지 않는다. */
+export async function isManagerUser(u: { nick: string; admin?: boolean } | null): Promise<boolean> {
+  if (!u?.admin) return false;
+  if (isStaffNick(u.nick)) return u.nick === "관리자";
+  return !!(await getMember(u.nick))?.manager;
+}
 
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
 export const newId = () => randomBytes(5).toString("base64url");
@@ -318,6 +324,13 @@ export function kstNow() {
 export function fmtDt(dt: string) {
   const [d, t] = dt.split("T");
   return `${Number(d.slice(5, 7))}.${d.slice(8, 10)}${t ? ` ${t}` : ""}`;
+}
+/** "2026-10-12T10:30" → "10/12(월) 10시 30분" (24시간제, 정각이면 "10시"). 0시는 외부 대회에서 날짜만 있을 때 채운 값이라 날짜만 보인다 */
+export function fmtDtKo(dt: string) {
+  const [d, t] = dt.split("T");
+  const [h, m] = (t ?? "").split(":").map(Number);
+  const wd = WEEK[new Date(`${d}T00:00:00Z`).getUTCDay()];
+  return `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}(${wd})${t && (h || m) ? ` ${h}시${m ? ` ${m}분` : ""}` : ""}`;
 }
 /** 접수기간 표시 글자와 상태(접수예정·접수중·접수마감) */
 export function regInfo(r: Race, now = kstNow()): { text: string; status?: "soon" | "open" | "closed" } {

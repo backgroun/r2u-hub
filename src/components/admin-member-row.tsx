@@ -17,7 +17,7 @@ export default function AdminMemberRow({ m, self, pushEnabled, lastSeen, lv }: {
           <span role="img" aria-label={pushEnabled ? "알림 켜짐" : "알림 꺼짐"} title={pushEnabled ? "알림 켜짐" : "알림 꺼짐"} className={pushEnabled ? "text-sm" : "text-sm opacity-40"}>{pushEnabled ? "🔔" : "🔕"}</span>
           <span className="text-xs text-muted whitespace-nowrap" title="최근 접속 (한국 시간)">{Number.isFinite(lastSeen) && lastSeen ? `접속 ${new Date(lastSeen + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ")}` : "접속 기록 없음"}</span>
           {m.manager && <span className="chip">관리자</span>}
-          {!m.pw && <span className="chip chip-warn">비번 미설정</span>}
+          {!m.pw && <span className="chip chip-warn shrink-0">비번없음</span>}
         </Link>
         <span className="member-actions">
           <button type="button" className="btn btn-ghost text-xs" aria-expanded={edit === "nick"} onClick={() => setEdit(edit === "nick" ? null : "nick")}>닉넴수정</button>

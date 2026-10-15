@@ -872,8 +872,7 @@ async function GearCatalog({ mgr }: { mgr: boolean }) {
                 <SpotCardButton g={i} className="gear-ico gear-card-btn" label={`${g.name} 카드 보기`}><GearArt i={i} size={40} /></SpotCardButton>
                 <span className="gear-txt">
                   <b><SpotCardButton g={i} className="gear-name-btn" label={`${g.name} 카드 보기`}>{g.name}</SpotCardButton> <small className="gear-cnt">{got.length}명</small>{mgr && g.shop !== false && <>{links[i] && <small className="gear-link-ok">쿠팡 링크 등록됨</small>}<small className="gear-clk">쿠팡 클릭 {clicks[i]?.n ?? 0}회</small></>}</b>
-                  <span className="text-sm text-muted">{g.tip}</span>
-                  <span className="text-sm gear-pitch">{g.pitch}</span>
+                  <span className="text-sm text-muted">{g.tip} {g.pitch}</span>
                   <span className="gear-who">{got.length ? got.join(", ") : "아직 아무도 못 잡았어요"}</span>
                 </span>
               {mgr && g.shop !== false && (

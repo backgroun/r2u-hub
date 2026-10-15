@@ -9,7 +9,8 @@ import { itemLabel, nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/t
 import { braggRace, unbragRace, cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
 import { getNickChangeRequest } from "@/lib/nickname";
 import { liveBrags } from "@/lib/brag";
-import { getMyPoints } from "@/lib/points";
+import { getMyPoints, LEVELS, POINT_GUIDE, POINTS_START } from "@/lib/points";
+import PointGuide from "@/components/point-guide";
 import RaceRecordForm from "@/components/race-record-form";
 import RaceRecordChart from "@/components/race-record-chart";
 import ActivitySummary from "@/components/activity-summary";
@@ -90,20 +91,23 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
 
       {/* 레벨 포인트 */}
       {!isStaffAccount(u) && (
-        <details className="panel level-card">
-          <summary>
-            <span className="level-head"><b>Lv.{pts.lv}</b><span className="num">{pts.points.toLocaleString()}P</span>
-              <span className="text-xs text-muted ml-auto">{pts.next == null ? "최고 레벨" : `다음 레벨까지 ${pts.next - pts.points}P`}</span></span>
-            <span className="level-bar" aria-hidden><span style={{ width: `${pts.pct}%` }} /></span>
-          </summary>
-          <div className="grid gap-1 mt-3 text-sm">
-            {pts.items.length === 0 && <p className="text-muted">아직 쌓인 포인트가 없어요. 출석·대회 참가·월간 기록으로 포인트를 모아 보세요.</p>}
-            {pts.items.map((it, i) => (
-              <p key={i} className="flex justify-between gap-2"><span className="truncate">{it.why}</span><b className="num shrink-0">+{it.p}P</b></p>
-            ))}
-            <p className="text-xs text-muted mt-1">출석 1 · 대회 참가 10 · 완주 기록 20 · 응원 5 · 뒤풀이·단사 5 · 카풀 운전 10/탑승 3 · 월간 1km당 1 · 목표 달성 30 · 대결 10 · 빙고 5 · 공구 3</p>
+        <section className="panel level-card grid gap-2">
+          <span className="level-head"><b>Lv.{pts.lv}</b><span className="num">{pts.points.toLocaleString()}P</span>
+            <span className="text-xs text-muted ml-auto">{pts.next == null ? "최고 레벨" : `다음 레벨까지 ${pts.next - pts.points}P`}</span></span>
+          <span className="level-bar" aria-hidden><span style={{ width: `${pts.pct}%` }} /></span>
+          <div className="flex items-start justify-between gap-2">
+            <details className="level-log min-w-0 flex-1">
+              <summary className="text-xs text-muted">최근 포인트 내역</summary>
+              <div className="grid gap-1 mt-2 text-sm">
+                {pts.items.length === 0 && <p className="text-muted">아직 쌓인 포인트가 없어요. 출석·대회 참가·월간 기록으로 포인트를 모아 보세요.</p>}
+                {pts.items.map((it, i) => (
+                  <p key={i} className="flex justify-between gap-2"><span className="truncate">{it.why}</span><b className="num shrink-0">+{it.p}P</b></p>
+                ))}
+              </div>
+            </details>
+            <PointGuide rows={POINT_GUIDE} levels={LEVELS} start={POINTS_START} />
           </div>
-        </details>
+        </section>
       )}
 
       <section className="stat-strip stat-compact">

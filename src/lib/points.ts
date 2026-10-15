@@ -16,6 +16,22 @@ export const PT = {
   bingo: 5, // 빙고 미션 완료
   gb: 3, // 공구 주문
 } as const;
+/** 포인트 기준 안내표 (내 정보의 ‘포인트 기준 보기’) */
+export const POINT_GUIDE: { what: string; p: string; how: string }[] = [
+  { what: "출석", p: `${PT.day}P`, how: "하루 첫 접속 때 한 번" },
+  { what: "대회 크루 참가 표시", p: `${PT.race}P`, how: "대회마다 한 번 · 참가 취소하면 빠짐" },
+  { what: "대회 기록 (완주)", p: `${PT.recFinish}P`, how: `기록마다 한 번 · DNF·DNS는 ${PT.recDnf}P · 기록 삭제하면 빠짐` },
+  { what: "대회 응원 신청", p: `${PT.cheer}P`, how: "대회마다 한 번 · 응원 취소하면 빠짐" },
+  { what: "뒤풀이 참석", p: `${PT.after}P`, how: "뒤풀이마다 ‘참석’ 표시 · 불참·취소하면 빠짐" },
+  { what: "단체사진(단사) 올리기", p: `${PT.photo}P`, how: "올린 글마다 · 글 삭제하면 빠짐" },
+  { what: "카풀 운전", p: `${PT.drive}P`, how: "카풀마다 운전자에게 · 글 삭제하면 빠짐" },
+  { what: "카풀 탑승", p: `${PT.ride}P`, how: "카풀마다 ‘탑승’ 표시 · 취소하면 빠짐" },
+  { what: "월간 기록", p: "1km당 1P", how: "그달 달린 거리 합계 (소수점 버림) · 기록을 고치면 바뀐 만큼 반영" },
+  { what: "월 목표 달성", p: `${PT.goal}P`, how: "그달 거리가 목표 이상이 되면 · 다시 모자라면 빠짐" },
+  { what: "1:1 대결 참가", p: `${PT.versus}P`, how: "대결이 시작되면 두 사람 모두 · 운영진이 취소하면 빠짐" },
+  { what: "빙고 미션 완료", p: `${PT.bingo}P`, how: "미션 칸마다 · 인증 취소하면 빠짐" },
+  { what: "공구 주문", p: `${PT.gb}P`, how: "공구마다 한 번 · 주문 삭제하면 빠짐" },
+];
 /** 레벨 n이 되는 데 필요한 누적 포인트 (Lv.1 = 0P) */
 export const LEVELS = [0, 50, 150, 300, 500, 800, 1200, 1700, 2300, 3000];
 

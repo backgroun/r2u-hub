@@ -11,7 +11,8 @@ export const PT = {
   cheer: 5, // 대회 응원 신청
   after: 5, photo: 5, // 뒤풀이 참석, 단체사진 올리기
   drive: 10, ride: 3, // 카풀 운전 / 탑승
-  goal: 30, // 월 목표 달성 (월간 km는 1km당 1)
+  goal: 30, // 월 목표 달성
+  kmPer: 10, // 월간 기록: 그달 거리 10km마다 1P
   versus: 10, // 1:1 대결 참가
   bingo: 5, // 빙고 미션 완료
   gb: 3, // 공구 주문
@@ -26,7 +27,7 @@ export const POINT_GUIDE: { what: string; p: string; how: string }[] = [
   { what: "단체사진(단사) 올리기", p: `${PT.photo}P`, how: "올린 글마다 · 글 삭제하면 빠짐" },
   { what: "카풀 운전", p: `${PT.drive}P`, how: "카풀마다 운전자에게 · 글 삭제하면 빠짐" },
   { what: "카풀 탑승", p: `${PT.ride}P`, how: "카풀마다 ‘탑승’ 표시 · 취소하면 빠짐" },
-  { what: "월간 기록", p: "1km당 1P", how: "그달 달린 거리 합계 (소수점 버림) · 기록을 고치면 바뀐 만큼 반영" },
+  { what: "월간 기록", p: `${PT.kmPer}km당 1P`, how: `그달 달린 거리 합계 기준 (예: 95km → ${Math.floor(95 / PT.kmPer)}P) · 기록을 고치면 바뀐 만큼 반영` },
   { what: "월 목표 달성", p: `${PT.goal}P`, how: "그달 거리가 목표 이상이 되면 · 다시 모자라면 빠짐" },
   { what: "1:1 대결 참가", p: `${PT.versus}P`, how: "대결이 시작되면 두 사람 모두 · 운영진이 취소하면 빠짐" },
   { what: "빙고 미션 완료", p: `${PT.bingo}P`, how: "미션 칸마다 · 인증 취소하면 빠짐" },
@@ -70,7 +71,7 @@ export async function syncMonthPoints(nick: string, ym: string, rec: MonthRec | 
   const km = Object.entries(days).reduce((a, [d, v]) => (`${ym}-${String(d).padStart(2, "0")}` >= POINTS_START ? a + (Number(v) || 0) : a), 0);
   const all = Object.values(days).reduce((a: number, v) => a + (Number(v) || 0), 0);
   const m = Number(ym.slice(5));
-  await setPoints(nick, `km:${ym}`, km, `${m}월 달린 거리`);
+  await setPoints(nick, `km:${ym}`, km / PT.kmPer, `${m}월 달린 거리`);
   await setPoints(nick, `goal:${ym}`, rec && rec.goal > 0 && all >= rec.goal ? PT.goal : 0, `${m}월 목표 달성`);
 }
 

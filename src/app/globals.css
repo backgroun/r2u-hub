@@ -698,8 +698,9 @@ html:has([data-tone="me"]) .hubnav-tabs [data-tab="/me"] { background: var(--fil
   .event-period-form h2 { grid-column: 1 / -1; }
   .event-period-form .btn { grid-column: 1 / -1; }
 }
-.record-course-btn { border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; color: var(--muted); font-size: 13px; font-weight: 700; background: var(--card); cursor: pointer; }
-.record-course-btn.is-selected { background: var(--bib); border-color: var(--bib); color: var(--bib-ink); }
+/* 코스 선택: 박스 없이 글자 + 아래 선 (고른 코스만 선이 진하게) */
+.record-course-btn { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 4px 2px; margin-right: 10px; color: var(--muted); font-size: 14px; font-weight: 700; background: none; cursor: pointer; }
+.record-course-btn.is-selected { color: var(--ink); border-bottom-color: var(--bib); }
 .record-course-btn:focus-visible { outline: 2px solid var(--lane); outline-offset: 2px; }
 .record-chart-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .record-chart-stats > div { display: grid; gap: 1px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--bib) 8%, var(--card)); }

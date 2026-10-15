@@ -5,6 +5,7 @@ import { currentUser, getMember, getMembers, getRaceRecs, isStaffAccount, fmtRac
 import { knownMemberLabel } from "@/lib/member-label";
 import PushToggle from "@/components/push-toggle";
 import PushPrompt from "@/components/push-prompt";
+import MatchBoard from "@/components/match-board";
 import { getNotices, noticeState } from "@/lib/notice";
 import { rankMonth, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
@@ -82,6 +83,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
           <span className="btn btn-primary text-sm shrink-0 ml-auto">기록 입력</span>
         </Link>
       ))}
+
+      {/* 1:1 매치: 나에게 온 신청(받아주기·거절)·내가 보낸 신청·내 대결 */}
+      {!isStaffAccount(u) && <MatchBoard ym={ym} viewer={u.nick} mineOnly />}
 
       {/* 자랑하기: 기록을 남긴 크루원이 올린 소식 (3시간 동안 공지처럼 보인다) */}
       <BragTicker items={brags.map((b) => ({ key: b.key, who: knownMemberLabel(b.nick, names), race: b.race, record: `${b.course} ${b.time}`, ago: timeAgo(b.at), canOff: b.nick === u.nick || !!u.admin }))} />

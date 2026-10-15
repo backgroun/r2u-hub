@@ -6,15 +6,16 @@ import { ActionForm, Submit } from "@/components/action-form";
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-/** 매치 현황: 지금 진행 중인 1:1 대결, 나에게 온/내가 보낸 신청, 응원 투표. 이번 달에만 보인다. */
-export default async function MatchBoard({ ym, viewer }: { ym: string; viewer: string }) {
+/** 매치 현황: 지금 진행 중인 1:1 대결, 나에게 온/내가 보낸 신청, 응원 투표. 이번 달에만 보인다.
+ *  mineOnly(홈): 나에게 온·내가 보낸 신청과 내 대결만 보여 준다. */
+export default async function MatchBoard({ ym, viewer, mineOnly = false }: { ym: string; viewer: string; mineOnly?: boolean }) {
   if (ym !== kstToday().slice(0, 7)) return null;
   const [pairsMap, reqs, month, members] = await Promise.all([getAllVs(ym), getVsRequests(ym), getMonth(ym), getMembers()]);
   const seen = new Set<string>();
   const pairs = Object.entries(pairsMap).filter(([a, b]) => {
     if (seen.has(a) || seen.has(b)) return false;
     seen.add(a); seen.add(b);
-    return true;
+    return !mineOnly || a === viewer || b === viewer;
   });
   const incoming = Object.entries(reqs).filter(([, to]) => to === viewer).map(([from]) => from);
   const outgoing = reqs[viewer] ?? null;
@@ -27,7 +28,7 @@ export default async function MatchBoard({ ym, viewer }: { ym: string; viewer: s
 
   return (
     <section className="panel match-board" aria-label="매치 현황">
-      <h2 className="match-title">⚔️ 매치 현황{pairs.length > 0 && <span className="num"> {pairs.length}</span>}</h2>
+      <h2 className="match-title">⚔️ {mineOnly ? "내 매치" : "매치 현황"}{!mineOnly && pairs.length > 0 && <span className="num"> {pairs.length}</span>}</h2>
 
       {incoming.map((from) => (
         <div key={from} className="match-req">

@@ -1034,7 +1034,7 @@ export async function setVersus(_: Result, fd: FormData): Promise<Result> {
   if (reqs[u.nick]) return fail(`이미 ${reqs[u.nick]}님에게 신청 중이에요. 먼저 신청을 취소해 주세요.`);
   if (reqs[opp] === u.nick) return fail(`${opp}님이 먼저 대결을 신청했어요. 위쪽 매치 현황에서 받아 주세요.`);
   await saveVsRequest(ym, u.nick, opp);
-  revalidatePath("/crew"); revalidatePath("/monthly");
+  revalidatePath("/crew"); revalidatePath("/monthly"); revalidatePath("/");
   // 받는 사람에게 푸시 알림 (알림을 켠 기기만, 실패해도 신청 자체는 성공)
   let pushed = false;
   try {
@@ -1048,7 +1048,7 @@ export async function cancelVersusRequest(_: Result, fd: FormData): Promise<Resu
   const ym = str(fd, "ym", 7);
   if (!/^\d{4}-\d{2}$/.test(ym)) return fail("대결 기간을 다시 확인해 주세요.");
   await redis.hdel(vsReqKey(ym), u.nick);
-  revalidatePath("/crew"); revalidatePath("/monthly");
+  revalidatePath("/crew"); revalidatePath("/monthly"); revalidatePath("/");
   return ok("대결 신청을 취소했어요.");
 }
 /** 나에게 온 대결 신청 거절 */
@@ -1059,7 +1059,7 @@ export async function declineVersus(_: Result, fd: FormData): Promise<Result> {
   const reqs = await getVsRequests(ym);
   if (reqs[from] !== u.nick) return fail("이미 취소됐거나 처리된 신청이에요.");
   await redis.hdel(vsReqKey(ym), from);
-  revalidatePath("/crew"); revalidatePath("/monthly");
+  revalidatePath("/crew"); revalidatePath("/monthly"); revalidatePath("/");
   return ok(`${from}님의 대결 신청을 거절했어요.`);
 }
 /** 나에게 온 대결 신청 수락 → 두 사람이 매치된다 */
@@ -1091,7 +1091,7 @@ export async function acceptVersus(_: Result, fd: FormData): Promise<Result> {
     if (await redis.get(lock) === token) await redis.del(lock);
   }
   await Promise.all([setPoints(u.nick, `vs:${ym}`, (await pts()).versus, "1:1 대결 참가"), setPoints(from, `vs:${ym}`, (await pts()).versus, "1:1 대결 참가"), recordVsPair(ym, u.nick, from)]);
-  revalidatePath("/crew"); revalidatePath("/monthly");
+  revalidatePath("/crew"); revalidatePath("/monthly"); revalidatePath("/");
   return ok(`${from}님과 1:1 매치가 시작됐어요!`);
 }
 /** 진행 중인 매치에서 누가 이길지 응원 투표 (당사자는 투표할 수 없고, 마감 전에는 바꿀 수 있다) */
@@ -1106,7 +1106,7 @@ export async function voteVersus(_: Result, fd: FormData): Promise<Result> {
   if (pairs[a] !== b || pairs[b] !== a) return fail("이미 끝났거나 바뀐 대결이에요.");
   await redis.hset(vsVoteKey(ym, a, b), { [u.nick]: pick });
   await redis.expireat(vsVoteKey(ym, a, b), vsExpiry(ym));
-  revalidatePath("/crew"); revalidatePath("/monthly");
+  revalidatePath("/crew"); revalidatePath("/monthly"); revalidatePath("/");
   return ok(`${pick}님에게 투표했어요!`);
 }
 export async function manageVersusEnd(_: Result, fd: FormData): Promise<Result> {
@@ -1164,7 +1164,7 @@ export async function manageVersusEnd(_: Result, fd: FormData): Promise<Result> 
     const opp = (await getVsHistory(ym)).find((h) => h.a === u.nick || h.b === u.nick);
     if (opp && !opp.settled) { const r = await settleVsPair(ym, opp.a, opp.b); result = r.winner ? ` ${r.winner}님 승리! (+${(await pts()).versusWin}P)` : " 무승부예요."; }
   }
-  revalidatePath("/crew"); revalidatePath("/monthly");
+  revalidatePath("/crew"); revalidatePath("/monthly"); revalidatePath("/");
   return ok(`상대방의 종료 요청을 승인해 1:1 대결을 끝냈어요.${result}`);
 }
 
@@ -1191,7 +1191,7 @@ export async function cancelVersusByAdmin(_: Result, fd: FormData): Promise<Resu
     if (await redis.get(lock) === token) await redis.del(lock);
   }
   revalidatePath("/admin");
-  revalidatePath("/crew");
+  revalidatePath("/crew"); revalidatePath("/monthly"); revalidatePath("/");
   await Promise.all([setPoints(a, `vs:${ym}`, 0, ""), setPoints(b, `vs:${ym}`, 0, ""), removeVsPair(ym, a, b)]);
   return ok(`${a}님과 ${b}님의 대결을 취소했어요.`);
 }

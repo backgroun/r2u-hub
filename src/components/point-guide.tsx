@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { STEPS_PER_TIER, TIERS } from "@/lib/tiers";
 
 /** ‘포인트 기준 보기’ 버튼: 누르면 활동별 포인트와 레벨 기준표를 창으로 보여준다 */
 export default function PointGuide({ rows, step, start }: { rows: { what: string; p: string; how: string }[]; step: number; start: string }) {
@@ -11,7 +12,7 @@ export default function PointGuide({ rows, step, start }: { rows: { what: string
       <dialog ref={ref} className="point-guide" onClick={(e) => { if (e.target === ref.current) ref.current?.close(); }}>
         <div className="grid gap-4">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-bold text-lg">레벨 포인트 기준</h2>
+            <h2 className="font-bold text-lg">포인트 · 컬러 등급 기준</h2>
             <button type="button" className="btn btn-ghost px-2.5 py-1" style={{ minHeight: 0 }} aria-label="닫기" onClick={() => ref.current?.close()}>✕</button>
           </div>
           <p className="text-xs text-muted">{Number(start.slice(5, 7))}월 {Number(start.slice(8))}일부터 쌓여요. 같은 활동은 한 번만 쌓이고, 취소·삭제하면 그만큼 빠져요.</p>
@@ -27,10 +28,12 @@ export default function PointGuide({ rows, step, start }: { rows: { what: string
             </tbody>
           </table>
           <div className="grid gap-2">
-            <h3 className="font-bold">레벨 기준 (누적 포인트)</h3>
-            <p className="text-sm">{step}P 모을 때마다 레벨이 하나씩 올라요. 레벨 끝은 없어요.</p>
+            <h3 className="font-bold">컬러 등급 (누적 포인트)</h3>
+            <p className="text-sm">{step}P마다 한 단계씩 올라가고, 색마다 {STEPS_PER_TIER}단계가 있어요. 볼트는 끝없이 단계가 올라가요.</p>
             <div className="pg-levels">
-              {Array.from({ length: 10 }, (_, i) => <span key={i}><b>Lv.{i + 1}</b><span className="num">{(i * step).toLocaleString()}P</span></span>)}
+              {TIERS.map((t, i) => (
+                <span key={t.key}><i className="tier-dot" style={{ background: t.color, margin: 0, width: 14, height: 14 }} /><b>{t.name}</b><span className="num">{(i * STEPS_PER_TIER * step).toLocaleString()}P~</span></span>
+              ))}
             </div>
           </div>
         </div>

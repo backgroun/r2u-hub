@@ -1341,6 +1341,11 @@ h1 .lv-badge { font-size: 12px; line-height: 20px; padding: 0 7px; flex: none; }
 .pg-table td:first-child b { display: block; }
 .pg-table td:first-child span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
 .pg-table td:last-child { font-weight: 800; color: #c4b5fd; }
-.pg-levels { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.pg-levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .pg-levels > span { display: grid; justify-items: center; gap: 1px; padding: 6px 2px; border-radius: 10px; background: color-mix(in srgb, #8b5cf6 12%, var(--card)); font-size: 12px; }
-.pg-levels b { color: #c4b5fd; font-size: 13px; }
+.pg-levels b { font-size: 13px; }
+/* 컬러 등급 점 (닉네임 옆) */
+.tier-dot { display: inline-block; width: 9px; height: 9px; margin-left: 5px; border-radius: 50%; vertical-align: 1px; flex: none; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--card) 70%, transparent); }
+.tier-dot.tier-black { box-shadow: 0 0 0 1.5px #8a8a8a; }
+h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
+.level-head .tier-dot { width: 12px; height: 12px; margin: 0; align-self: center; }

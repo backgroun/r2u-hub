@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { tierOf } from "@/lib/tiers";
 
 /** 운영진 표시: 단순한 선 왕관 아이콘 */
 export function CrownIcon({ size = 14 }: { size?: number }) {
@@ -32,9 +33,11 @@ export function WheelIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-/** 레벨 배지 (Lv.3) */
+/** 컬러 등급 배지: 글자 없이 색 점만 (옐로·오렌지·그린·블루·퍼플·블랙·볼트) */
 export function LevelBadge({ lv }: { lv?: number }) {
-  return lv ? <span className="lv-badge" title={`레벨 ${lv}`}>Lv.{lv}</span> : null;
+  if (!lv) return null;
+  const t = tierOf(lv);
+  return <span className={`tier-dot tier-${t.key}`} style={{ background: t.color }} title={t.label} role="img" aria-label={t.label} />;
 }
 
 /** 닉네임 (운영진이면 앞에 왕관, levels가 있으면 뒤에 레벨 배지) */

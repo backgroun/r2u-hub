@@ -11,6 +11,7 @@ import { getNickChangeRequest } from "@/lib/nickname";
 import { liveBrags } from "@/lib/brag";
 import { getMyPoints, LEVEL_STEP, POINT_GUIDE, POINTS_START } from "@/lib/points";
 import PointGuide from "@/components/point-guide";
+import { tierOf } from "@/lib/tiers";
 import RaceRecordForm from "@/components/race-record-form";
 import RaceRecordChart from "@/components/race-record-chart";
 import ActivitySummary from "@/components/activity-summary";
@@ -49,6 +50,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
     liveBrags(),
   ]);
   const pts = await getMyPoints(u.nick);
+  const tier = tierOf(pts.lv);
   const bragging = new Set(brags.filter((b) => b.nick === u.nick).map((b) => b.key));
 
   // 대회
@@ -92,9 +94,9 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
       {/* 레벨 포인트 */}
       {!isStaffAccount(u) && (
         <section className="panel level-card grid gap-2">
-          <span className="level-head"><b>Lv.{pts.lv}</b><span className="num">{pts.points.toLocaleString()}P</span>
-            <span className="text-xs text-muted ml-auto">{pts.next == null ? "최고 레벨" : `다음 레벨까지 ${pts.left}P`}</span></span>
-          <span className="level-bar" aria-hidden><span style={{ width: `${pts.pct}%` }} /></span>
+          <span className="level-head"><LevelBadge lv={pts.lv} /><b style={{ color: tier.key === "black" ? "var(--ink)" : tier.color }}>{tier.label}</b><span className="num">{pts.points.toLocaleString()}P</span>
+            <span className="text-xs text-muted ml-auto">다음 단계까지 {pts.left}P</span></span>
+          <span className="level-bar" aria-hidden><span style={{ width: `${pts.pct}%`, background: tier.key === "black" ? "#666" : tier.color }} /></span>
           <div className="flex items-start justify-between gap-2">
             <details className="level-log min-w-0 flex-1">
               <summary className="text-xs text-muted">최근 포인트 내역</summary>

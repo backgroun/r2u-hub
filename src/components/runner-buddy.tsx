@@ -230,8 +230,7 @@ export default function RunnerBuddy() {
             <div className="bi-reward-body">
               {reward.preview ? <p className="bi-reward-p bi-reward-none">카드 미리보기<small className="bi-reward-test">포인트 없음</small></p> : reward.pending ? <p className="bi-reward-p bi-reward-none">잡았어요! 포인트 확인 중…</p> : reward.points ? <p className="bi-reward-p">+{reward.points}P 획득!{reward.test && <small className="bi-reward-test">테스트 · 반영 안 됨</small>}</p> : reward.points === 0 ? <p className="bi-reward-p bi-reward-none">꽝! 이번엔 포인트가 없어요 😢{reward.test && <small className="bi-reward-test">테스트</small>}</p> : <p className="bi-reward-p bi-reward-none">{reward.msg}</p>}
               <p className="bi-reward-name">{GEARS[reward.g].name}</p>
-              <p className="bi-reward-tip">{GEARS[reward.g].tip}</p>
-              <p className="bi-reward-pitch">{GEARS[reward.g].pitch}</p>
+              <p className="bi-reward-tip">{GEARS[reward.g].tip} {GEARS[reward.g].pitch}</p>
               {GEARS[reward.g].shop !== false && <div className="bi-reward-shop" onClick={(e) => e.stopPropagation()}>
                 {reward.link && <a href={reward.link} target="_blank" rel="sponsored noopener noreferrer" onClick={() => { if (!reward.test) void trackCoupangClick(reward.g).catch(() => {}); setTimeout(() => closeReward(), 150); }}>쿠팡에서 보기</a>}
                 <button type="button" className="bi-reward-sug" onClick={() => setSuggestOpen((v) => !v)} aria-expanded={suggestOpen}>제품 추천하기</button>

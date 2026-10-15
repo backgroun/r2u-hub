@@ -187,16 +187,16 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
             )}
           </p>
         </div>
-        {/* 오른쪽: 크루 참가 표시 버튼, 그 아래에 참석 인원 */}
+        {/* 오른쪽: 참가할게요(코스 변경) · 응원 갈게요 버튼 (같은 크기) */}
         <div className="shrink-0 grid justify-items-end gap-1.5">
           {!past && !isStaffAccount(u) && (
-            <Submit form={`join-${r.id}`} className="btn btn-primary text-sm py-1.5 px-4" confirm={me ? "참가 코스를 바꿀까요?" : undefined}>{me ? "코스 변경" : "크루 참가 표시"}</Submit>
+            <Submit form={`join-${r.id}`} className="btn btn-primary race-act text-xs justify-center" confirm={me ? "참가 코스를 바꿀까요?" : undefined}>{me ? "코스 변경" : "참가할게요"}</Submit>
           )}
           {!past && !isStaffNick(u.nick) ? (
           <form action={toggleCheer}>
             <input type="hidden" name="id" value={r.id} />
             <input type="hidden" name="nick" value={u.nick} />
-            <AlertConfirmButton className={`btn cheer-btn text-xs py-1 px-2.5 justify-center ${r.cheers.includes(u.nick) ? "is-on" : ""}`} message={r.cheers.includes(u.nick) ? "응원 표시를 취소할까요?" : `${r.name} 응원 갈게요로 표시할까요?`}>
+            <AlertConfirmButton className={`btn cheer-btn race-act text-xs justify-center ${r.cheers.includes(u.nick) ? "is-on" : ""}`} message={r.cheers.includes(u.nick) ? "응원 표시를 취소할까요?" : `${r.name} 응원 갈게요로 표시할까요?`}>
               {r.cheers.includes(u.nick) ? "응원 가요 ✓" : "응원 갈게요"}
             </AlertConfirmButton>
           </form>

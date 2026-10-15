@@ -1448,3 +1448,5 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .after-line .after-ico { flex: none; font-size: 15px; }
 .after-line .after-time { flex: none; min-width: 3.1em; }
 .after-item { gap: 0; padding: 9px 12px; }
+/* 대회 카드 오른쪽 위 버튼 두 개(참가할게요 · 응원 갈게요)를 같은 크기로 */
+.race-act { width: 6.2rem; min-height: 32px; padding: 6px 8px; }

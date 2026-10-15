@@ -217,11 +217,12 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
       <h2 className="label">계정 설정</h2>
       <div className="panel account-group">
       <details>
-        <summary className="font-bold">비밀번호 바꾸기</summary>
+        <summary className="font-bold">비밀번호 변경</summary>
         <ActionForm action={changePassword} className="grid gap-3 mt-3">
           <label className="field"><span className="label">지금 비밀번호</span><input name="cur" type="text" className="input pw-mask" required autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" /></label>
-          <label className="field"><span className="label">새 비밀번호 (4자 이상)</span><PasswordInput name="pw" className="input pw-mask" required minLength={4} data-lpignore="true" /></label>
-          <div><Submit confirm="비밀번호를 바꿀까요?">변경</Submit></div>
+          <div className="field"><span className="label">새 비밀번호 (4자 이상)</span>
+            <div className="inline-edit"><PasswordInput name="pw" className="input pw-mask" required minLength={4} data-lpignore="true" /><Submit confirm="비밀번호를 바꿀까요?">변경</Submit></div>
+          </div>
         </ActionForm>
       </details>
       <details id="nickname-change">

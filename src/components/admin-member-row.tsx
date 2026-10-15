@@ -12,12 +12,17 @@ export default function AdminMemberRow({ m, self, pushEnabled, lastSeen, lv }: {
   return (
     <div className="member-row">
       <div className="member-row-main">
+        {/* 1줄: 이름·알림·관리자 / 2줄: 비번없음·최근 접속 (작게). 버튼은 늘 오른쪽 같은 줄 */}
         <Link href={`/admin/members/${encodeURIComponent(m.nick)}`} className="member-name" title={`${m.nick}님의 개인 현황 보기`}>
-          <b>{m.manager ? <GearIcon /> : m.role === "admin" ? <CrownIcon /> : null}{m.nick}/{m.name?.trim() || "없음"}{lv ? <LevelBadge lv={lv} /> : null}</b>
-          <span role="img" aria-label={pushEnabled ? "알림 켜짐" : "알림 꺼짐"} title={pushEnabled ? "알림 켜짐" : "알림 꺼짐"} className={pushEnabled ? "text-sm" : "text-sm opacity-40"}>{pushEnabled ? "🔔" : "🔕"}</span>
-          <span className="text-xs text-muted whitespace-nowrap" title="최근 접속 (한국 시간)">{Number.isFinite(lastSeen) && lastSeen ? `접속 ${new Date(lastSeen + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ")}` : "접속 기록 없음"}</span>
-          {m.manager && <span className="chip">관리자</span>}
+          <span className="member-name-top">
+            <b>{m.manager ? <GearIcon /> : m.role === "admin" ? <CrownIcon /> : null}{m.nick}/{m.name?.trim() || "없음"}{lv ? <LevelBadge lv={lv} /> : null}</b>
+            <span role="img" aria-label={pushEnabled ? "알림 켜짐" : "알림 꺼짐"} title={pushEnabled ? "알림 켜짐" : "알림 꺼짐"} className={pushEnabled ? "text-sm shrink-0" : "text-sm shrink-0 opacity-40"}>{pushEnabled ? "🔔" : "🔕"}</span>
+            {m.manager && <span className="chip shrink-0">관리자</span>}
+          </span>
+          <span className="member-name-sub">
           {!m.pw && <span className="chip chip-warn shrink-0">비번없음</span>}
+          <span className="text-xs text-muted whitespace-nowrap" title="최근 접속 (한국 시간)">{Number.isFinite(lastSeen) && lastSeen ? `${new Date(lastSeen + 9 * 3600_000).toISOString().slice(5, 16).replace("-", "/").replace("T", " ")} 접속` : "접속 기록 없음"}</span>
+          </span>
         </Link>
         <span className="member-actions">
           <button type="button" className="btn btn-ghost text-xs" aria-expanded={edit === "nick"} onClick={() => setEdit(edit === "nick" ? null : "nick")}>닉넴수정</button>

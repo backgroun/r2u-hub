@@ -1492,3 +1492,13 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 /* 캘린더 칸: 짧은 대회명을 두 줄까지 (한 줄 말줄임 대신) */
 .rcal-d { min-height: 74px; padding: 3px 2px; }
 .rcal-r { white-space: normal; word-break: break-all; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 10.5px; line-height: 1.2; padding: 2px 2px; letter-spacing: -0.03em; }
+/* 운영진 회원 줄: 휴대폰에서도 버튼이 아래로 밀리지 않게 한 줄 (이름 칸이 줄어들고 길면 말줄임) */
+.member-row-main { flex-wrap: nowrap; }
+.member-name { display: grid; gap: 1px; flex: 1 1 auto; min-width: 0; }
+.member-name-top { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.member-name-top b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.member-actions { flex: none; flex-wrap: nowrap; gap: 4px; }
+.member-actions .btn { padding: 4px 7px; }
+.member-name-sub { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.member-name-sub .chip { font-size: 10.5px; padding: 0 5px; line-height: 16px; }
+@media (max-width: 400px) { .member-name b { font-size: 14px; letter-spacing: -0.02em; } .member-actions .btn { padding: 4px 6px; } }

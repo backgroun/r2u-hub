@@ -55,16 +55,16 @@ export default function WeatherBar({ initial, initialPlace }: { initial: Weather
   };
 
   useEffect(() => {
-    // 예전에 허용한 적이 있으면 조용히 내 위치로, 아니면 ‘내 위치’ 버튼을 눌러 허용을 받는다
+    // 저장된 위치가 있으면 먼저 보여 주고, 허용 창을 띄워 내 위치로 바꾼다
     (async () => {
       try {
         const saved = JSON.parse(localStorage.getItem(KEY) ?? "null") as { lat: number; lon: number } | null;
         if (saved) load(saved.lat, saved.lon);
       } catch { /* 저장소 막힘 */ }
-      try {
-        const st = await navigator.permissions?.query({ name: "geolocation" });
-        if (st?.state === "granted") locate(false);
-      } catch { /* 권한 조회를 지원하지 않는 브라우저 */ }
+      // 허용돼 있거나 아직 묻지 않았으면 바로 위치를 요청한다 (아직이면 브라우저가 허용 창을 띄운다). 막혀 있으면 요청하지 않는다
+      let state: PermissionState | undefined;
+      try { state = (await navigator.permissions?.query({ name: "geolocation" }))?.state; } catch { /* 권한 조회를 지원하지 않는 브라우저 */ }
+      if (state !== "denied") locate(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -1350,20 +1350,61 @@ h1 .lv-badge { font-size: 12px; line-height: 20px; padding: 0 7px; flex: none; }
 .tier-dot.tier-black { box-shadow: 0 0 0 1.5px #8a8a8a; }
 h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .level-head .tier-dot { width: 12px; height: 12px; margin: 0; align-self: center; }
-/* 깜짝 러너: 오른쪽에서 왼쪽으로 뛰어 지나간다 */
-.runner-buddy { position: fixed; left: 0; z-index: 60; padding: 6px; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
-  animation: rb-cross 7s linear forwards; }
-@keyframes rb-cross { from { transform: translateX(calc(100vw + 10px)); } to { transform: translateX(-90px); } }
-.runner-buddy svg { display: block; transform: scaleX(-1); filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)); }
-.runner-buddy .rb-body { animation: rb-bob .32s ease-in-out infinite alternate; }
-@keyframes rb-bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
-.runner-buddy .rb-leg { transform-box: fill-box; transform-origin: top center; animation: rb-leg .32s ease-in-out infinite alternate; }
+/* 깜짝 러너: 통통 뛰어 들어와서 화면 가운데쯤 멈춰 하트를 띄우고 콩콩 뛰다가 후다닥 달려 나간다 */
+.runner-buddy { position: fixed; left: 0; z-index: 60; width: 86px; height: 94px; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  --rb-dur: 9s; animation: rb-cross var(--rb-dur) linear forwards; }
+@keyframes rb-cross {
+  0% { transform: translateX(calc(100vw + 20px)); animation-timing-function: cubic-bezier(.3,.1,.5,1); }
+  38% { transform: translateX(52vw); }
+  39% { transform: translateX(51vw) rotate(-4deg); }
+  58% { transform: translateX(51vw); animation-timing-function: cubic-bezier(.6,0,.9,.6); }
+  100% { transform: translateX(-120px); }
+}
+.runner-buddy .rb-hopper { position: absolute; left: 6px; bottom: 6px; display: block; transform-origin: 50% 100%; animation: rb-hop .34s cubic-bezier(.3,.6,.5,1) infinite; }
+.runner-buddy .rb-hopper svg { display: block; overflow: visible; filter: drop-shadow(0 5px 8px rgba(0,0,0,.35)); }
+@keyframes rb-hop {
+  0% { transform: translateY(0) scale(1.12, .86); }
+  25% { transform: translateY(-9px) scale(.94, 1.08); }
+  50% { transform: translateY(-14px) scale(.98, 1.02) rotate(-6deg); }
+  80% { transform: translateY(-4px) scale(1, 1); }
+  100% { transform: translateY(0) scale(1.12, .86); }
+}
+/* 멈춘 동안: 더 높이 콩콩 + 몸 흔들기 */
+.runner-buddy .rb-hopper { animation: rb-hop .34s cubic-bezier(.3,.6,.5,1) infinite, rb-wiggle var(--rb-dur) linear forwards; }
+@keyframes rb-wiggle { 0%, 39% { rotate: 0deg; } 42% { rotate: 10deg; } 45% { rotate: -10deg; } 48% { rotate: 8deg; } 51% { rotate: -8deg; } 54% { rotate: 4deg; } 57%, 100% { rotate: 0deg; } }
+.runner-buddy .rb-leg { transform-box: fill-box; transform-origin: 50% 0; animation: rb-leg .34s ease-in-out infinite alternate; }
 .runner-buddy .rb-leg-b { animation-direction: alternate-reverse; }
-@keyframes rb-leg { from { transform: rotate(-28deg); } to { transform: rotate(28deg); } }
-.runner-buddy .rb-arm { transform-box: fill-box; transform-origin: top right; animation: rb-leg .32s ease-in-out infinite alternate-reverse; }
+@keyframes rb-leg { from { transform: rotate(-38deg); } to { transform: rotate(32deg); } }
+.runner-buddy .rb-arm { transform-box: fill-box; transform-origin: 100% 0; animation: rb-arm .34s ease-in-out infinite alternate; }
+.runner-buddy .rb-arm-b { transform-origin: 0 0; animation-direction: alternate-reverse; }
+@keyframes rb-arm { from { transform: rotate(-30deg); } to { transform: rotate(35deg); } }
+.runner-buddy .rb-tail { transform-box: fill-box; transform-origin: 0 50%; animation: rb-tail .17s ease-in-out infinite alternate; }
+@keyframes rb-tail { from { transform: rotate(-14deg) scaleX(.9); } to { transform: rotate(12deg) scaleX(1.1); } }
+.runner-buddy .rb-eyes { transform-box: fill-box; transform-origin: 50% 50%; animation: rb-blink 2.6s infinite; }
+@keyframes rb-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+.runner-buddy .rb-sweat { animation: rb-sweat .9s ease-out infinite; }
+@keyframes rb-sweat { 0% { opacity: 0; transform: translate(0, 0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(9px, -6px); } }
+/* 발밑 먼지 */
+.runner-buddy .rb-dust { position: absolute; right: 2px; bottom: 6px; width: 30px; height: 14px; pointer-events: none; }
+.runner-buddy .rb-dust i { position: absolute; bottom: 0; width: 8px; height: 8px; border-radius: 50%; background: rgba(230,230,235,.55); animation: rb-dust .5s ease-out infinite; }
+.runner-buddy .rb-dust i:nth-child(2) { left: 9px; animation-delay: .17s; width: 6px; height: 6px; }
+.runner-buddy .rb-dust i:nth-child(3) { left: 17px; animation-delay: .33s; width: 7px; height: 7px; }
+@keyframes rb-dust { from { opacity: .9; transform: translate(0, 0) scale(.6); } to { opacity: 0; transform: translate(14px, -8px) scale(1.5); } }
+/* 멈췄을 때 하트 */
+.runner-buddy .rb-bubble { position: absolute; left: 22px; top: -6px; color: #ff5f7e; font-size: 20px; line-height: 1; opacity: 0; text-shadow: 0 2px 6px rgba(0,0,0,.4); animation: rb-bubble var(--rb-dur) linear forwards; }
+@keyframes rb-bubble { 0%, 39% { opacity: 0; transform: translateY(6px) scale(.4); } 42% { opacity: 1; transform: translateY(0) scale(1.25); } 45% { transform: scale(1); } 50% { transform: scale(1.15); } 55% { opacity: 1; transform: scale(1); } 58%, 100% { opacity: 0; transform: translateY(-14px) scale(.8); } }
+/* 잡았을 때: 빙글 돌며 뛰어오르고 별이 터진다 */
 .runner-buddy.is-caught { animation-play-state: paused; }
-.runner-buddy.is-caught svg { animation: rb-jump .8s ease-out forwards; }
-@keyframes rb-jump { 0% { transform: scaleX(-1) translateY(0); } 40% { transform: scaleX(-1) translateY(-28px) rotate(-12deg); } 100% { transform: scaleX(-1) translateY(-40px); opacity: 0; } }
-.runner-buddy .rb-pop { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); font-weight: 900; font-size: 15px; color: #CEFF1A; text-shadow: 0 1px 4px rgba(0,0,0,.6); animation: rb-pop .8s ease-out forwards; }
-@keyframes rb-pop { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -26px); } }
-@media (prefers-reduced-motion: reduce) { .runner-buddy { animation-duration: 12s !important; } .runner-buddy .rb-body, .runner-buddy .rb-leg, .runner-buddy .rb-arm { animation: none; } }
+.runner-buddy.is-caught .rb-hopper { animation: rb-caught 1s cubic-bezier(.2,.8,.3,1) forwards; }
+@keyframes rb-caught { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(-34px) scale(1.2) rotate(200deg); } 70% { transform: translateY(-46px) scale(1.1) rotate(360deg); opacity: 1; } 100% { transform: translateY(-60px) scale(.6) rotate(360deg); opacity: 0; } }
+.runner-buddy .rb-burst { position: absolute; left: 38px; top: 34px; pointer-events: none; }
+.runner-buddy .rb-burst i { position: absolute; font-style: normal; font-size: 16px; color: #ffd60a; animation: rb-star .9s ease-out forwards; }
+.runner-buddy .rb-burst i:nth-child(2) { color: #ceff1a; --dx: 34px; --dy: -30px; }
+.runner-buddy .rb-burst i:nth-child(1) { --dx: -36px; --dy: -26px; }
+.runner-buddy .rb-burst i:nth-child(3) { --dx: 0px; --dy: -48px; color: #ff8a3d; }
+.runner-buddy .rb-burst i:nth-child(4) { --dx: -30px; --dy: 18px; color: #5aa6ff; }
+.runner-buddy .rb-burst i:nth-child(5) { --dx: 32px; --dy: 16px; color: #ff5f7e; }
+@keyframes rb-star { from { opacity: 1; transform: translate(-50%, -50%) scale(.4) rotate(0); } to { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.3) rotate(160deg); } }
+.runner-buddy .rb-burst b { position: absolute; transform: translate(-50%, -150%); font-weight: 900; font-size: 18px; color: #ceff1a; text-shadow: 0 2px 6px rgba(0,0,0,.6); white-space: nowrap; animation: rb-pop 1s ease-out forwards; }
+@keyframes rb-pop { from { opacity: 1; transform: translate(-50%, -120%); } to { opacity: 0; transform: translate(-50%, -260%); } }
+@media (prefers-reduced-motion: reduce) { .runner-buddy { animation-duration: 14s !important; } .runner-buddy .rb-hopper, .runner-buddy .rb-leg, .runner-buddy .rb-arm, .runner-buddy .rb-tail, .runner-buddy .rb-dust i { animation: none; } }

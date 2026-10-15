@@ -17,7 +17,7 @@ import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
 import { detachGarminDay } from "@/lib/runs";
 import { BRAG_KEY, BRAG_MS, type Brag } from "@/lib/brag";
-import { PT, awardOnce, setPoints, syncMonthPoints } from "@/lib/points";
+import { PT, POINTS_START, awardOnce, setPoints, syncMonthPoints } from "@/lib/points";
 import { getVsRequests, saveVsRequest, vsReqKey, vsVoteKey } from "@/lib/versus";
 import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
 
@@ -927,6 +927,7 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   const own = fd.get("own") === "1";
   let id = str(fd, "id", 20);
   let extra: { name?: string; date?: string } = {};
+  let raceDate = "";
   if (own) {
     const name = str(fd, "raceName", 60), date = str(fd, "raceDate", 10);
     if (!name) return fail("대회 이름을 적어 주세요.");
@@ -934,16 +935,18 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
     if (date > kstToday()) return fail("끝난 대회만 기록할 수 있어요.");
     id = `${OWN_RACE_PREFIX}${Date.now().toString(36)}`;
     extra = { name, date };
+    raceDate = date;
   } else {
     const race = await redis.hget(K.races, id);
     if (!race) return fail("대회를 골라 주세요.");
+    raceDate = ((typeof race === "string" ? JSON.parse(race) : race) as { date: string }).date;
     if (!(await redis.hget(K.raceP(id), u.nick))) return fail("크루 참가로 표시한 대회만 기록할 수 있어요.");
   }
   const course = str(fd, "course", 20) || "기타";
   // DNF(미완주)·DNS(불참)는 기록 시간 없이 저장한다
   if (course === "DNF" || course === "DNS") {
     await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: 0, time: "", note: str(fd, "note", 100), at: Date.now(), ...extra }) });
-    await setPoints(u.nick, `rec:${id}`, PT.recDnf, "대회 기록");
+    await setPoints(u.nick, `rec:${id}`, raceDate >= POINTS_START ? PT.recDnf : 0, "대회 기록");
     revalidatePath("/me");
     return ok(`${course}로 저장했어요.`);
   }
@@ -952,7 +955,8 @@ export async function saveRaceRecord(_: Result, fd: FormData): Promise<Result> {
   const t = parseRaceTime(/^\d{1,2}:\d{2}$/.test(raw) ? `${raw}:00` : raw);
   if (!t) return fail("기록의 시간·분·초를 골라 주세요. (0시간 0분 0초는 저장할 수 없어요)");
   await redis.hset(K.raceRec(u.nick), { [id]: JSON.stringify({ course, sec: t.sec, time: t.time, note: str(fd, "note", 100), at: Date.now(), ...extra }) });
-  await setPoints(u.nick, `rec:${id}`, PT.recFinish, "대회 기록 (완주)");
+  // 기록 포인트는 포인트 시작일(오늘 포함) 이후에 열린 대회만
+  await setPoints(u.nick, `rec:${id}`, raceDate >= POINTS_START ? PT.recFinish : 0, "대회 기록 (완주)");
   revalidatePath("/me");
   return ok(`기록을 저장했어요. (${course} ${t.time}) 목록에서 ‘🎉 자랑하기’를 눌러 홈에 자랑해 보세요!`);
 }

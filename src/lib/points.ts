@@ -7,7 +7,7 @@ export const POINTS_START = "2026-10-15";
 export const PT = {
   day: 1, // 출석 (하루 첫 접속)
   race: 5, // 대회 크루 참가 표시 (아직 열리지 않은 대회만)
-  recFinish: 20, recDnf: 5, // 대회 기록 (완주 / DNF)
+  recFinish: 10, recDnf: 3, // 대회 기록 (완주 / DNF)
   cheer: 5, // 대회 응원 신청
   after: 5, photo: 5, // 뒤풀이 참석, 단체사진 올리기
   drive: 10, ride: 3, // 카풀 운전 / 탑승
@@ -22,7 +22,7 @@ export const PT = {
 export const POINT_GUIDE: { what: string; p: string; how: string }[] = [
   { what: "출석", p: `${PT.day}P`, how: "하루 첫 접속 때 한 번" },
   { what: "대회 크루 참가 표시", p: `${PT.race}P`, how: "앞으로 열릴 대회만 · 대회마다 한 번 · 참가 취소하면 빠짐" },
-  { what: "대회 기록 (완주)", p: `${PT.recFinish}P`, how: `기록마다 한 번 · DNF·DNS는 ${PT.recDnf}P · 기록 삭제하면 빠짐` },
+  { what: "대회 기록 (완주)", p: `${PT.recFinish}P`, how: `${Number(POINTS_START.slice(5, 7))}월 ${Number(POINTS_START.slice(8))}일 이후 열린 대회 기록만 · DNF·DNS는 ${PT.recDnf}P · 기록 삭제하면 빠짐` },
   { what: "대회 응원 신청", p: `${PT.cheer}P`, how: "대회마다 한 번 · 응원 취소하면 빠짐" },
   { what: "뒤풀이 참석", p: `${PT.after}P`, how: "뒤풀이마다 ‘참석’ 표시 · 불참·취소하면 빠짐" },
   { what: "단체사진(단사) 올리기", p: `${PT.photo}P`, how: "올린 글마다 · 글 삭제하면 빠짐" },

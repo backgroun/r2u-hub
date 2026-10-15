@@ -3,7 +3,7 @@
 import { useRef } from "react";
 
 /** ‘포인트 기준 보기’ 버튼: 누르면 활동별 포인트와 레벨 기준표를 창으로 보여준다 */
-export default function PointGuide({ rows, levels, start }: { rows: { what: string; p: string; how: string }[]; levels: number[]; start: string }) {
+export default function PointGuide({ rows, step, start }: { rows: { what: string; p: string; how: string }[]; step: number; start: string }) {
   const ref = useRef<HTMLDialogElement>(null);
   return (
     <>
@@ -28,8 +28,9 @@ export default function PointGuide({ rows, levels, start }: { rows: { what: stri
           </table>
           <div className="grid gap-2">
             <h3 className="font-bold">레벨 기준 (누적 포인트)</h3>
+            <p className="text-sm">{step}P 모을 때마다 레벨이 하나씩 올라요. 레벨 끝은 없어요.</p>
             <div className="pg-levels">
-              {levels.map((p, i) => <span key={i}><b>Lv.{i + 1}</b><span className="num">{p.toLocaleString()}P</span></span>)}
+              {Array.from({ length: 10 }, (_, i) => <span key={i}><b>Lv.{i + 1}</b><span className="num">{(i * step).toLocaleString()}P</span></span>)}
             </div>
           </div>
         </div>

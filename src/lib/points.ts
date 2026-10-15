@@ -32,8 +32,8 @@ export const POINT_GUIDE: { what: string; p: string; how: string }[] = [
   { what: "빙고 미션 완료", p: `${PT.bingo}P`, how: "미션 칸마다 · 인증 취소하면 빠짐" },
   { what: "공구 주문", p: `${PT.gb}P`, how: "공구마다 한 번 · 주문 삭제하면 빠짐" },
 ];
-/** 레벨 n이 되는 데 필요한 누적 포인트 (Lv.1 = 0P) */
-export const LEVELS = [0, 50, 150, 300, 500, 800, 1200, 1700, 2300, 3000];
+/** 100P마다 레벨 1 (Lv.1 = 0P, Lv.2 = 100P, …) · 레벨 상한 없음 */
+export const LEVEL_STEP = 100;
 
 const LOG = (nick: string) => `r2u:pt:${nick}`; // hash 활동키 -> PointEntry
 const TOTAL = "r2u:ptTotal"; // hash nick -> 누적 포인트
@@ -80,10 +80,10 @@ export async function getPointTotals(): Promise<Record<string, number>> {
 }
 
 export function levelOf(points: number) {
-  let lv = 1;
-  for (let i = 0; i < LEVELS.length; i++) if (points >= LEVELS[i]) lv = i + 1;
-  const cur = LEVELS[lv - 1], next = LEVELS[lv] ?? null;
-  return { lv, points, cur, next, pct: next == null ? 100 : Math.round(((points - cur) / (next - cur)) * 100) };
+  const p = Math.max(0, points);
+  const lv = Math.floor(p / LEVEL_STEP) + 1;
+  const cur = (lv - 1) * LEVEL_STEP, next: number | null = lv * LEVEL_STEP;
+  return { lv, points: p, cur, next, pct: Math.round(((p - cur) / LEVEL_STEP) * 100) };
 }
 
 /** 닉네임 → 레벨 (닉네임 옆 배지용) */

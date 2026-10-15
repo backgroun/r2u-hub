@@ -9,7 +9,7 @@ import { itemLabel, nickKey, orderTotal, qtyOf, roundStatus, won } from "@/lib/t
 import { braggRace, unbragRace, cancelNickChange, changePassword, deleteRaceRecord, requestNickChange, editMyName } from "@/app/actions";
 import { getNickChangeRequest } from "@/lib/nickname";
 import { liveBrags } from "@/lib/brag";
-import { getMyPoints, LEVELS, POINT_GUIDE, POINTS_START } from "@/lib/points";
+import { getMyPoints, LEVEL_STEP, POINT_GUIDE, POINTS_START } from "@/lib/points";
 import PointGuide from "@/components/point-guide";
 import RaceRecordForm from "@/components/race-record-form";
 import RaceRecordChart from "@/components/race-record-chart";
@@ -105,7 +105,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
                 ))}
               </div>
             </details>
-            <PointGuide rows={POINT_GUIDE} levels={LEVELS} start={POINTS_START} />
+            <PointGuide rows={POINT_GUIDE} step={LEVEL_STEP} start={POINTS_START} />
           </div>
         </section>
       )}

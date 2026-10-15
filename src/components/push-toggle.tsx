@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { showToast } from "@/components/toaster";
 
 const KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 const b64 = (s: string) => {
@@ -19,14 +20,15 @@ export async function pushStatus(): Promise<PushState> {
 }
 
 /** 알림 허용을 묻고 구독을 서버에 저장한다 */
-export async function enablePush(): Promise<{ state: PushState; msg?: string }> {
+export async function enablePush(): Promise<{ state: PushState; msg?: string; bonus?: number }> {
   const perm = await Notification.requestPermission();
   if (perm !== "granted") return { state: perm === "denied" ? "denied" : "off" };
   const reg = await navigator.serviceWorker.register("/sw.js");
   await navigator.serviceWorker.ready;
   const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(KEY) }));
   const r = await fetch("/api/push/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sub: sub.toJSON() }) });
-  return r.ok ? { state: "on" } : { state: "off", msg: "알림을 켜지 못했어요. 잠시 후 다시 시도해 주세요." };
+  const j = r.ok ? await r.json().catch(() => ({})) : {};
+  return r.ok ? { state: "on", bonus: Number(j.bonus) || 0 } : { state: "off", msg: "알림을 켜지 못했어요. 잠시 후 다시 시도해 주세요." };
 }
 
 /** 크루 알림 받기 켜기/끄기. iPhone은 홈 화면에 추가한 앱에서만 켤 수 있다. */
@@ -46,7 +48,8 @@ export default function PushToggle({ compact = false }: { compact?: boolean }) {
     setMsg("");
     const r = await enablePush();
     setState(r.state);
-    setMsg(r.state === "on" ? "알림을 켰어요." : r.msg ?? "");
+    setMsg(r.state === "on" ? (r.bonus ? `알림을 켰어요. +${r.bonus}P` : "알림을 켰어요.") : r.msg ?? "");
+    if (r.state === "on" && r.bonus) showToast(`알림을 켰어요! +${r.bonus}P 🔔`);
   }
   async function turnOff() {
     const reg = await navigator.serviceWorker.getRegistration("/sw.js");

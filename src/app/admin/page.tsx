@@ -18,9 +18,10 @@ import AdminMemberRow from "@/components/admin-member-row";
 import AdminMemberSearch from "@/components/admin-member-search";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { rankMonth, shiftYm } from "@/lib/rank";
-import { getLevels, getPointConfig, getPointTotals, levelOf, PT_LABELS, type PointRules } from "@/lib/points";
+import { getLevels, getPointConfig, getPointTotals, levelOf, PT_LABELS, VS_SETTLE, type PointRules, type VsSettle } from "@/lib/points";
+import { getVsHistory } from "@/lib/versus";
 import { tierOf } from "@/lib/tiers";
-import { adjustMemberPoints, savePointRules } from "@/app/actions";
+import { adjustMemberPoints, savePointRules, settleVersusByAdmin } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "운영진" };
@@ -483,7 +484,38 @@ async function VersusAdmin() {
           </div>
         ))}
       </div>
+      <VersusSettle ym={ym} names={names} />
     </section>
+  );
+}
+
+/** 대결 승리 정산: 이번 달·지난달 대결과 정산 결과, 운영진 '승리 정산' 버튼 */
+async function VersusSettle({ ym, names }: { ym: string; names: Record<string, string> }) {
+  const d = new Date(`${ym}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() - 1);
+  const prev = d.toISOString().slice(0, 7);
+  const [cfg, cur, last] = await Promise.all([getPointConfig(), getVsHistory(ym), getVsHistory(prev)]);
+  const rows = [...last.map((h) => ({ ym: prev, h })), ...cur.map((h) => ({ ym, h }))];
+  return (
+    <div className="grid gap-2 mt-2">
+      <h2 className="font-bold">대결 승리 정산</h2>
+      <p className="text-sm text-muted">정산 방식: <b className="text-[var(--ink)]">{VS_SETTLE[cfg.vsSettle]}</b> · 승리 {cfg.pt.versusWin}P (포인트 탭에서 바꿀 수 있어요). 그달 거리가 더 많은 사람이 이겨요.</p>
+      {rows.length === 0 && <p className="text-sm text-muted">정산할 대결이 없어요.</p>}
+      <div className="row-list">
+        {rows.map(({ ym: m, h }) => (
+          <div key={`${m}:${h.a}:${h.b}`} className="flex items-center gap-2 py-2.5 text-sm">
+            <span className="text-xs text-muted shrink-0">{Number(m.slice(5))}월</span>
+            <span className="min-w-0 mr-auto">
+              <b>{h.a}/{names[h.a] || "없음"} vs {h.b}/{names[h.b] || "없음"}</b>
+              {h.settled && <span className="block text-xs text-muted">{h.settled.winner ? `${h.settled.winner} 승리` : "무승부"} · {h.settled.ka}km : {h.settled.kb}km</span>}
+            </span>
+            <ActionForm action={settleVersusByAdmin}>
+              <input type="hidden" name="ym" value={m} /><input type="hidden" name="a" value={h.a} /><input type="hidden" name="b" value={h.b} />
+              <Submit className="btn text-xs" confirm={`${h.a} vs ${h.b} 대결을 지금 거리로 정산할까요?`}>{h.settled ? "다시 정산" : "승리 정산"}</Submit>
+            </ActionForm>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -766,6 +798,14 @@ async function PointsAdmin() {
             <label className="field"><span className="label">한 단계에 필요한 포인트</span>
               <input name="step" type="number" min={10} className="input" defaultValue={cfg.step} required /></label>
           </div>
+          <fieldset className="field">
+            <legend className="label">1:1 대결 승리 정산 시점</legend>
+            <div className="grid gap-1.5">
+              {(Object.keys(VS_SETTLE) as VsSettle[]).map((k) => (
+                <label key={k} className="flex items-center gap-2 text-sm"><input type="radio" name="vsSettle" value={k} defaultChecked={cfg.vsSettle === k} /> {VS_SETTLE[k]}</label>
+              ))}
+            </div>
+          </fieldset>
           <div><Submit confirm="포인트 기준을 바꿀까요?">기준 저장</Submit></div>
         </ActionForm>
       </details>

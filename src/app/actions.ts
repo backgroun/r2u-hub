@@ -18,9 +18,9 @@ import { collectNews, patchNews } from "@/lib/news";
 import { detachGarminDay } from "@/lib/runs";
 import { BRAG_KEY, BRAG_MS, type Brag } from "@/lib/brag";
 import { pts, POINTS_START, awardOnce, setPoints, syncMonthPoints } from "@/lib/points";
-import { adjustPoints, DEFAULT_PT, savePointConfig, type PointRules } from "@/lib/points";
+import { adjustPoints, DEFAULT_PT, getPointConfig, savePointConfig, VS_SETTLE, type PointRules, type VsSettle } from "@/lib/points";
 import { applyExternal, sameRace } from "@/lib/race-link";
-import { getVsRequests, saveVsRequest, vsReqKey, vsVoteKey } from "@/lib/versus";
+import { getVsHistory, getVsRequests, recordVsPair, removeVsPair, saveVsRequest, settleVsPair, vsReqKey, vsVoteKey } from "@/lib/versus";
 import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
 
 export type Result = { ok: boolean; msg?: string } | null;
@@ -361,6 +361,20 @@ export async function deleteRace(fd: FormData) {
   await admin();
   const id = str(fd, "id");
   const afters = (await redis.hkeys(K.after(id))) ?? [];
+  // 대회를 지우면 그 대회로 받은 포인트(참가·응원·기록·단사·카풀·뒷풀이)도 되돌린다
+  const [ps, cheers, posts, rsvps] = await Promise.all([
+    redis.hkeys(K.raceP(id)), redis.hkeys(K.cheer(id)), redis.hgetall<Record<string, unknown>>(K.after(id)),
+    Promise.all(afters.map((a) => redis.hkeys(K.rsvp(a)))),
+  ]);
+  await Promise.all([
+    ...(ps ?? []).flatMap((n) => [setPoints(n, `race:${id}`, 0, ""), setPoints(n, `rec:${id}`, 0, "")]),
+    ...(cheers ?? []).map((n) => setPoints(n, `cheer:${id}`, 0, "")),
+    ...Object.entries(posts ?? {}).flatMap(([aid, raw]) => {
+      const a = (typeof raw === "string" ? JSON.parse(raw) : raw) as AfterParty;
+      return [setPoints(a.by, `photo:${aid}`, 0, ""), setPoints(a.driver || a.by, `drive:${aid}`, 0, "")];
+    }),
+    ...afters.flatMap((aid, i) => (rsvps[i] ?? []).flatMap((n) => [setPoints(n, `after:${aid}`, 0, ""), setPoints(n, `ride:${aid}`, 0, "")])),
+  ]);
   await redis.hdel(K.races, id);
   await redis.del(K.raceP(id), K.cheer(id), K.after(id), ...afters.map((a) => K.rsvp(a)));
   revalidatePath("/", "layout");
@@ -1076,7 +1090,7 @@ export async function acceptVersus(_: Result, fd: FormData): Promise<Result> {
   } finally {
     if (await redis.get(lock) === token) await redis.del(lock);
   }
-  await Promise.all([setPoints(u.nick, `vs:${ym}`, (await pts()).versus, "1:1 대결 참가"), setPoints(from, `vs:${ym}`, (await pts()).versus, "1:1 대결 참가")]);
+  await Promise.all([setPoints(u.nick, `vs:${ym}`, (await pts()).versus, "1:1 대결 참가"), setPoints(from, `vs:${ym}`, (await pts()).versus, "1:1 대결 참가"), recordVsPair(ym, u.nick, from)]);
   revalidatePath("/crew"); revalidatePath("/monthly");
   return ok(`${from}님과 1:1 매치가 시작됐어요!`);
 }
@@ -1144,8 +1158,14 @@ export async function manageVersusEnd(_: Result, fd: FormData): Promise<Result> 
   } finally {
     if (await redis.get(lock) === token) await redis.del(lock);
   }
+  // 정산 방식이 ‘종료 승인 즉시’면 지금 거리로 바로 승패를 정한다
+  let result = "";
+  if ((await getPointConfig()).vsSettle === "onEnd") {
+    const opp = (await getVsHistory(ym)).find((h) => h.a === u.nick || h.b === u.nick);
+    if (opp && !opp.settled) { const r = await settleVsPair(ym, opp.a, opp.b); result = r.winner ? ` ${r.winner}님 승리! (+${(await pts()).versusWin}P)` : " 무승부예요."; }
+  }
   revalidatePath("/crew"); revalidatePath("/monthly");
-  return ok("상대방의 종료 요청을 승인해 1:1 대결을 끝냈어요.");
+  return ok(`상대방의 종료 요청을 승인해 1:1 대결을 끝냈어요.${result}`);
 }
 
 export async function cancelVersusByAdmin(_: Result, fd: FormData): Promise<Result> {
@@ -1172,7 +1192,7 @@ export async function cancelVersusByAdmin(_: Result, fd: FormData): Promise<Resu
   }
   revalidatePath("/admin");
   revalidatePath("/crew");
-  await Promise.all([setPoints(a, `vs:${ym}`, 0, ""), setPoints(b, `vs:${ym}`, 0, "")]);
+  await Promise.all([setPoints(a, `vs:${ym}`, 0, ""), setPoints(b, `vs:${ym}`, 0, ""), removeVsPair(ym, a, b)]);
   return ok(`${a}님과 ${b}님의 대결을 취소했어요.`);
 }
 
@@ -1217,7 +1237,8 @@ export async function savePointRules(_: Result, fd: FormData): Promise<Result> {
   }
   const step = Math.round(Number(fd.get("step")));
   if (!(step >= 10 && step <= 10000)) return fail("한 단계 포인트는 10~10000 사이로 적어 주세요.");
-  await savePointConfig(pt, step);
+  const vsSettle = (String(fd.get("vsSettle") ?? "") in VS_SETTLE ? String(fd.get("vsSettle")) : "monthEnd") as VsSettle;
+  await savePointConfig(pt, step, vsSettle);
   revalidatePath("/", "layout");
   return ok("포인트 기준을 저장했어요. 이제부터 쌓이는 포인트에 적용돼요.");
 }
@@ -1231,4 +1252,14 @@ export async function adjustMemberPoints(_: Result, fd: FormData): Promise<Resul
   await adjustPoints(nick, delta, `운영진 ${delta > 0 ? "보너스" : "차감"}: ${why}`);
   revalidatePath("/", "layout");
   return ok(`${nick} 님에게 ${delta > 0 ? "+" : ""}${delta}P를 반영했어요.`);
+}
+
+/** 운영진: 대결 승리 정산 (정산 방식과 상관없이 지금 거리로 승패를 정한다. 다시 누르면 다시 계산) */
+export async function settleVersusByAdmin(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const ym = str(fd, "ym", 7), a = str(fd, "a", 30), b = str(fd, "b", 30);
+  if (!/^\d{4}-\d{2}$/.test(ym) || !a || !b) return fail("정산할 대결을 다시 확인해 주세요.");
+  const r = await settleVsPair(ym, a, b);
+  revalidatePath("/admin"); revalidatePath("/crew");
+  return ok(r.winner ? `${r.winner}님 승리로 정산했어요. (${r.ka}km : ${r.kb}km)` : `무승부예요. (${r.ka}km : ${r.kb}km)`);
 }

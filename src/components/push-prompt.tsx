@@ -15,7 +15,7 @@ const today = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)
 const get = () => { try { return localStorage.getItem(KEY); } catch { return null; } };
 const set = (v: string) => { try { localStorage.setItem(KEY, v); } catch { /* 저장 못 해도 괜찮다 */ } };
 
-export default function PushPrompt() {
+export default function PushPrompt({ bonus = 0 }: { bonus?: number }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [kind, setKind] = useState<Kind | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,6 +43,7 @@ export default function PushPrompt() {
         <div className="grid gap-3 text-center">
           <div className="push-bell" aria-hidden>🔔</div>
           <h2 className="font-bold text-lg">크루 알림을 켜 주세요</h2>
+          {bonus > 0 && <p className="push-bonus">처음 켜면 <b>+{bonus}P</b> 드려요</p>}
           {kind === "off" && <p className="text-sm text-muted">대회 출발·단사·카풀·뒤풀이 시간과 운영진 공지를 놓치지 않게 알려 드려요.</p>}
           {kind === "install" && (
             <div className="grid gap-1.5 text-sm text-left push-steps">
@@ -64,10 +65,10 @@ export default function PushPrompt() {
               setBusy(true);
               const r = await enablePush().catch(() => ({ state: "off" as const, msg: "알림을 켜지 못했어요." }));
               setBusy(false);
-              if (r.state === "on") { window.dispatchEvent(new Event("r2u:push-on")); showToast("알림을 켰어요! 🔔"); close(false); }
+              if (r.state === "on") { window.dispatchEvent(new Event("r2u:push-on")); showToast(r.bonus ? `알림을 켰어요! +${r.bonus}P 🔔` : "알림을 켰어요! 🔔"); close(false); }
               else if (r.state === "denied") setKind("denied");
               else if (r.msg) showToast(r.msg, "err");
-            }}>{busy ? "켜는 중…" : "알림 켜기"}</button>
+            }}>{busy ? "켜는 중…" : bonus > 0 ? `알림 켜고 +${bonus}P 받기` : "알림 켜기"}</button>
           ) : (
             <button type="button" className="btn btn-primary py-3 text-base" onClick={() => close(true)}>알겠어요</button>
           )}

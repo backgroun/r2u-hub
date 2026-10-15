@@ -110,7 +110,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
               ))}
             </div>
           </details>
-          <PointGuide rows={pointGuide(cfg.pt)} step={cfg.step} start={POINTS_START} />
+          <PointGuide rows={pointGuide(cfg.pt, cfg.vsSettle)} step={cfg.step} start={POINTS_START} />
         </section>
       )}
 

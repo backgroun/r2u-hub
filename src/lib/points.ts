@@ -16,6 +16,8 @@ export const DEFAULT_PT = {
   goal: 30, // 월 목표 달성
   kmPer: 10, // 월간 기록: 그달 거리 kmPer km마다 1P
   versus: 10, // 1:1 대결 참가
+  versusWin: 20, // 1:1 대결 승리 (그달 거리가 더 많은 사람)
+  push: 10, // 알림 켜기 (처음 한 번)
   bingo: 5, // 빙고 미션 완료
   gb: 3, // 공구 주문
   runner: 5, // 가끔 나타나는 러너 캐릭터 잡기 (하루 한 번)
@@ -26,25 +28,34 @@ export const DEFAULT_STEP = 100; // 한 단계(색 안의 단계)에 필요한 �
 export const PT_LABELS: Record<keyof PointRules, string> = {
   day: "출석", race: "대회 참가 표시", recFinish: "대회 기록 (완주)", recDnf: "대회 기록 (DNF·DNS)", cheer: "대회 응원",
   after: "뒤풀이 참석", photo: "단사 올리기", drive: "카풀 운전", ride: "카풀 탑승", goal: "월 목표 달성",
-  kmPer: "월간 기록 (몇 km마다 1P)", versus: "1:1 대결 참가", bingo: "빙고 미션", gb: "공구 주문", runner: "깜짝 러너",
+  kmPer: "월간 기록 (몇 km마다 1P)", versus: "1:1 대결 참가", versusWin: "1:1 대결 승리", push: "알림 켜기 (처음 한 번)", bingo: "빙고 미션", gb: "공구 주문", runner: "깜짝 러너",
 };
-const CONFIG = "r2u:ptConfig"; // { pt, step }
+const CONFIG = "r2u:ptConfig"; // { pt, step, vsSettle }
+/** 1:1 대결 승리 정산 시점 */
+export const VS_SETTLE = {
+  monthEnd: "월말 자동 정산 (다음 달 첫 접속 때)",
+  onEnd: "종료 승인 즉시 정산 (끝까지 간 대결은 월말)",
+  manual: "운영진이 직접 정산",
+} as const;
+export type VsSettle = keyof typeof VS_SETTLE;
 
 /** 지금 쓰는 포인트 기준 (저장된 값이 없거나 빠진 항목은 기본값) */
-export const getPointConfig = cache(async (): Promise<{ pt: PointRules; step: number }> => {
+export const getPointConfig = cache(async (): Promise<{ pt: PointRules; step: number; vsSettle: VsSettle }> => {
   try {
-    const c = await redis.get<{ pt?: Partial<PointRules>; step?: number } | string>(CONFIG);
+    const c = await redis.get<{ pt?: Partial<PointRules>; step?: number; vsSettle?: string } | string>(CONFIG);
     const v = (typeof c === "string" ? JSON.parse(c) : c) ?? {};
-    return { pt: { ...DEFAULT_PT, ...(v.pt ?? {}) }, step: Number(v.step) > 0 ? Number(v.step) : DEFAULT_STEP };
-  } catch { return { pt: DEFAULT_PT, step: DEFAULT_STEP }; }
+    const vsSettle = (v.vsSettle && v.vsSettle in VS_SETTLE ? v.vsSettle : "monthEnd") as VsSettle;
+    return { pt: { ...DEFAULT_PT, ...(v.pt ?? {}) }, step: Number(v.step) > 0 ? Number(v.step) : DEFAULT_STEP, vsSettle };
+  } catch { return { pt: DEFAULT_PT, step: DEFAULT_STEP, vsSettle: "monthEnd" }; }
 });
 export const pts = async () => (await getPointConfig()).pt;
-export async function savePointConfig(pt: PointRules, step: number) {
-  await redis.set(CONFIG, JSON.stringify({ pt, step }));
+export async function savePointConfig(pt: PointRules, step: number, vsSettle: VsSettle) {
+  await redis.set(CONFIG, JSON.stringify({ pt, step, vsSettle }));
 }
 
 /** 포인트 기준 안내표 (내 정보의 ‘포인트 기준 보기’) */
-export function pointGuide(PT: PointRules): { what: string; p: string; how: string }[] {
+export function pointGuide(PT: PointRules, vsSettle: VsSettle = "monthEnd"): { what: string; p: string; how: string }[] {
+  const winWhen = vsSettle === "onEnd" ? "종료에 합의하면 바로, 끝까지 간 대결은 월말에" : vsSettle === "manual" ? "운영진이 정산할 때" : "다음 달 초에";
   return [
     { what: "출석", p: `${PT.day}P`, how: "하루 첫 접속 때 한 번" },
     { what: "대회 크루 참가 표시", p: `${PT.race}P`, how: "앞으로 열릴 대회만 · 대회마다 한 번 · 참가 취소하면 빠짐" },
@@ -57,6 +68,8 @@ export function pointGuide(PT: PointRules): { what: string; p: string; how: stri
     { what: "월간 기록", p: `${PT.kmPer}km당 1P`, how: `그달 달린 거리 합계 기준, 소수점까지 (예: 95km → ${r1(95 / PT.kmPer)}P) · 기록을 고치면 바뀐 만큼 반영` },
     { what: "월 목표 달성", p: `${PT.goal}P`, how: "그달 거리가 목표 이상이 되면 · 다시 모자라면 빠짐" },
     { what: "1:1 대결 참가", p: `${PT.versus}P`, how: "대결이 시작되면 두 사람 모두 · 운영진이 취소하면 빠짐" },
+    { what: "1:1 대결 승리", p: `${PT.versusWin}P`, how: `그달 달린 거리가 더 많은 사람 · ${winWhen} 정산 · 같으면 무승부` },
+    { what: "알림 켜기 🔔", p: `${PT.push}P`, how: "처음 알림을 켤 때 한 번" },
     { what: "빙고 미션 완료", p: `${PT.bingo}P`, how: "미션 칸마다 · 인증 취소하면 빠짐" },
     { what: "공구 주문", p: `${PT.gb}P`, how: "공구마다 한 번 · 주문 삭제하면 빠짐" },
     { what: "깜짝 러너 잡기 🏃", p: `${PT.runner}P`, how: "앱에 아주 가끔 뛰어가는 러너를 누르면 · 하루 한 번" },

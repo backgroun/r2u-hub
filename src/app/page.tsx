@@ -12,7 +12,8 @@ import { listNews, timeAgo } from "@/lib/news";
 import WeatherCard from "@/components/weather-card";
 import { liveBrags } from "@/lib/brag";
 import BragTicker from "@/components/brag-ticker";
-import { getPointTotals, levelOf } from "@/lib/points";
+import { getPointConfig, getPointTotals, levelOf } from "@/lib/points";
+import { autoSettleVersus } from "@/lib/versus";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   const u = await currentUser();
   if (!u) redirect("/login");
   const today = kstToday();
+  await autoSettleVersus(today); // 지난달 1:1 대결 승리 정산 (한 달에 한 번만 실제로 돈다)
   const ym = ymOf(today);
   const [races, month, links, member, members, myRecs, brags, myPoints] = await Promise.all([getRaces(), getMonth(ym), getLinks(), getMember(u.nick), getMembers(), isStaffAccount(u) ? Promise.resolve({} as Awaited<ReturnType<typeof getRaceRecs>>) : getRaceRecs(u.nick), liveBrags(), getPointTotals().then((t) => t[u.nick] ?? 0)]);
   const names = Object.fromEntries(members.map((entry) => [entry.nick, entry.name || "없음"]));
@@ -53,7 +55,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   return (
     <main className="hub-wrap">
       {/* 알림을 안 켠 크루원에게 알림 켜기 팝업 (운영진 계정 제외) */}
-      {!isStaffAccount(u) && <PushPrompt />}
+      {!isStaffAccount(u) && <PushPrompt bonus={(await getPointConfig()).pt.push} />}
       <header className="flex items-center justify-between gap-4 pt-2">
         <div className="min-w-0">
           <h1 className="hub-h1 hub-greeting flex items-center gap-2.5">

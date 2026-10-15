@@ -1488,3 +1488,4 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 @keyframes push-ring { 0%, 60%, 100% { transform: rotate(0); } 10% { transform: rotate(16deg); } 20% { transform: rotate(-14deg); } 30% { transform: rotate(10deg); } 40% { transform: rotate(-6deg); } }
 .push-prompt .push-steps { padding: 12px 14px; border-radius: 12px; background: var(--fill, rgba(127,127,127,.12)); }
 @media (prefers-reduced-motion: reduce) { .push-prompt .push-bell { animation: none; } }
+.push-prompt .push-bonus { justify-self: center; padding: 4px 12px; border-radius: 99px; font-size: 14px; color: #CEFF1A; background: color-mix(in srgb, #CEFF1A 14%, transparent); }

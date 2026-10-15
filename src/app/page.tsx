@@ -10,6 +10,7 @@ import { greeting } from "@/lib/greeting";
 import { listNews, timeAgo } from "@/lib/news";
 import WeatherCard from "@/components/weather-card";
 import { liveBrags } from "@/lib/brag";
+import BragTicker from "@/components/brag-ticker";
 
 export const dynamic = "force-dynamic";
 
@@ -76,15 +77,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
       ))}
 
       {/* 자랑하기: 기록을 남긴 크루원이 올린 소식 (3시간 동안 공지처럼 보인다) */}
-      {brags.map((b) => (
-        <section key={`${b.nick}|${b.race}`} className="panel brag-card p-3.5 flex items-center gap-3">
-          <span className="text-2xl" aria-hidden>🎉</span>
-          <span className="min-w-0 grid">
-            <b className="leading-snug">{knownMemberLabel(b.nick, names)} 님 {b.race} 완주!</b>
-            <span className="text-sm"><b className="num">{b.course} {b.time}</b> <span className="text-xs text-muted">· {Math.max(1, Math.round((Date.now() - b.at) / 60000))}분 전 · 응원해 주세요 👏</span></span>
-          </span>
-        </section>
-      ))}
+      <BragTicker items={brags.map((b) => ({ key: `${b.nick}|${b.race}`, who: knownMemberLabel(b.nick, names), race: b.race, record: `${b.course} ${b.time}`, ago: timeAgo(b.at) }))} />
 
       {/* 공지: 올라온 공지가 없으면 홈에서 아예 보이지 않는다 */}
       {notice && (

@@ -125,8 +125,6 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
         </section>
       )}
 
-      <MyCollection caught={Object.keys(gearCaught).map(Number).sort((a, b) => a - b)} />
-
       <section className="stat-strip stat-compact">
         <div><span className="label">이번 달</span><b className="num">{thisMonth.km}<small>km</small></b></div>
         <div><span className="label">달성율</span><b className="num">{thisMonth.rate != null ? `${thisMonth.rate}%` : "–"}</b></div>
@@ -205,6 +203,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
         </div>
       </section>
 
+      <MyCollection caught={Object.keys(gearCaught).map(Number).sort((a, b) => a - b)} />
       <ActivitySummary stats={activity} />
 
       {/* 공구 내역: 주문한 공구가 있을 때만 보인다 */}

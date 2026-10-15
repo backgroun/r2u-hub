@@ -236,8 +236,13 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
           <span className="race-sum-text grid gap-0.5">
             <span className="truncate"><b>👥 참가 {r.participants.length}</b>
               {groups.length > 0 && <span className="text-muted"> ({groups.map((g) => `${g.label} ${g.list.length}`).join(" · ")})</span>}</span>
-            <span className="text-muted text-[13px]">📣 응원 {r.cheers.length}
-              {schedule.map((a) => <span key={a.id}> · {AFTER_ICON[kindOf(a)]} {KINDS.find((k) => k.kind === kindOf(a))!.tag}{a.time ? ` ${a.time}` : ""}</span>)}</span>
+            {/* 응원·단사·카풀·뒷풀이는 있을 때만 (0명이면 안 적는다) */}
+            {(r.cheers.length > 0 || schedule.length > 0) && (
+              <span className="text-muted text-[13px]">
+                {[...(r.cheers.length > 0 ? [`📣 응원 ${r.cheers.length}`] : []),
+                  ...schedule.map((a) => `${AFTER_ICON[kindOf(a)]} ${KINDS.find((k) => k.kind === kindOf(a))!.tag}${a.time ? ` ${a.time}` : ""}`)].join(" · ")}
+              </span>
+            )}
           </span>
         </summary>
         <div className="grid gap-3 pt-3">

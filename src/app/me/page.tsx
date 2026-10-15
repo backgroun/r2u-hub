@@ -93,7 +93,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
       {!isStaffAccount(u) && (
         <section className="panel level-card grid gap-2">
           <span className="level-head"><b>Lv.{pts.lv}</b><span className="num">{pts.points.toLocaleString()}P</span>
-            <span className="text-xs text-muted ml-auto">{pts.next == null ? "최고 레벨" : `다음 레벨까지 ${pts.next - pts.points}P`}</span></span>
+            <span className="text-xs text-muted ml-auto">{pts.next == null ? "최고 레벨" : `다음 레벨까지 ${pts.left}P`}</span></span>
           <span className="level-bar" aria-hidden><span style={{ width: `${pts.pct}%` }} /></span>
           <div className="flex items-start justify-between gap-2">
             <details className="level-log min-w-0 flex-1">

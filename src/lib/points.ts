@@ -27,7 +27,7 @@ export const POINT_GUIDE: { what: string; p: string; how: string }[] = [
   { what: "단체사진(단사) 올리기", p: `${PT.photo}P`, how: "올린 글마다 · 글 삭제하면 빠짐" },
   { what: "카풀 운전", p: `${PT.drive}P`, how: "카풀마다 운전자에게 · 글 삭제하면 빠짐" },
   { what: "카풀 탑승", p: `${PT.ride}P`, how: "카풀마다 ‘탑승’ 표시 · 취소하면 빠짐" },
-  { what: "월간 기록", p: `${PT.kmPer}km당 1P`, how: `그달 달린 거리 합계 기준 (예: 95km → ${Math.floor(95 / PT.kmPer)}P) · 기록을 고치면 바뀐 만큼 반영` },
+  { what: "월간 기록", p: `${PT.kmPer}km당 1P`, how: `그달 달린 거리 합계 기준, 소수점까지 (예: 95km → ${95 / PT.kmPer}P) · 기록을 고치면 바뀐 만큼 반영` },
   { what: "월 목표 달성", p: `${PT.goal}P`, how: "그달 거리가 목표 이상이 되면 · 다시 모자라면 빠짐" },
   { what: "1:1 대결 참가", p: `${PT.versus}P`, how: "대결이 시작되면 두 사람 모두 · 운영진이 취소하면 빠짐" },
   { what: "빙고 미션 완료", p: `${PT.bingo}P`, how: "미션 칸마다 · 인증 취소하면 빠짐" },
@@ -41,18 +41,20 @@ const TOTAL = "r2u:ptTotal"; // hash nick -> 누적 포인트
 export type PointEntry = { p: number; why: string; at: number };
 
 const parse = (v: unknown) => (typeof v === "string" ? JSON.parse(v) : v) as PointEntry;
+/** 포인트는 소수 첫째 자리까지 (월간 km 9.5P 등) */
+export const r1 = (n: number) => Math.round(n * 10) / 10;
 
 /** 한 활동의 포인트를 p로 맞춘다 (0이면 지운다). 포인트 오류로 원래 동작을 막지 않는다. */
 export async function setPoints(nick: string | null | undefined, key: string, p: number, why: string) {
   if (!nick || isStaffNick(nick)) return;
-  const next = Math.max(0, Math.floor(p));
+  const next = Math.max(0, r1(p));
   try {
     const cur = await redis.hget<unknown>(LOG(nick), key);
     const prev = cur ? parse(cur).p : 0;
     if (prev === next) return;
     if (next > 0) await redis.hset(LOG(nick), { [key]: JSON.stringify({ p: next, why, at: Date.now() } satisfies PointEntry) });
     else await redis.hdel(LOG(nick), key);
-    await redis.hincrby(TOTAL, nick, next - prev);
+    await redis.hincrbyfloat(TOTAL, nick, r1(next - prev));
   } catch { /* 포인트는 덤: 실패해도 넘어간다 */ }
 }
 
@@ -60,7 +62,7 @@ export async function setPoints(nick: string | null | undefined, key: string, p:
 export async function awardOnce(nick: string, key: string, p: number, why: string) {
   if (!nick || isStaffNick(nick)) return;
   try {
-    if (await redis.hsetnx(LOG(nick), key, JSON.stringify({ p, why, at: Date.now() } satisfies PointEntry))) await redis.hincrby(TOTAL, nick, p);
+    if (await redis.hsetnx(LOG(nick), key, JSON.stringify({ p, why, at: Date.now() } satisfies PointEntry))) await redis.hincrbyfloat(TOTAL, nick, p);
   } catch { /* 포인트는 덤 */ }
 }
 
@@ -77,14 +79,14 @@ export async function syncMonthPoints(nick: string, ym: string, rec: MonthRec | 
 
 export async function getPointTotals(): Promise<Record<string, number>> {
   const h = (await redis.hgetall<Record<string, number | string>>(TOTAL)) ?? {};
-  return Object.fromEntries(Object.entries(h).map(([n, v]) => [n, Number(v) || 0]));
+  return Object.fromEntries(Object.entries(h).map(([n, v]) => [n, r1(Number(v) || 0)]));
 }
 
 export function levelOf(points: number) {
-  const p = Math.max(0, points);
+  const p = Math.max(0, r1(points));
   const lv = Math.floor(p / LEVEL_STEP) + 1;
   const cur = (lv - 1) * LEVEL_STEP, next: number | null = lv * LEVEL_STEP;
-  return { lv, points: p, cur, next, pct: Math.round(((p - cur) / LEVEL_STEP) * 100) };
+  return { lv, points: p, cur, next, left: r1(next - p), pct: Math.round(((p - cur) / LEVEL_STEP) * 100) };
 }
 
 /** 닉네임 → 레벨 (닉네임 옆 배지용) */

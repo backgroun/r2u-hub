@@ -6,7 +6,7 @@ import { showToast } from "@/components/toaster";
 
 /** 서버 액션 폼: 결과 메시지를 폼 아래에 보여주고, 성공하면 입력칸을 비운다. */
 export function ActionForm({
-  action, children, className, keep = false, id, collapse = false, alertError = false,
+  action, children, className, keep = false, id, collapse = false, alertError = false, hideInline = false,
 }: {
   action: (s: Result, fd: FormData) => Promise<Result>;
   children: React.ReactNode;
@@ -17,6 +17,8 @@ export function ActionForm({
   collapse?: boolean;
   /** 실패 메시지를 폼 안 글씨 대신 알럿 창으로 띄운다 (성공 메시지는 위쪽 알림으로만) */
   alertError?: boolean;
+  /** 결과 메시지를 폼 아래 글씨로는 안 보이고 위쪽 알림(토스트)으로만 보여 준다 */
+  hideInline?: boolean;
 }) {
   const [state, run] = useActionState(action, null);
   const ref = useRef<HTMLFormElement>(null);
@@ -29,7 +31,7 @@ export function ActionForm({
   return (
     <form ref={ref} id={id} action={run} className={className} data-af="1">
       {children}
-      {state?.msg && !alertError && (
+      {state?.msg && !alertError && !hideInline && (
         <p role="status" className={`text-sm ${state.ok ? "text-[var(--good)]" : "text-[var(--bad)]"}`} style={{ gridColumn: "1 / -1" }}>
           {state.msg}
         </p>

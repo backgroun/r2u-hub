@@ -611,8 +611,18 @@ export async function rsvpAfter(fd: FormData) {
     const cur = Object.entries((await redis.hgetall<Record<string, string>>(K.rsvp(afterId))) ?? {});
     if (cur.filter(([n, x]) => x === "yes" && n !== u.nick).length >= seats) return;
   }
+  const before = await redis.hget(K.rsvp(afterId), u.nick);
   if (v === "yes" || v === "no") await redis.hset(K.rsvp(afterId), { [u.nick]: v });
   else await redis.hdel(K.rsvp(afterId), u.nick);
+  if (v !== "no") await redis.hdel(K.afterWhy(afterId), u.nick);
+  // 뒷풀이에 못 온다고 누르면 운영진에게 무조건 알린다 (알림을 켠 운영진 기기로)
+  if (v === "no" && before !== "no" && (post.kind ?? "after") === "after") {
+    try {
+      const [admins, raceRaw] = [new Set((await getMembers()).filter((m) => m.role === "admin").map((m) => m.nick)), await redis.hget(K.races, str(fd, "id"))];
+      const race = raceRaw ? ((typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race) : null;
+      if (pushReady() && admins.size) await sendPushToNicks(admins, "🍻 뒷풀이 불참", `${u.nick}님이 뒷풀이에 못 와요${race ? ` · ${race.name}` : ""}`, `/races#${str(fd, "id")}`);
+    } catch { /* 알림 실패는 무시 */ }
+  }
   if (post.kind === "carpool") await setPoints(u.nick, `ride:${afterId}`, v === "yes" ? (await pts()).ride : 0, "카풀 탑승");
   else if ((post.kind ?? "after") === "after") await setPoints(u.nick, `after:${afterId}`, v === "yes" ? (await pts()).after : 0, "뒤풀이 참석");
   revalidatePath("/races");

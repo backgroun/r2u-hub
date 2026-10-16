@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getLevels } from "@/lib/points";
+import { getPushEnabledNicks } from "@/lib/notice";
 import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
@@ -394,6 +395,7 @@ const AFTER_ICON: Record<AfterKind, string> = { photo: "📷", carpool: "🚗", 
 /** 단사·카풀·뒷풀이를 시간 순서로 (시간 없는 건 뒤로) */
 const sortAfters = (list: AfterFull[]) => [...list].sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99") || a.at - b.at);
 
+const pushNicks = cache(async () => getPushEnabledNicks());
 const crewNicks = cache(async () => (await getMembers()).filter((m) => !isStaffNick(m.nick)).sort((a, b) => a.nick.localeCompare(b.nick, "ko")));
 
 /** 출석 체크를 맡길 크루원 찾기 (닉네임·이름·초성 검색) */
@@ -438,8 +440,9 @@ function AfterFields({ kind, me, a }: { kind: AfterKind; me: string; a?: AfterFu
   );
 }
 
-function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; top?: React.ReactNode }) {
+async function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; top?: React.ReactNode }) {
   const items = sortAfters(r.afters);
+  const pushOn = await pushNicks(); // 알림을 켠 크루원 (알림 버튼 확인창에 보낼 인원 수를 보여 주려고)
   const today = kstToday();
   const dayBefore = new Date(Date.parse(`${r.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
   const inMode = attendanceMode(r, today); // 확인 모드: 자동(2일 전~당일) 또는 운영진이 정한 켬/끔
@@ -449,7 +452,7 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   return (
     <div className="after-wrap">
       {top}
-      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} inMode={inMode} cand={cand} checkers={r.checkers} admins={admins} managers={managers} names={names} levels={levels} />)}
+      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} inMode={inMode} pushOn={pushOn} cand={cand} checkers={r.checkers} admins={admins} managers={managers} names={names} levels={levels} />)}
       <div className="after-adds">
         {KINDS.filter((k) => k.kind === "carpool" || !items.some((a) => kindOf(a) === k.kind)).map((k) => (
           <details key={k.kind} className="after-add">
@@ -488,7 +491,7 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   );
 }
 
-function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, checkers, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; today: string; raceDate: string; dayBefore: string; inMode: boolean; cand: string[]; checkers: string[]; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
+function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, cand, checkers, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; today: string; raceDate: string; dayBefore: string; inMode: boolean; pushOn: Set<string>; cand: string[]; checkers: string[]; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
   const kind = kindOf(a);
   const mine = a.yes.includes(u.nick) ? "yes" : a.no.includes(u.nick) ? "no" : "";
   const tag = KINDS.find((k) => k.kind === kind)!.tag;
@@ -520,6 +523,9 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
   const photoAlive = !!a.photo && today <= new Date(Date.parse(`${raceDate}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const canCheck = u.admin || checkers.includes(u.nick); // 운영진, 또는 운영진이 출석 체크를 맡긴 크루원
   // 이 일정에 알림 보내기: 운영진·위임받은 사람·대회 참석자, 아직 안 지난 시간이 있을 때
+  // 알림 받을 사람: 단사는 대회 참석자 중 아직 출석 체크 안 된 사람, 뒷풀이는 참석 신청자
+  const noticeTargets = kind === "photo" ? cand.filter((n) => !a.came.includes(n)) : a.yes.filter((n) => !isStaffNick(n));
+  const noticeReach = noticeTargets.filter((n) => pushOn.has(n)).length;
   const canNotify = (kind === "photo" || kind === "after") && (canCheck || cand.includes(u.nick)) && /^([01]\d|2[0-3]):[0-5]\d$/.test(a.time ?? "") && Date.parse(`${raceDate}T${a.time}:00+09:00`) > Date.now();
   // 확인 모드가 켜지면 단사·뒷풀이를 펼치고, 아니면 접어 둔다
   const openNow = (kind === "photo" || kind === "after") && inMode;
@@ -554,7 +560,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
         <div className="notify-abs">
           <ActionForm action={sendItemNotice} keep alertError>
             <input type="hidden" name="id" value={raceId} /><input type="hidden" name="item" value={a.id} />
-            <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?`}><BellIcon />알림</Submit>
+            <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?\n알림을 켠 ${noticeReach}명에게 가요. (대상 ${noticeTargets.length}명)`}><BellIcon />알림</Submit>
           </ActionForm>
         </div>
       )}

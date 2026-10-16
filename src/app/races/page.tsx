@@ -521,11 +521,11 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
           </div>
           {kind !== "photo" && <div className="shrink-0"><RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} /></div>}
         </div>
-        <div className="grid gap-0.5 min-w-0">
+        {(a.memo || photoAlive) && <div className="grid gap-0.5 min-w-0">
           {a.memo && <span className="text-sm">{a.memo}</span>}
           {photoAlive && <img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260, pointerEvents: "none" }} />}
-        </div>
-        {kind !== "photo" && (
+        </div>}
+        {kind !== "photo" && !(kind === "after" && inMode) && (a.yes.length > 0 || a.no.length > 0) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {!(kind === "after" && inMode) && [...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
             {!(kind === "after" && inMode) && [...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}

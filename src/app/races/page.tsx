@@ -172,7 +172,7 @@ function BellIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-/** 확인 모드 체크 아이콘: 켜짐은 초록 그라데이션 + 흰 체크, 꺼짐은 점선 테두리 */
+/** 단사 확인 모드 체크 아이콘: 켜짐은 초록 그라데이션 + 흰 체크, 꺼짐은 점선 테두리 */
 function ModeCheckIcon({ on, size = 22 }: { on: boolean; size?: number }) {
   return (
     <svg className={`mode-ico ${on ? "on" : "off"}`} viewBox="0 0 24 24" width={size} height={size} aria-hidden>
@@ -194,14 +194,14 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
   const reg = regInfo(r);
   const groups = groupByCourse(r.participants);
   const schedule = sortAfters(r.afters);
-  // 확인 모드: 단사 글이 있고 대회 2일 전~당일이면 위쪽 참가·응원 목록이 출석 체크 목록으로 바뀐다 (단사 참석자 = 대회 참석자 전원)
+  // 단사 확인 모드: 단사 글이 있고 대회 2일 전~당일이면 위쪽 참가·응원 목록이 출석 체크 목록으로 바뀐다 (단사 참석자 = 대회 참석자 전원)
   const photoPost = schedule.find((a) => kindOf(a) === "photo");
   const checkMode = !!photoPost && attendanceMode(r, kstToday());
   const canCheck = u.admin || r.checkers.includes(u.nick);
-  const canToggleMode = u.admin && !past && !!photoPost; // 운영진은 확인 모드를 체크 버튼으로 켜고 끈다 (기본은 2일 전부터 자동)
+  const canToggleMode = u.admin && !past && !!photoPost; // 운영진은 단사 확인 모드를 체크 버튼으로 켜고 끈다 (기본은 2일 전부터 자동)
   const everyone = new Set([...r.participants.map((p) => p.nick), ...r.cheers]);
   const cameCount = photoPost ? [...everyone].filter((n) => photoPost.came.includes(n)).length : 0;
-  /** 참가·응원 칩 하나: 확인 모드에선 앞에 체크 버튼, 아니면 기존 모습 (불참은 ✕ 빨강) */
+  /** 참가·응원 칩 하나: 단사 확인 모드에선 앞에 체크 버튼, 아니면 기존 모습 (불참은 ✕ 빨강) */
   const chip = (nick: string, extra: string, leave?: React.ReactNode) => {
     const on = !!photoPost?.came.includes(nick), off = !!photoPost && photoPost.no.includes(nick) && !on;
     if (!checkMode) {
@@ -213,7 +213,7 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
         </span>
       );
     }
-    // 확인 모드: 뒷풀이 출석 칩과 같은 모습 (닉네임만, 점선 테두리 → 출석 ✓ 초록 / 불참 ✕ 빨강)
+    // 단사 확인 모드: 뒷풀이 출석 칩과 같은 모습 (닉네임만, 점선 테두리 → 출석 ✓ 초록 / 불참 ✕ 빨강)
     const label = <>{on ? "✓ " : off ? "✕ " : ""}{nick}</>;
     const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
     const hidden = <><input type="hidden" name="id" value={r.id} /><input type="hidden" name="after" value={photoPost!.id} /><input type="hidden" name="nick" value={nick} /></>;
@@ -311,7 +311,8 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
         <summary className="race-sum">
           {/* 1줄: 참가 인원(코스별) · 2줄: 응원 · 단사·카풀·뒷풀이 시간 */}
           <span className="race-sum-text grid gap-0.5">
-            <span className="truncate">{checkMode && <b className="mode-tag inline-flex items-center gap-1"><ModeCheckIcon on size={16} />확인 모드 </b>}<b>👥 참가 {r.participants.length}</b>
+            {checkMode && <b className="mode-tag inline-flex items-center gap-1 text-[13px]"><ModeCheckIcon on size={15} />단사 확인 모드</b>}
+            <span className="truncate"><b>👥 참가 {r.participants.length}</b>
               {groups.length > 0 && <span className="text-muted"> ({groups.map((g) => `${g.label} ${g.list.length}`).join(" · ")})</span>}</span>
             {/* 응원·단사·카풀·뒷풀이는 있을 때만 (0명이면 안 적는다) */}
             {(r.cheers.length > 0 || schedule.length > 0) && (
@@ -331,10 +332,10 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
               <form action={setCheckMode} className="inline-flex">
                 <input type="hidden" name="id" value={r.id} />
                 <input type="hidden" name="mode" value={checkMode ? "off" : "on"} />
-                <button type="submit" className="mode-check" aria-pressed={checkMode} aria-label={checkMode ? "확인 모드 끄기" : "확인 모드 켜기"}><ModeCheckIcon on={checkMode} /></button>
+                <button type="submit" className="mode-check" aria-pressed={checkMode} aria-label={checkMode ? "단사 확인 모드 끄기" : "단사 확인 모드 켜기"}><ModeCheckIcon on={checkMode} /></button>
               </form>
             ) : <span aria-hidden className="inline-flex"><ModeCheckIcon on /></span>}
-            <b>확인 모드</b>
+            <b>단사 확인 모드</b>
             {checkMode
               ? <><span className="text-[13px]">{canCheck ? "도착 확인 · 도착한 사람 이름을 눌러 체크해요" : "도착 확인 · 참석 불가 시 이름 눌러 미참석 처리"}</span><b className="num ml-auto">{cameCount}/{everyone.size}</b></>
               : <span className="text-muted">꺼져 있어요 · 체크하면 켜져요</span>}
@@ -454,7 +455,7 @@ async function AfterParties({ r, u, admins, managers, names, levels, top }: { r:
   const pushOn = await pushNicks(); // 알림을 켠 크루원 (알림 버튼 확인창에 보낼 인원 수를 보여 주려고)
   const today = kstToday();
   const dayBefore = new Date(Date.parse(`${r.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
-  const inMode = attendanceMode(r, today); // 확인 모드: 자동(2일 전~당일) 또는 운영진이 정한 켬/끔
+  const inMode = attendanceMode(r, today); // 단사 확인 모드: 자동(2일 전~당일) 또는 운영진이 정한 켬/끔
   const cand = [...new Set([...r.participants.map((p) => p.nick), ...r.cheers])].filter((n) => !isStaffNick(n));
   // 운영진이 참가·응원 명단에 한 명도 없을 때만 출석 체크 위임을 보여 준다 (이미 위임한 게 있으면 취소할 수 있게 계속 보인다)
   const adminAttending = [...r.participants.map((p) => p.nick), ...r.cheers].some((n) => admins.has(n));
@@ -535,14 +536,14 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
   const noticeTargets = kind === "photo" ? cand.filter((n) => !a.came.includes(n)) : kind === "carpool" ? [...new Set([...a.yes, driverOf(a)])].filter((n) => !isStaffNick(n)) : a.yes.filter((n) => !isStaffNick(n));
   const noticeReach = noticeTargets.filter((n) => pushOn.has(n)).length;
   const canNotify = (kind === "photo" || kind === "after" || kind === "carpool") && (canCheck || (kind === "carpool" ? a.yes.includes(u.nick) || driverOf(a) === u.nick : cand.includes(u.nick))) && /^([01]\d|2[0-3]):[0-5]\d$/.test(a.time ?? "") && Date.parse(`${raceDate}T${a.time}:00+09:00`) > Date.now();
-  // 확인 모드가 켜지면 단사·뒷풀이를 펼치고, 아니면 접어 둔다
+  // 단사 확인 모드가 켜지면 단사·뒷풀이를 펼치고, 아니면 접어 둔다
   const openNow = (kind === "photo" || kind === "after") && inMode;
   const canAbsent = (nick: string) => cand.includes(nick) && raceDate >= today;
   // 단사: 대회 참석자(참가·응원) 모두가 기본 명단, 못 오면 본인이 참석 불가. 뒷풀이: 평소엔 참석 신청자 목록, 당일엔 그 신청자로 출석 체크
-  const showList = kind === "after" && inMode; // 단사 명단은 위쪽 참가·응원 목록(확인 모드)으로 대신한다
+  const showList = kind === "after" && inMode; // 단사 명단은 위쪽 참가·응원 목록(단사 확인 모드)으로 대신한다
   const roster = [...new Set([...a.yes, ...a.came])].sort((x, y) => x.localeCompare(y, "ko"));
   // 한 줄: 아이콘 · 시간 · 장소(제목) · 참석 수 / 누르면 참석 버튼·명단·운전자·메모·수정
-  const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" && !inMode ? `${a.yes.length}명` : ""; // 확인 모드에서는 출석 수를 따로 적지 않는다
+  const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" && !inMode ? `${a.yes.length}명` : ""; // 단사 확인 모드에서는 출석 수를 따로 적지 않는다
   return (
     <div className="grid gap-1 after-block">
     <details className={`after-item k-${kind}`} open={openNow || undefined}>
@@ -597,7 +598,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
         {showList && roster.length > 0 && (
           <div className="grid gap-1">
             <span className="text-xs text-muted">
-              <span className="inline-flex items-center gap-1 align-middle"><ModeCheckIcon on size={14} /> 확인 모드</span> · 뒷풀이 출석 {a.came.length}/{roster.length}
+              <span className="inline-flex items-center gap-1 align-middle"><ModeCheckIcon on size={14} /> 단사 확인 모드</span> · 뒷풀이 출석 {a.came.length}/{roster.length}
               {canCheck ? (u.admin ? " · 온 사람을 누르면 출석 체크" : " · 출석 체크를 맡았어요: 온 사람을 누르세요") : ""}
             </span>
             <div className="flex flex-wrap gap-1.5">

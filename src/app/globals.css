@@ -1586,3 +1586,4 @@ button.came-chip { cursor: pointer; }
 .after-item[open] > .after-line.has-notify { padding-right: 0; }
 .came-chip.rider { border-style: solid; border-color: var(--line); color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .came-chip.rider.driver { gap: 5px; border-color: color-mix(in srgb, var(--bib) 60%, var(--line)); font-weight: 700; }
+.race-sum .mode-tag { margin-right: 0; }

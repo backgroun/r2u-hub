@@ -1579,3 +1579,5 @@ button.came-chip { cursor: pointer; }
 .notify-abs { right: 12px; }
 .notify-abs .btn, .rsvp-fixed .btn { min-width: 88px; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
 .bell-ico { margin-right: 2px; }
+/* 단사·뒷풀이·카풀 박스 사이 여백 */
+.after-block + .after-block { margin-top: 14px; }

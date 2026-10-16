@@ -536,7 +536,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
   // 한 줄: 아이콘 · 시간 · 장소(제목) · 참석 수 / 누르면 참석 버튼·명단·운전자·메모·수정
   const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" && !inMode ? `${a.yes.length}명` : ""; // 확인 모드에서는 출석 수를 따로 적지 않는다
   return (
-    <div className="grid gap-1">
+    <div className="grid gap-1 after-block">
     <details className={`after-item k-${kind}`} open={openNow || undefined}>
       <summary className={`after-line ${canNotify ? "has-notify" : ""}`}>
         {kind === "carpool" ? (

@@ -4,9 +4,8 @@ import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, addChecker, deleteAfter, removeChecker, setAbsentReason, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
+import { addAfter, addChecker, sendScheduleNotices, deleteAfter, removeChecker, setAbsentReason, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
-import ScheduleNoticePanel from "@/components/schedule-notice";
 import { Nick, WheelIcon } from "@/components/crown";
 import { cache } from "react";
 import SelfChip from "@/components/self-chip";
@@ -295,7 +294,17 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
       </div>}
 
       <AfterParties r={r} u={u} admins={admins} managers={managers} names={names} levels={levels}
-        top={(u.admin || raceAttendee) && noticeKinds.length > 0 ? <div className="flex justify-end"><ScheduleNoticePanel raceId={r.id} kinds={noticeKinds} /></div> : null} />
+        top={(u.admin || raceAttendee || r.checkers.includes(u.nick)) && noticeKinds.length > 0 ? (
+          // 알림은 종류별로 따로 보낸다 (단사·뒷풀이·카풀·대회 각각 버튼)
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {noticeKinds.map((k) => (
+              <ActionForm key={k.key} action={sendScheduleNotices} keep alertError>
+                <input type="hidden" name="id" value={r.id} /><input type="hidden" name="k" value={k.key} />
+                <Submit className="btn text-sm py-1.5 px-3" pendingText="보내는 중…" confirm={`${k.label.replace(/^\S+\s/, "")} 알림을 보낼까요?`}>🔔 {k.label.replace(/^\S+\s/, "")} 알림{k.count > 1 ? ` ${k.count}` : ""}</Submit>
+              </ActionForm>
+            ))}
+          </div>
+        ) : null} />
         </div>
       </details>
 

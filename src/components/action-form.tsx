@@ -41,11 +41,11 @@ export function ActionForm({
 }
 
 /** form: 폼 바깥에 둔 버튼일 때 연결할 폼 id · confirm: 있으면 저장 전에 확인 창을 띄운다 (기존 내용 수정 등) */
-export function Submit({ children, className = "btn btn-primary", form, confirm }: { children: React.ReactNode; className?: string; form?: string; confirm?: string }) {
+export function Submit({ children, className = "btn btn-primary", form, confirm, pendingText = "저장 중…" }: { children: React.ReactNode; className?: string; form?: string; confirm?: string; pendingText?: string }) {
   const { pending } = useFormStatus();
   return (
     <button type="submit" form={form} className={className} disabled={pending} onClick={confirm ? (e) => { if (!window.confirm(confirm)) e.preventDefault(); } : undefined}>
-      {pending ? "저장 중…" : children}
+      {pending ? pendingText : children}
     </button>
   );
 }

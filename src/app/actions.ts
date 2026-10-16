@@ -607,7 +607,8 @@ async function sendNoticeOne(u: { nick: string; admin: boolean }, raceId: string
   const raceAttendees = [...(participants ?? []), ...(cheers ?? [])];
   const yes = Object.entries(rsvps ?? {}).filter(([, value]) => value === "yes").map(([nick]) => nick);
   const attendees = new Set((kind === "carpool" ? [...yes, item?.driver || item?.by || ""] : kind === "after" ? yes : raceAttendees).filter((nick) => nick && !isStaffNick(nick)));
-  if (!u.admin && !attendees.has(u.nick)) return fail("이 일정의 참석자나 운영진만 알림을 보낼 수 있어요.");
+  const isChecker = !u.admin && (await redis.hexists(K.checkers(raceId), u.nick)) === 1; // 출석 체크를 위임받은 사람도 보낼 수 있다
+  if (!u.admin && !isChecker && !attendees.has(u.nick)) return fail("이 일정의 참석자나 운영진, 출석 체크를 맡은 사람만 알림을 보낼 수 있어요.");
   if (!pushReady()) return fail("알림 발송 설정이 아직 준비되지 않았어요.");
   const subscribed = await getPushEnabledNicks();
   // 단사는 이미 출석 체크된 사람에게는 알림을 보내지 않는다

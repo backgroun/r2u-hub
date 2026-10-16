@@ -337,7 +337,7 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
             ) : <span aria-hidden className="inline-flex"><ModeCheckIcon on /></span>}
             <b>단사 확인 모드</b>
             {checkMode
-              ? <><span className="text-[13px]">{canCheck ? "도착 확인 · 도착한 사람 이름을 눌러 체크해요" : "도착 확인 · 참석 불가 시 이름 눌러 미참석 처리"}</span><b className="num ml-auto">{cameCount}/{everyone.size}</b></>
+              ? <><span className="text-[13px]">{canCheck ? "도착한 사람 이름을 눌러 체크해요" : "참석 불가 시 이름 눌러 미참석 처리"}</span><b className="num ml-auto">{cameCount}/{everyone.size}</b></>
               : <span className="text-muted">꺼져 있어요 · 체크하면 켜져요</span>}
           </div>
         )}

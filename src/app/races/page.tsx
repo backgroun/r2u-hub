@@ -4,7 +4,7 @@ import { getPushEnabledNicks } from "@/lib/notice";
 import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
-import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, attendanceMode, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
+import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, attendanceEnded, attendanceMode, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
 import { addAfter, addChecker, setCheckMode, sendItemNotice, sendScheduleNotices, deleteAfter, removeChecker, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
 import { Nick, WheelIcon } from "@/components/crown";
@@ -197,9 +197,9 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
   const schedule = sortAfters(r.afters);
   // 확인 모드: 단사 글이 있고 대회 2일 전~당일이면 위쪽 참가·응원 목록이 출석 체크 목록으로 바뀐다 (단사 참석자 = 대회 참석자 전원)
   const photoPost = schedule.find((a) => kindOf(a) === "photo");
-  const checkMode = !!photoPost && attendanceMode(r, kstToday());
+  const checkMode = !!photoPost && attendanceMode(r);
   const canCheck = u.admin || r.checkers.includes(u.nick);
-  const canToggleMode = u.admin && !past && !!photoPost; // 운영진은 확인 모드를 체크 버튼으로 켜고 끈다 (기본은 2일 전부터 자동)
+  const canToggleMode = u.admin && !past && !!photoPost && !attendanceEnded(r); // 운영진은 확인 모드를 체크 버튼으로 켜고 끈다 (기본은 2일 전부터 자동)
   const everyone = new Set([...r.participants.map((p) => p.nick), ...r.cheers]);
   const cameCount = photoPost ? [...everyone].filter((n) => photoPost.came.includes(n)).length : 0;
   /** 참가·응원 칩 하나: 확인 모드에선 앞에 체크 버튼, 아니면 기존 모습 (불참은 ✕ 빨강) */
@@ -443,7 +443,7 @@ async function AfterParties({ r, u, admins, managers, names, levels, top }: { r:
   const pushOn = await pushNicks(); // 알림을 켠 크루원 (알림 버튼 확인창에 보낼 인원 수를 보여 주려고)
   const today = kstToday();
   const dayBefore = new Date(Date.parse(`${r.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
-  const inMode = attendanceMode(r, today); // 확인 모드: 자동(2일 전~당일) 또는 운영진이 정한 켬/끔
+  const inMode = attendanceMode(r); // 확인 모드: 자동(2일 전~당일) 또는 운영진이 정한 켬/끔
   const cand = [...new Set([...r.participants.map((p) => p.nick), ...r.cheers])].filter((n) => !isStaffNick(n));
   // 운영진이 참가·응원 명단에 한 명도 없을 때만 출석 체크 위임을 보여 준다 (이미 위임한 게 있으면 취소할 수 있게 계속 보인다)
   const adminAttending = [...r.participants.map((p) => p.nick), ...r.cheers].some((n) => admins.has(n));

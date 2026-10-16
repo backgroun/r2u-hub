@@ -424,7 +424,7 @@ export async function toggleCame(fd: FormData) {
   const kind = a.kind ?? "after";
   // 확인 모드일 때만 (자동: 대회 2일 전~당일, 운영진이 켜거나 끌 수 있다)
   const manual = await redis.get<string>(K.checkMode(id));
-  if ((kind !== "photo" && kind !== "after") || !attendanceMode({ date: race.date, checkMode: manual === "on" || manual === "off" ? manual : undefined }, kstToday())) return;
+  if ((kind !== "photo" && kind !== "after") || !attendanceMode({ date: race.date, time: race.time, checkMode: manual === "on" || manual === "off" ? manual : undefined })) return;
   const was = await redis.hexists(K.afterCame(afterId), nick);
   if (was) await redis.hdel(K.afterCame(afterId), nick);
   else {

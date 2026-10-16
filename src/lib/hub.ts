@@ -331,12 +331,17 @@ export async function recordFail(nick: string) {
 }
 
 /* ---------- 날짜 ---------- */
-/** 확인 모드인가: 운영진이 켬/끔으로 정했으면 그대로, 아니면(자동) 대회 2일 전부터 당일까지 */
-export function attendanceMode(r: { date: string; checkMode?: "on" | "off" }, today: string) {
+/** 대회 시작 시각(한국 시간). 시각이 없으면 낮 12시로 본다 */
+const raceStartMs = (r: { date: string; time?: string }) =>
+  Date.parse(`${r.date}T${r.time && /^([01]\d|2[0-3]):[0-5]\d$/.test(r.time) ? r.time : "12:00"}:00+09:00`);
+/** 확인 모드는 대회 시작 12시간 뒤에 끝난다 (켜 둔 것도 함께) */
+export const attendanceEnded = (r: { date: string; time?: string }, nowMs = Date.now()) => nowMs >= raceStartMs(r) + 12 * 3600e3;
+/** 확인 모드인가: 대회 시작 12시간 뒤부터는 늘 일반 모드. 그 전에는 운영진이 켬/끔으로 정했으면 그대로, 아니면(자동) 대회 2일 전부터 */
+export function attendanceMode(r: { date: string; time?: string; checkMode?: "on" | "off" }, nowMs = Date.now()) {
+  if (attendanceEnded(r, nowMs)) return false;
   if (r.checkMode === "on") return true;
   if (r.checkMode === "off") return false;
-  const from = new Date(Date.parse(`${r.date}T00:00:00Z`) - 2 * 86400000).toISOString().slice(0, 10);
-  return today >= from && today <= r.date;
+  return nowMs >= Date.parse(`${r.date}T00:00:00+09:00`) - 2 * 86400000;
 }
 export function kstToday() {
   return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);

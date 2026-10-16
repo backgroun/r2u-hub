@@ -440,27 +440,6 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
     <div className="after-wrap">
       {top}
       {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} inMode={inMode} cand={cand} checkers={r.checkers} admins={admins} managers={managers} names={names} levels={levels} />)}
-      {u.admin && r.date >= today && (!adminAttending || r.checkers.length > 0) && (
-        <details className="after-add">
-          <summary>출석 체크 위임{r.checkers.length ? ` (${r.checkers.join(", ")})` : ""}</summary>
-          <div className="grid gap-2 mt-2">
-            <span className="text-xs text-muted">운영진이 못 오면 크루원 한 명에게 당일 단사·뒷풀이 출석 체크를 맡길 수 있어요.</span>
-            <div className="flex items-center gap-2">
-              <ActionForm action={addChecker} className="flex items-center gap-2 min-w-0 flex-1" collapse>
-                <input type="hidden" name="id" value={r.id} />
-                <CheckerSelect />
-                <Submit className="btn btn-primary text-sm shrink-0" >위임하기</Submit>
-              </ActionForm>
-              {r.checkers.length > 0 && (
-                <form action={removeChecker} className="shrink-0">
-                  <input type="hidden" name="id" value={r.id} />
-                  <ConfirmButton className="btn btn-danger text-sm shrink-0" message={`${r.checkers.join(", ")} 님의 출석 체크 위임을 취소할까요?`}>위임취소</ConfirmButton>
-                </form>
-              )}
-            </div>
-          </div>
-        </details>
-      )}
       <div className="after-adds">
         {KINDS.filter((k) => k.kind === "carpool" || !items.some((a) => kindOf(a) === k.kind)).map((k) => (
           <details key={k.kind} className="after-add">
@@ -473,6 +452,27 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
             </ActionForm>
           </details>
         ))}
+        {u.admin && r.date >= today && (!adminAttending || r.checkers.length > 0) && (
+          <details className="after-add">
+            <summary>+ 체크 위임{r.checkers.length ? ` (${r.checkers.join(", ")})` : ""}</summary>
+            <div className="grid gap-2 mt-2">
+              <span className="text-xs text-muted">운영진이 못 오면 크루원 한 명에게 당일 단사·뒷풀이 출석 체크를 맡길 수 있어요.</span>
+              <div className="flex items-center gap-2">
+                <ActionForm action={addChecker} className="flex items-center gap-2 min-w-0 flex-1" collapse>
+                  <input type="hidden" name="id" value={r.id} />
+                  <CheckerSelect />
+                  <Submit className="btn btn-primary text-sm shrink-0" >위임하기</Submit>
+                </ActionForm>
+                {r.checkers.length > 0 && (
+                  <form action={removeChecker} className="shrink-0">
+                    <input type="hidden" name="id" value={r.id} />
+                    <ConfirmButton className="btn btn-danger text-sm shrink-0" message={`${r.checkers.join(", ")} 님의 출석 체크 위임을 취소할까요?`}>위임취소</ConfirmButton>
+                  </form>
+                )}
+              </div>
+            </div>
+          </details>
+        )}
       </div>
     </div>
   );

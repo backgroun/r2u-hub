@@ -479,7 +479,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, checkers, a
           {a.address && <span className="text-xs text-muted">{a.address}</span>}
           {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           {a.memo && <span className="text-sm">{a.memo}</span>}
-          {photoAlive && <a href={`/api/after-photo/${a.id}`} target="_blank" rel="noopener noreferrer"><img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260 }} /></a>}
+          {photoAlive && <img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260, pointerEvents: "none" }} />}
           <span className="text-xs text-muted"><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림</span>
         </div>
         {kind !== "photo" && (

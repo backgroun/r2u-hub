@@ -568,6 +568,15 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
             {a.placeUrl && <a href={a.placeUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--lane)] underline">{a.place || "장소 보기"} 지도 ↗</a>}
             {!a.placeUrl && a.place && <span className="text-sm">{kind === "carpool" ? `${a.place} 출발` : a.place}</span>}
             {a.address && <span className="text-xs text-muted">{a.address}</span>}
+            {kind === "carpool" && (
+              <div className="grid gap-1 mt-1.5">
+                <span className="text-xs text-muted">운전자 · 탑승자 {a.yes.length}/{a.seats ?? 0}</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="came-chip rider driver" title="운전자"><WheelIcon /> {driverOf(a)}</span>
+                  {[...a.yes].filter((n) => n !== driverOf(a)).sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="came-chip rider">{n}</span>)}
+                </div>
+              </div>
+            )}
           </div>
           {kind !== "photo" && (
             <div className="shrink-0 grid justify-items-end gap-1.5">
@@ -579,15 +588,6 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
           {a.memo && <span className="text-sm">{a.memo}</span>}
           {photoAlive && <img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260, pointerEvents: "none" }} />}
         </div>}
-        {kind === "carpool" && (
-          <div className="grid gap-1">
-            <span className="text-xs text-muted">운전자 · 탑승자 {a.yes.length}/{a.seats ?? 0}</span>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="came-chip rider driver" title="운전자"><WheelIcon /> {driverOf(a)}</span>
-              {[...a.yes].filter((n) => n !== driverOf(a)).sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="came-chip rider">{n}</span>)}
-            </div>
-          </div>
-        )}
         {kind === "after" && !inMode && (a.yes.length > 0 || a.no.length > 0) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {!(kind === "after" && inMode) && [...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}

@@ -4,7 +4,7 @@ import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, deleteAfter, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
+import { addAfter, deleteAfter, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
 import ScheduleNoticePanel from "@/components/schedule-notice";
 import { Nick, WheelIcon } from "@/components/crown";
@@ -362,10 +362,13 @@ function AfterFields({ kind, me, a }: { kind: AfterKind; me: string; a?: AfterFu
 
 function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; top?: React.ReactNode }) {
   const items = sortAfters(r.afters);
+  const today = kstToday();
+  const dayBefore = new Date(Date.parse(`${r.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+  const cand = [...new Set([...r.participants.map((p) => p.nick), ...r.cheers])].filter((n) => !isStaffNick(n));
   return (
     <div className="after-wrap">
       {top}
-      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} admins={admins} managers={managers} names={names} levels={levels} />)}
+      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} cand={cand} admins={admins} managers={managers} names={names} levels={levels} />)}
       <div className="after-adds">
         {KINDS.filter((k) => k.kind === "carpool" || !items.some((a) => kindOf(a) === k.kind)).map((k) => (
           <details key={k.kind} className="after-add">
@@ -383,7 +386,7 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   );
 }
 
-function AfterItem({ a, raceId, u, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
+function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; today: string; raceDate: string; dayBefore: string; cand: string[]; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
   const kind = kindOf(a);
   const mine = a.yes.includes(u.nick) ? "yes" : a.no.includes(u.nick) ? "no" : "";
   const tag = KINDS.find((k) => k.kind === kind)!.tag;
@@ -409,10 +412,14 @@ function AfterItem({ a, raceId, u, admins, managers, names, levels }: { a: After
       )}
     </>
   ) : null;
+  // 대회 당일엔 단사·뒷풀이 모두 펼치고, 단사는 사진과 장소가 입력돼 있으면 전날부터 펼친다
+  const isDay = today === raceDate;
+  const openNow = (kind !== "carpool" && isDay) || (kind === "photo" && !!a.photo && !!a.place && today >= dayBefore && today <= raceDate);
+  const camePeople = [...new Set([...cand, ...a.yes])].sort((x, y) => x.localeCompare(y, "ko"));
   // 한 줄: 아이콘 · 시간 · 장소(제목) · 참석 수 / 누르면 참석 버튼·명단·운전자·메모·수정
   const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" ? `${a.yes.length}명` : "";
   return (
-    <details className={`after-item k-${kind}`} open={mine === "yes" || undefined}>
+    <details className={`after-item k-${kind}`} open={mine === "yes" || openNow || undefined}>
       <summary className="after-line">
         <span className="after-ico" aria-hidden>{AFTER_ICON[kind]}</span>
         <b className="after-time num">{a.time || "--:--"}</b>
@@ -435,6 +442,23 @@ function AfterItem({ a, raceId, u, admins, managers, names, levels }: { a: After
             {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
             {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
             {actions}
+          </div>
+        )}
+        {kind === "photo" && isDay && camePeople.length > 0 && (
+          <div className="grid gap-1">
+            <span className="text-xs text-muted">단사 온 사람 {a.yes.length}/{camePeople.length}{u.admin ? " · 이름을 누르면 체크돼요" : ""}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {camePeople.map((n) => {
+                const on = a.yes.includes(n);
+                const label = <>{on ? "✓ " : ""}<Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></>;
+                return u.admin ? (
+                  <form key={n} action={toggleCame}>
+                    <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} /><input type="hidden" name="nick" value={n} />
+                    <button type="submit" className={`came-chip ${on ? "on" : ""}`} aria-pressed={on}>{label}</button>
+                  </form>
+                ) : <span key={n} className={`came-chip ${on ? "on" : ""}`}>{label}</span>;
+              })}
+            </div>
           </div>
         )}
         {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}

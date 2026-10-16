@@ -409,6 +409,20 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   return ok(`${who} · ${course} 크루 참가로 표시했어요. 대회 접수는 주최 측 페이지에서 별도로 확인해 주세요.`);
 }
 
+/** 운영진: 대회 당일 단사에 온 사람을 누를 때마다 체크/해제 (참석 명단 K.rsvp 의 yes 를 쓴다) */
+export async function toggleCame(fd: FormData) {
+  await admin();
+  const id = str(fd, "id"), afterId = str(fd, "after"), nick = str(fd, "nick", 30);
+  const [raceRaw, afterRaw] = await Promise.all([redis.hget(K.races, id), redis.hget(K.after(id), afterId)]);
+  if (!raceRaw || !afterRaw || !nick) return;
+  const race = (typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race;
+  const a = (typeof afterRaw === "string" ? JSON.parse(afterRaw) : afterRaw) as AfterParty;
+  if (a.kind !== "photo" || race.date !== kstToday()) return;
+  if ((await redis.hget(K.rsvp(afterId), nick)) === "yes") await redis.hdel(K.rsvp(afterId), nick);
+  else await redis.hset(K.rsvp(afterId), { [nick]: "yes" });
+  revalidatePath("/races");
+}
+
 /* ---------- 응원 참석 ---------- */
 export async function toggleCheer(fd: FormData) {
   const u = await me();

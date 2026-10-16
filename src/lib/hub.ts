@@ -20,6 +20,7 @@ export const K = {
   cheer: (id: string) => `r2u:race:${id}:cheer`, // hash nick -> 신청 시각
   after: (id: string) => `r2u:race:${id}:after`, // hash afterId -> AfterParty
   afterPhoto: (afterId: string) => `r2u:afterPhoto:${afterId}`, // 단사 사진 1장 {type,data(base64)} · 대회 다음 날 자동 만료
+  afterWhy: (afterId: string) => `r2u:afterWhy:${afterId}`, // 단사 불참 사유 hash nick -> 사유
   rsvp: (afterId: string) => `r2u:after:${afterId}`, // hash nick -> "yes" | "no"
   raceRec: (nick: string) => `r2u:racerec:${nick}`, // hash raceId -> RaceRec (내 대회 기록)
   vs: (ym: string) => `r2u:vs:${ym}`, // hash 내 닉네임 -> 이번 달 대결 상대 닉네임
@@ -65,7 +66,7 @@ export type Race = {
 export type AfterKind = "photo" | "carpool" | "after";
 export type AfterParty = { id: string; kind?: AfterKind; place: string; address?: string; placeUrl?: string; time: string; memo: string; seats?: number; driver?: string; photo?: boolean; by: string; at: number }; // photo: 단사 사진 있음 · by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
 export const driverOf = (a: { driver?: string; by: string }) => a.driver || a.by;
-export type AfterFull = AfterParty & { yes: string[]; no: string[] };
+export type AfterFull = AfterParty & { yes: string[]; no: string[]; why: Record<string, { t: string; at: number }> };
 export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; afters: AfterFull[] };
 export type MonthRec = { goal: number; days: Record<string, number>; goalEdits?: number }; // goalEdits: 크루원이 목표를 바꾼 횟수 (월 2번까지)
 export const GOAL_EDIT_LIMIT = 2;
@@ -174,13 +175,18 @@ export async function getRaces(): Promise<RaceFull[]> {
   flat.forEach((a) => q.hgetall(K.rsvp(a.id)));
   const rsvps = flat.length ? ((await q.exec()) as (Record<string, unknown> | null)[]) : [];
   const byId = new Map(flat.map((a, i) => [a.id, rsvps[i] ?? {}]));
+  const photos = flat.filter((a) => a.kind === "photo");
+  const w = redis.pipeline();
+  photos.forEach((a) => w.hgetall(K.afterWhy(a.id)));
+  const whys = photos.length ? ((await w.exec()) as (Record<string, unknown> | null)[]) : [];
+  const whyById = new Map(photos.map((a, i) => [a.id, Object.fromEntries(Object.entries(whys[i] ?? {}).map(([k, v]) => [k, parse<{ t: string; at: number }>(v)]))]));
   return races.map((r, i) => ({
     ...r,
     participants: Object.entries(res[i * 3] ?? {}).map(([nick, course]) => ({ nick, course: String(course ?? "") })),
     cheers: Object.keys(res[i * 3 + 1] ?? {}),
     afters: afters[i].map((a) => {
       const v = Object.entries(byId.get(a.id) ?? {});
-      return { ...a, yes: v.filter(([, x]) => x === "yes").map(([n]) => n), no: v.filter(([, x]) => x === "no").map(([n]) => n) };
+      return { ...a, yes: v.filter(([, x]) => x === "yes").map(([n]) => n), no: v.filter(([, x]) => x === "no").map(([n]) => n), why: whyById.get(a.id) ?? {} };
     }),
   }));
 }

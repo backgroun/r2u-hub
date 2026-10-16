@@ -386,7 +386,7 @@ export async function deleteRace(fd: FormData) {
     ...afters.flatMap((aid, i) => (rsvps[i] ?? []).flatMap((n) => [setPoints(n, `after:${aid}`, 0, ""), setPoints(n, `ride:${aid}`, 0, "")])),
   ]);
   await redis.hdel(K.races, id);
-  await redis.del(K.raceP(id), K.cheer(id), K.after(id), ...afters.flatMap((a) => [K.rsvp(a), K.afterPhoto(a)]));
+  await redis.del(K.raceP(id), K.cheer(id), K.after(id), ...afters.flatMap((a) => [K.rsvp(a), K.afterPhoto(a), K.afterWhy(a)]));
   revalidatePath("/", "layout");
 }
 
@@ -421,6 +421,40 @@ export async function toggleCame(fd: FormData) {
   if ((await redis.hget(K.rsvp(afterId), nick)) === "yes") await redis.hdel(K.rsvp(afterId), nick);
   else await redis.hset(K.rsvp(afterId), { [nick]: "yes" });
   revalidatePath("/races");
+}
+
+/** 크루원: 단사에 못 오면 본인 이름만 ‘참석 불가’로 눌러 둔다(다시 누르면 취소). 운영진이 이미 온 것으로 체크한 사람은 못 바꾼다 */
+export async function toggleAbsent(fd: FormData) {
+  const u = await me();
+  const id = str(fd, "id"), afterId = str(fd, "after");
+  const [raceRaw, afterRaw, inRace, inCheer] = await Promise.all([redis.hget(K.races, id), redis.hget(K.after(id), afterId), redis.hexists(K.raceP(id), u.nick), redis.hexists(K.cheer(id), u.nick)]);
+  if (!raceRaw || !afterRaw || !(inRace || inCheer)) return;
+  const race = (typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race;
+  const a = (typeof afterRaw === "string" ? JSON.parse(afterRaw) : afterRaw) as AfterParty;
+  if (a.kind !== "photo" || race.date < kstToday()) return;
+  const cur = await redis.hget(K.rsvp(afterId), u.nick);
+  if (cur === "yes") return;
+  if (cur === "no") { await redis.hdel(K.rsvp(afterId), u.nick); await redis.hdel(K.afterWhy(afterId), u.nick); }
+  else {
+    await redis.hset(K.rsvp(afterId), { [u.nick]: "no" });
+    // 못 오는 사람이 생기면 운영진에게 무조건 알린다 (알림을 켠 운영진 기기로, 실패해도 표시는 그대로)
+    try {
+      const admins = new Set((await getMembers()).filter((m) => m.role === "admin").map((m) => m.nick));
+      if (pushReady() && admins.size) await sendPushToNicks(admins, "📷 단사 참석 불가", `${u.nick}님이 단사에 못 와요 · ${race.name}`, `/races#${id}`);
+    } catch { /* 알림 실패는 무시 */ }
+  }
+  revalidatePath("/races");
+}
+
+/** 크루원: 참석 불가로 눌러 둔 본인에 한해 짧은 사유를 적는다 (비우면 지운다) */
+export async function setAbsentReason(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  const afterId = str(fd, "after"), id = str(fd, "id");
+  const why = str(fd, "why", 40);
+  if ((await redis.hget(K.rsvp(afterId), u.nick)) !== "no" || !(await redis.hexists(K.after(id), afterId))) return fail("먼저 참석 불가로 눌러 주세요.");
+  if (why) await redis.hset(K.afterWhy(afterId), { [u.nick]: JSON.stringify({ t: why, at: Date.now() }) }); else await redis.hdel(K.afterWhy(afterId), u.nick);
+  revalidatePath("/races");
+  return ok(why ? "사유를 남겼어요." : "사유를 지웠어요.");
 }
 
 /* ---------- 응원 참석 ---------- */
@@ -594,7 +628,7 @@ export async function deleteAfter(fd: FormData) {
   if (a.by !== u.nick && !u.admin) return;
   const rsvps = (await redis.hgetall<Record<string, string>>(K.rsvp(afterId))) ?? {};
   await redis.hdel(K.after(id), afterId);
-  await redis.del(K.rsvp(afterId), K.afterPhoto(afterId));
+  await redis.del(K.rsvp(afterId), K.afterPhoto(afterId), K.afterWhy(afterId));
   // 글이 지워지면 그 글로 받은 포인트도 되돌린다
   await Promise.all([
     setPoints(a.by, `photo:${afterId}`, 0, ""), setPoints(a.driver || a.by, `drive:${afterId}`, 0, ""),

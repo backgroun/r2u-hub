@@ -4,7 +4,7 @@ import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, deleteAfter, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
+import { addAfter, deleteAfter, setAbsentReason, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
 import ScheduleNoticePanel from "@/components/schedule-notice";
 import { Nick, WheelIcon } from "@/components/crown";
@@ -415,6 +415,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
   // 대회 당일엔 단사·뒷풀이 모두 펼치고, 단사는 사진과 장소가 입력돼 있으면 전날부터 펼친다
   const isDay = today === raceDate;
   const openNow = (kind !== "carpool" && isDay) || (kind === "photo" && !!a.photo && !!a.place && today >= dayBefore && today <= raceDate);
+  const canAbsent = (nick: string) => cand.includes(nick) && raceDate >= today;
   const camePeople = [...new Set([...cand, ...a.yes])].sort((x, y) => x.localeCompare(y, "ko"));
   // 한 줄: 아이콘 · 시간 · 장소(제목) · 참석 수 / 누르면 참석 버튼·명단·운전자·메모·수정
   const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" ? `${a.yes.length}명` : "";
@@ -444,21 +445,39 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
             {actions}
           </div>
         )}
-        {kind === "photo" && isDay && camePeople.length > 0 && (
+        {kind === "photo" && a.photo && !!a.place && camePeople.length > 0 && (
           <div className="grid gap-1">
-            <span className="text-xs text-muted">단사 온 사람 {a.yes.length}/{camePeople.length}{u.admin ? " · 이름을 누르면 체크돼요" : ""}</span>
+            <span className="text-xs text-muted">
+              단사 참석 {a.yes.length}/{camePeople.length}{a.no.length > 0 ? ` · 불가 ${a.no.length}` : ""}
+              {u.admin && isDay ? " · 운영진: 온 사람을 누르면 체크" : canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
+            </span>
             <div className="flex flex-wrap gap-1.5">
               {camePeople.map((n) => {
-                const on = a.yes.includes(n);
-                const label = <>{on ? "✓ " : ""}<Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></>;
-                return u.admin ? (
-                  <form key={n} action={toggleCame}>
-                    <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} /><input type="hidden" name="nick" value={n} />
-                    <button type="submit" className={`came-chip ${on ? "on" : ""}`} aria-pressed={on}>{label}</button>
+                const on = a.yes.includes(n), off = a.no.includes(n) && !on;
+                const label = <>{on ? "✓ " : off ? "✕ " : ""}{n}</>;
+                const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
+                const adminCheck = u.admin && isDay;
+                const mineAbsent = !adminCheck && n === u.nick && !on && raceDate >= today;
+                if (!adminCheck && !mineAbsent) return <span key={n} className={cls}>{label}</span>;
+                return (
+                  <form key={n} action={adminCheck ? toggleCame : toggleAbsent}>
+                    <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} />
+                    {adminCheck && <input type="hidden" name="nick" value={n} />}
+                    <button type="submit" className={cls} aria-pressed={on || off}>{label}</button>
                   </form>
-                ) : <span key={n} className={`came-chip ${on ? "on" : ""}`}>{label}</span>;
+                );
               })}
             </div>
+            {a.no.includes(u.nick) && !a.yes.includes(u.nick) && (
+              <ActionForm action={setAbsentReason} keep className="flex items-center gap-1.5">
+                <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} />
+                <input name="why" className="input" maxLength={40} defaultValue={a.why[u.nick]?.t ?? ""} placeholder="못 오는 이유 (짧게, 선택)" style={{ minHeight: 36, padding: "4px 10px" }} />
+                <Submit className="btn btn-ghost text-xs py-1 px-2 shrink-0">저장</Submit>
+              </ActionForm>
+            )}
+            {a.no.filter((n) => a.why[n]).sort((x, y) => a.why[x].at - a.why[y].at).map((n) => (
+              <div key={n} className="why-comment"><b>{n}</b><span>{a.why[n].t}</span><time className="text-xs text-muted">{new Date(a.why[n].at + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ").replace("-", "/")}</time></div>
+            ))}
           </div>
         )}
         {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}

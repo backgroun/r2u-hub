@@ -30,6 +30,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   const news = await listNews({ limit: 3 }).catch(() => []);
   const pushOn = isStaffAccount(u) ? new Set<string>() : await getPushEnabledNicks().catch(() => new Set<string>());
   const notice = (await getNotices()).find((n) => noticeState(n, today) === "live");
+  // 대회 당일: 그날 대회에 올라온 단사·뒷풀이를 홈 맨 위에 띄운다
+  const todayPlans = races.filter((r) => r.date === today).flatMap((r) =>
+    r.afters.filter((a) => a.kind === "photo" || (a.kind ?? "after") === "after").map((a) => ({ r, a })))
+    .sort((x, y) => (x.a.time || "99:99").localeCompare(y.a.time || "99:99"));
   const upcoming = races.filter((r) => r.date >= today).slice(0, 4);
   // 접수 마감 전인 대회: 접수중 먼저(마감 임박 순), 그다음 접수예정(시작 순)
   const now = kstNow();
@@ -72,6 +76,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
         </div>
       </header>
 
+
+      {todayPlans.length > 0 && (
+        <Link href="/races" className="panel panel-alert p-3.5 grid gap-1.5">
+          <b className="text-sm">🏃 오늘 대회 일정</b>
+          {todayPlans.map(({ r, a }) => (
+            <span key={a.id} className="flex items-center gap-2 text-sm min-w-0">
+              <span aria-hidden>{a.kind === "photo" ? "📷" : "🍻"}</span>
+              <b className="num shrink-0">{a.time || "--:--"}</b>
+              <span className="chip shrink-0">{a.kind === "photo" ? "단사" : "뒷풀이"}</span>
+              <span className="min-w-0 truncate">{a.place || r.name}</span>
+            </span>
+          ))}
+        </Link>
+      )}
 
       {recordDue.map((r) => (
         <Link key={r.id} href={`/me?rec=${r.id}#race-record`} className="panel panel-alert p-3.5 flex items-center gap-3">

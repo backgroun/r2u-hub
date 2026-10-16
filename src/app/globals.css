@@ -1643,4 +1643,6 @@ button.came-chip { cursor: pointer; }
 .cheer-plans { display: grid; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 2px solid rgba(255,138,61,.5); }
 .cheer-plans .cheer-row { background: none; padding: 0; border-radius: 0; }
 .cheer-foot { font-weight: 700; background: linear-gradient(90deg, #ffd166, #ff8a3d); -webkit-background-clip: text; background-clip: text; color: transparent; }
-@media (prefers-reduced-motion: reduce) { .cheer-card, .cheer-card::after, .cheer-live i { animation: none !important; } }
+.cheer-flag { position: absolute; top: 14px; right: 14px; color: #ffb26b; opacity: .9; animation: cheer-float 2.8s ease-in-out infinite; }
+.cheer-flame { display: inline-flex; vertical-align: -2px; color: #ff8a3d; }
+.cheer-foot svg { flex: none; color: #ffd166; -webkit-text-fill-color: initial; }

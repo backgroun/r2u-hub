@@ -18,6 +18,33 @@ import { autoSettleVersus } from "@/lib/versus";
 
 export const dynamic = "force-dynamic";
 
+/** 응원 배너 하단 문구: 들어올 때마다 하나를 무작위로 보여 준다 */
+const CHEER_LINES = [
+  "완주도 응원도 모두 멋져요, 오늘도 즐겁게 달려요!",
+  "한 걸음 한 걸음이 기록이에요. 끝까지 파이팅!",
+  "기록보다 소중한 건 완주의 기쁨이에요.",
+  "오늘의 땀방울이 내일의 자신감이 돼요.",
+  "R2U가 함께 달려요. 다치지 말고 즐겁게!",
+  "결승선에서 만나요. 모두 파이팅!",
+  "페이스는 천천히, 마음은 뜨겁게!",
+  "달리는 분도, 응원하는 분도 오늘의 주인공이에요.",
+  "오늘 흘린 땀은 거짓말하지 않아요.",
+  "출발선에 선 것만으로도 이미 멋져요.",
+  "끝까지 웃으며 들어와요, 우리가 기다릴게요!",
+  "바람은 등 뒤에서, 햇살은 얼굴 위에!",
+];
+
+/** 응원 배너용 단순한 아이콘 (선·면 한 가지 색) */
+const FlagIcon = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 21V4" /><path d="M5 4h12l-2.5 4L17 12H5" /></svg>
+);
+const FlameIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden><path d="M12 2.5c.6 3.2-2.2 4.8-2.2 8a2.7 2.7 0 0 0 5.4 0c0-1.1-.4-1.9-1-2.7 2.1.9 3.8 3 3.8 6A6 6 0 0 1 6 13.8C6 9 11 7.6 12 2.5z" /></svg>
+);
+const SparkIcon = () => (
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden><path d="M12 2l2 6.2L20.5 10 14 12l-2 6.5L10 12 3.5 10 10 8.2z" /></svg>
+);
+
 export default async function Home({ searchParams }: { searchParams: Promise<{ testrecord?: string }> }) {
   const testRecord = !!(await searchParams).testrecord;
   const u = await currentUser();
@@ -78,13 +105,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
 
 
       {todayRaces.length > 0 && (
-        <Link href="/races" className="cheer-card p-4 grid gap-3">
-          <span className="cheer-pom" aria-hidden>🎉</span>
-          <span className="cheer-pom cheer-pom-r" aria-hidden>🎊</span>
+        <Link href="/races" className="cheer-card keep-motion p-4 grid gap-3">
+          <span className="cheer-flag" aria-hidden><FlagIcon /></span>
           <div className="grid gap-1 min-w-0">
             <span className="cheer-live"><i aria-hidden />RACE DAY</span>
-            <b className="cheer-title">오늘은 대회 날! <span className="cheer-grad">R2U 파이팅</span> <span className="cheer-bounce" aria-hidden>🔥</span></b>
-            <span className="text-xs cheer-sub">{todayRaces.map((r) => r.name).join(" · ")} · 다 같이 힘내요 📣</span>
+            <b className="cheer-title">오늘은 대회 날! <span className="cheer-grad">R2U 파이팅</span> <span className="cheer-bounce cheer-flame" aria-hidden><FlameIcon /></span></b>
+            <span className="text-xs cheer-sub">{todayRaces.map((r) => r.name).join(" · ")}</span>
           </div>
           <div className="grid gap-2.5">
             {todayRaces.map((r) => (
@@ -107,7 +133,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
               </div>
             ))}
           </div>
-          <span className="cheer-foot text-xs">✨ 완주도 응원도 모두 멋져요, 오늘도 즐겁게 달려요!</span>
+          <span className="cheer-foot text-xs inline-flex items-center gap-1.5"><SparkIcon />{CHEER_LINES[Math.floor(Math.random() * CHEER_LINES.length)]}</span>
         </Link>
       )}
 

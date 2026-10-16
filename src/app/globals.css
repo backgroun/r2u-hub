@@ -1539,3 +1539,10 @@ button.came-chip { cursor: pointer; }
 .cheer-bounce { display: inline-block; animation: cheer-bounce 1.1s ease-in-out infinite; }
 @keyframes cheer-float { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-5px) rotate(8deg); } }
 @keyframes cheer-bounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+/* 크루원 검색 고르기 */
+.member-picker { position: relative; }
+.pick-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 50; max-height: 240px; overflow: auto; margin: 0; padding: 4px; list-style: none; border-radius: 12px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 10px 28px rgba(0,0,0,.45); }
+.pick-list button { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px; font-size: 14px; }
+.pick-list button:hover, .pick-list button:focus-visible { background: color-mix(in srgb, var(--bib) 16%, transparent); }
+.member-picker + button.btn, .after-add .btn.text-sm { min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
+.btn.btn-danger:not(.btn-ghost) { border: 1px solid var(--bad); color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }

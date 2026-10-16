@@ -437,13 +437,14 @@ export async function addChecker(_: Result, fd: FormData): Promise<Result> {
   const id = str(fd, "id"), nick = str(fd, "nick", 30);
   if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
   if (!nick || isStaffNick(nick) || !(await getMember(nick))) return fail("위임할 크루원을 골라 주세요.");
+  await redis.del(K.checkers(id)); // 위임은 한 번에 한 명 (새로 맡기면 이전 사람은 해제)
   await redis.hset(K.checkers(id), { [nick]: Date.now() });
   revalidatePath("/races");
   return ok(`${nick} 님에게 출석 체크를 맡겼어요.`);
 }
 export async function removeChecker(fd: FormData) {
   await admin();
-  await redis.hdel(K.checkers(str(fd, "id")), str(fd, "nick", 30));
+  await redis.del(K.checkers(str(fd, "id")));
   revalidatePath("/races");
 }
 

@@ -8,6 +8,7 @@ import { addAfter, addChecker, sendScheduleNotices, deleteAfter, removeChecker, 
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
 import { Nick, WheelIcon } from "@/components/crown";
 import { cache } from "react";
+import MemberPicker from "@/components/member-picker";
 import SelfChip from "@/components/self-chip";
 import PhotoPicker from "@/components/photo-picker";
 import RsvpButtons from "@/components/rsvp-buttons";
@@ -334,15 +335,10 @@ const sortAfters = (list: AfterFull[]) => [...list].sort((a, b) => (a.time || "9
 
 const crewNicks = cache(async () => (await getMembers()).filter((m) => !isStaffNick(m.nick)).sort((a, b) => a.nick.localeCompare(b.nick, "ko")));
 
-/** 출석 체크를 맡길 크루원 고르기 */
+/** 출석 체크를 맡길 크루원 찾기 (닉네임·이름·초성 검색) */
 async function CheckerSelect() {
   const nicks = await crewNicks();
-  return (
-    <select name="nick" className="input min-w-0 flex-1" defaultValue="" required aria-label="맡길 크루원">
-      <option value="" disabled>크루원 선택</option>
-      {nicks.map((m) => <option key={m.nick} value={m.nick}>{m.nick}/{m.name?.trim() || "없음"}</option>)}
-    </select>
-  );
+  return <MemberPicker members={nicks.map((m) => ({ nick: m.nick, name: m.name?.trim() || "" }))} />;
 }
 
 /** 카풀 운전자 고르기: 기본은 올리는 나, 다른 크루원도 고를 수 있다 */
@@ -386,26 +382,30 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   const today = kstToday();
   const dayBefore = new Date(Date.parse(`${r.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
   const cand = [...new Set([...r.participants.map((p) => p.nick), ...r.cheers])].filter((n) => !isStaffNick(n));
+  // 운영진이 참가·응원 명단에 한 명도 없을 때만 출석 체크 위임을 보여 준다 (이미 위임한 게 있으면 취소할 수 있게 계속 보인다)
+  const adminAttending = [...r.participants.map((p) => p.nick), ...r.cheers].some((n) => admins.has(n));
   return (
     <div className="after-wrap">
       {top}
       {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} cand={cand} checkers={r.checkers} admins={admins} managers={managers} names={names} levels={levels} />)}
-      {u.admin && r.date >= today && (
+      {u.admin && r.date >= today && (!adminAttending || r.checkers.length > 0) && (
         <details className="after-add">
           <summary>출석 체크 위임{r.checkers.length ? ` (${r.checkers.join(", ")})` : ""}</summary>
           <div className="grid gap-2 mt-2">
             <span className="text-xs text-muted">운영진이 못 오면 크루원 한 명에게 당일 단사·뒷풀이 출석 체크를 맡길 수 있어요.</span>
-            {r.checkers.map((n) => (
-              <form key={n} action={removeChecker} className="flex items-center gap-2 text-sm">
-                <input type="hidden" name="id" value={r.id} /><input type="hidden" name="nick" value={n} />
-                <b>{n}</b><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2" message={`${n} 님의 출석 체크 위임을 취소할까요?`}>위임 취소</ConfirmButton>
-              </form>
-            ))}
-            <ActionForm action={addChecker} className="flex items-center gap-2" collapse>
-              <input type="hidden" name="id" value={r.id} />
-              <CheckerSelect />
-              <Submit className="btn btn-primary shrink-0">위임하기</Submit>
-            </ActionForm>
+            <div className="flex items-center gap-2">
+              <ActionForm action={addChecker} className="flex items-center gap-2 min-w-0 flex-1" collapse>
+                <input type="hidden" name="id" value={r.id} />
+                <CheckerSelect />
+                <Submit className="btn btn-primary text-sm shrink-0" >위임하기</Submit>
+              </ActionForm>
+              {r.checkers.length > 0 && (
+                <form action={removeChecker} className="shrink-0">
+                  <input type="hidden" name="id" value={r.id} />
+                  <ConfirmButton className="btn btn-danger text-sm shrink-0" message={`${r.checkers.join(", ")} 님의 출석 체크 위임을 취소할까요?`}>위임취소</ConfirmButton>
+                </form>
+              )}
+            </div>
           </div>
         </details>
       )}

@@ -20,7 +20,7 @@ export const K = {
   cheer: (id: string) => `r2u:race:${id}:cheer`, // hash nick -> 신청 시각
   after: (id: string) => `r2u:race:${id}:after`, // hash afterId -> AfterParty
   afterPhoto: (afterId: string) => `r2u:afterPhoto:${afterId}`, // 단사 사진 1장 {type,data(base64)} · 대회 다음 날 자동 만료
-  checkMode: (raceId: string) => `r2u:race:${raceId}:checkMode`, // 출석 모드 수동 설정 "on" | "off" (없으면 자동: 대회 2일 전~당일)
+  checkMode: (raceId: string) => `r2u:race:${raceId}:checkMode`, // 확인 모드 수동 설정 "on" | "off" (없으면 자동: 대회 2일 전~당일)
   checkers: (raceId: string) => `r2u:race:${raceId}:checkers`, // 출석 체크를 위임받은 크루원 hash nick -> 위임 시각
   afterCame: (afterId: string) => `r2u:afterCame:${afterId}`, // 당일 운영진이 체크한 출석 hash nick -> 1
   rsvp: (afterId: string) => `r2u:after:${afterId}`, // hash nick -> "yes" | "no"
@@ -323,7 +323,7 @@ export async function recordFail(nick: string) {
 }
 
 /* ---------- 날짜 ---------- */
-/** 출석 모드인가: 운영진이 켬/끔으로 정했으면 그대로, 아니면(자동) 대회 2일 전부터 당일까지 */
+/** 확인 모드인가: 운영진이 켬/끔으로 정했으면 그대로, 아니면(자동) 대회 2일 전부터 당일까지 */
 export function attendanceMode(r: { date: string; checkMode?: "on" | "off" }, today: string) {
   if (r.checkMode === "on") return true;
   if (r.checkMode === "off") return false;

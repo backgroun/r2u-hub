@@ -1542,7 +1542,7 @@ button.came-chip { cursor: pointer; }
 .member-picker + button.btn, .after-add .btn.text-sm { min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
 .btn.btn-danger:not(.btn-ghost) { border: 1px solid var(--bad); color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
 
-/* 출석 모드 */
+/* 확인 모드 */
 .mode-banner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; font-size: 13px; background: color-mix(in srgb, var(--good) 14%, transparent); border: 1px solid color-mix(in srgb, var(--good) 45%, transparent); }
 .mode-tag { color: var(--good); }
 .chk-x { color: var(--bad); font-size: 12px; margin-right: 2px; }
@@ -1553,3 +1553,10 @@ button.came-chip { cursor: pointer; }
 .after-by .after-edit[open] { flex: 1 0 100%; order: 3; }
 .after-by .after-edit > summary { display: inline-flex; justify-content: flex-end; }
 .after-by .after-edit[open] > summary { display: flex; justify-content: flex-end; }
+/* 확인 모드 체크 아이콘 */
+.mode-ico .mc-box { stroke: #c4c8ce; stroke-width: 1.6; stroke-dasharray: 3 2.4; }
+.mode-ico.on .mc-box { stroke: none; stroke-dasharray: none; filter: drop-shadow(0 1px 3px rgba(22,163,74,.55)); }
+.mode-ico .mc-tick { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.mode-check { display: inline-flex; align-items: center; transition: transform .12s; }
+.mode-check:active { transform: scale(.88); }
+.mode-tag { margin-right: 6px; }

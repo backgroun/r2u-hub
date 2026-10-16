@@ -409,7 +409,7 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   return ok(`${who} · ${course} 크루 참가로 표시했어요. 대회 접수는 주최 측 페이지에서 별도로 확인해 주세요.`);
 }
 
-/** 운영진·위임받은 사람: 출석 모드(대회 2일 전~당일)에 단사·뒷풀이에 온 사람을 누를 때마다 출석 체크/해제 */
+/** 운영진·위임받은 사람: 확인 모드(대회 2일 전~당일)에 단사·뒷풀이에 온 사람을 누를 때마다 출석 체크/해제 */
 export async function toggleCame(fd: FormData) {
   const u = await me();
   const id = str(fd, "id"), afterId = str(fd, "after"), nick = str(fd, "nick", 30);
@@ -420,7 +420,7 @@ export async function toggleCame(fd: FormData) {
   const race = (typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race;
   const a = (typeof afterRaw === "string" ? JSON.parse(afterRaw) : afterRaw) as AfterParty;
   const kind = a.kind ?? "after";
-  // 출석 모드일 때만 (자동: 대회 2일 전~당일, 운영진이 켜거나 끌 수 있다)
+  // 확인 모드일 때만 (자동: 대회 2일 전~당일, 운영진이 켜거나 끌 수 있다)
   const manual = await redis.get<string>(K.checkMode(id));
   if ((kind !== "photo" && kind !== "after") || !attendanceMode({ date: race.date, checkMode: manual === "on" || manual === "off" ? manual : undefined }, kstToday())) return;
   const was = await redis.hexists(K.afterCame(afterId), nick);
@@ -433,7 +433,7 @@ export async function toggleCame(fd: FormData) {
   revalidatePath("/races");
 }
 
-/** 운영진: 출석 모드를 자동(대회 2일 전~당일)으로 둘지, 지금 켤지, 끌지 정한다 */
+/** 운영진: 확인 모드를 자동(대회 2일 전~당일)으로 둘지, 지금 켤지, 끌지 정한다 */
 export async function setCheckMode(fd: FormData) {
   await admin();
   const id = str(fd, "id"), mode = str(fd, "mode");

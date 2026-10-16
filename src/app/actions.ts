@@ -437,7 +437,10 @@ export async function toggleAbsent(fd: FormData) {
   const a = (typeof afterRaw === "string" ? JSON.parse(afterRaw) : afterRaw) as AfterParty;
   const kind = a.kind ?? "after";
   if ((kind !== "photo" && kind !== "after") || race.date < kstToday()) return;
-  if (await redis.hexists(K.afterCame(afterId), u.nick)) return; // 운영진이 이미 출석 체크한 사람은 못 바꾼다
+  if (await redis.hexists(K.afterCame(afterId), u.nick)) {
+    if (!u.admin) return; // 운영진이 이미 출석 체크한 크루원은 못 바꾼다 (운영진 본인은 스스로 바꿀 수 있다)
+    await redis.hdel(K.afterCame(afterId), u.nick);
+  }
   const cur = await redis.hget(K.rsvp(afterId), u.nick);
   if (cur === "no") { await redis.hdel(K.rsvp(afterId), u.nick); await redis.hdel(K.afterWhy(afterId), u.nick); }
   else {

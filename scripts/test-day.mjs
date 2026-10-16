@@ -84,7 +84,7 @@ srv.listen(PORT, () => console.log(`[test-day] 가짜 Redis :${PORT}`));
 const hashPw = (pw) => { const salt = randomBytes(16).toString("base64url"); return `${salt}:${scryptSync(pw, salt, 32).toString("base64url")}`; };
 const H = (key, obj) => Object.entries(obj).forEach(([f, v]) => run(["hset", key, f, typeof v === "string" ? v : JSON.stringify(v)]));
 const crew = ["달리기왕", "번개", "꾸준이", "바람돌이", "새벽러너", "한강러너"];
-H("r2u:members", Object.fromEntries([{ nick: "운영진", role: "admin" }, ...crew.map((nick, i) => ({ nick, name: ["김하나", "이둘", "박셋", "최넷", "정다섯", "한여섯"][i], role: "member" }))].map((m) => [m.nick, { ...m, pw: hashPw(PW) }])));
+H("r2u:members", Object.fromEntries([{ nick: "운영진", role: "admin" }, ...crew.map((nick, i) => ({ nick, name: ["김하나", "이둘", "박셋", "최넷", "정다섯", "한여섯"][i], role: nick === "번개" ? "admin" : "member" }))].map((m) => [m.nick, { ...m, pw: hashPw(PW) }])));
 const photo = JSON.stringify({ type: "image/png", data: readFileSync(new URL("../public/apple-touch-icon.png", import.meta.url)).toString("base64") });
 const races = [
   { id: "today1", name: "[테스트] 오늘 열리는 대회", date: kst(0), place: "경주 예술의전당", note: "", time: "08:00" },

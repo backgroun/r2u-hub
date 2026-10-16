@@ -9,6 +9,7 @@ import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/compone
 import ScheduleNoticePanel from "@/components/schedule-notice";
 import { Nick, WheelIcon } from "@/components/crown";
 import { cache } from "react";
+import SelfChip from "@/components/self-chip";
 import PhotoPicker from "@/components/photo-picker";
 import RsvpButtons from "@/components/rsvp-buttons";
 import { viewUrl } from "@/lib/roadrun";
@@ -452,7 +453,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
             <span className="text-xs text-muted">
               {kind === "after" ? "뒷풀이" : "단사"} {a.came.length > 0 || isDay ? "출석" : "참석 예정"} {isDay ? `${a.came.length}/${roster.length}` : roster.length}
               {a.no.length > 0 ? ` · 불참 ${a.no.length}` : ""}
-              {u.admin && isDay ? " · 운영진: 온 사람을 누르면 출석 체크" : canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
+              {u.admin && isDay ? " · 운영진: 온 사람을 누르면 출석 체크 (내 이름은 두 번 누르면 참석 불가)" : canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {roster.map((n) => {
@@ -461,6 +462,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
                 const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
                 const adminCheck = u.admin && isDay;
                 const mineAbsent = !adminCheck && n === u.nick && !on && raceDate >= today;
+                if (adminCheck && n === u.nick) return <SelfChip key={n} raceId={raceId} afterId={a.id} nick={n} className={cls}>{label}</SelfChip>;
                 if (!adminCheck && !mineAbsent) return <span key={n} className={cls}>{label}</span>;
                 return (
                   <form key={n} action={adminCheck ? toggleCame : toggleAbsent}>

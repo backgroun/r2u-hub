@@ -88,6 +88,7 @@ H("r2u:members", Object.fromEntries([{ nick: "운영진", role: "admin" }, ...cr
 const photo = JSON.stringify({ type: "image/png", data: readFileSync(new URL("../public/apple-touch-icon.png", import.meta.url)).toString("base64") });
 const races = [
   { id: "today1", name: "[테스트] 오늘 열리는 대회", date: kst(0), place: "경주 예술의전당", address: "경북 경주시 알천북로 1", note: "풀,하프,10km · gyeongjumarathon.com/home", regUrl: "https://example.com/reg", time: "08:00" },
+  { id: "today2", name: "[테스트] 오늘 두 번째 대회 (단사·뒷풀이 없음)", date: kst(0), place: "울산 문수경기장", note: "", time: "09:30" },
   { id: "tomorrow1", name: "[테스트] 내일 열리는 대회", date: kst(1), place: "울산 태화강", note: "", time: "08:30" },
 ];
 H("r2u:races", Object.fromEntries(races.map((r) => [r.id, r])));

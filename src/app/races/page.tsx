@@ -454,6 +454,8 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, checkers, a
   ) : null;
   // 대회 당일엔 단사·뒷풀이 모두 펼치고, 단사는 사진과 장소가 입력돼 있으면 전날부터 펼친다
   const isDay = today === raceDate;
+  // 사진은 대회 다음 날 밤에 저장소에서 자동 삭제되므로, 그 뒤에는 깨진 그림이 보이지 않게 숨긴다
+  const photoAlive = !!a.photo && today <= new Date(Date.parse(`${raceDate}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const canCheck = u.admin || checkers.includes(u.nick); // 운영진, 또는 운영진이 출석 체크를 맡긴 크루원
   const openNow = (kind !== "carpool" && isDay) || (kind === "photo" && !!a.photo && !!a.place && today >= dayBefore && today <= raceDate);
   const canAbsent = (nick: string) => cand.includes(nick) && raceDate >= today;
@@ -477,7 +479,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, checkers, a
           {a.address && <span className="text-xs text-muted">{a.address}</span>}
           {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           {a.memo && <span className="text-sm">{a.memo}</span>}
-          {a.photo && <a href={`/api/after-photo/${a.id}`} target="_blank" rel="noopener noreferrer"><img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260 }} /></a>}
+          {photoAlive && <a href={`/api/after-photo/${a.id}`} target="_blank" rel="noopener noreferrer"><img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260 }} /></a>}
           <span className="text-xs text-muted"><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림</span>
         </div>
         {kind !== "photo" && (

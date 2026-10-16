@@ -1611,10 +1611,10 @@ button.came-chip { cursor: pointer; }
 .join-pop button[aria-label="닫기"] { color: #5b636b; }
 .join-pop .course-row { gap: 6px; flex-wrap: nowrap; }
 .join-pop .cchip span { padding-left: 11px; padding-right: 11px; white-space: nowrap; }
-/* 확인 모드 대기 칩: 둥근 끝의 가는 점선 (CSS 점선보다 깔끔한 SVG 점선) */
+/* 확인 모드 대기 칩: 얇고 촘촘한 점선 (SVG) */
 .came-chip:not(.on):not(.off):not(.rider) {
   border: 1px solid transparent; color: var(--muted);
   background-color: rgba(255,255,255,.04);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' rx='8' ry='8' fill='none' stroke='%23aeb4bb' stroke-width='2' stroke-dasharray='2.5 4.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' rx='8' ry='8' fill='none' stroke='%23ffffff' stroke-opacity='.45' stroke-width='1.2' stroke-dasharray='2 1.5' stroke-linecap='butt'/%3E%3C/svg%3E");
   background-size: 100% 100%; background-repeat: no-repeat;
 }

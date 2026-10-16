@@ -417,11 +417,11 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
   const isDay = today === raceDate;
   const openNow = (kind !== "carpool" && isDay) || (kind === "photo" && !!a.photo && !!a.place && today >= dayBefore && today <= raceDate);
   const canAbsent = (nick: string) => cand.includes(nick) && raceDate >= today;
-  // 단사·뒷풀이 공통: 대회 참석자(참가·응원) 모두가 기본 명단, 못 오면 본인이 참석 불가, 당일엔 운영진이 출석 체크
-  const showList = (kind === "photo" && !!a.photo && !!a.place) || kind === "after";
-  const roster = [...new Set([...cand, ...a.came])].sort((x, y) => x.localeCompare(y, "ko"));
+  // 단사: 대회 참석자(참가·응원) 모두가 기본 명단, 못 오면 본인이 참석 불가. 뒷풀이: 평소엔 참석 신청자 목록, 당일엔 그 신청자로 출석 체크
+  const showList = (kind === "photo" && !!a.photo && !!a.place) || (kind === "after" && isDay);
+  const roster = [...new Set(kind === "after" ? [...a.yes, ...a.came] : [...cand, ...a.came])].sort((x, y) => x.localeCompare(y, "ko"));
   // 한 줄: 아이콘 · 시간 · 장소(제목) · 참석 수 / 누르면 참석 버튼·명단·운전자·메모·수정
-  const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" ? (isDay ? `출석 ${a.came.length}/${roster.length}` : `${Math.max(roster.length - a.no.length, 0)}명`) : "";
+  const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" ? (isDay ? `출석 ${a.came.length}/${roster.length}` : `${a.yes.length}명`) : "";
   return (
     <details className={`after-item k-${kind}`} open={mine === "yes" || openNow || undefined}>
       <summary className="after-line">
@@ -440,11 +440,11 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
           {a.photo && <a href={`/api/after-photo/${a.id}`} target="_blank" rel="noopener noreferrer"><img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260 }} /></a>}
           <span className="text-xs text-muted"><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림</span>
         </div>
-        {kind === "carpool" && (
+        {kind !== "photo" && (
           <div className="flex flex-wrap items-center gap-1.5">
             <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
-            {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
-            {[...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
+            {!(kind === "after" && isDay) && [...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
+            {!(kind === "after" && isDay) && [...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
             {actions}
           </div>
         )}
@@ -453,7 +453,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
             <span className="text-xs text-muted">
               {kind === "after" ? "뒷풀이" : "단사"} {a.came.length > 0 || isDay ? "출석" : "참석 예정"} {isDay ? `${a.came.length}/${roster.length}` : roster.length}
               {a.no.length > 0 ? ` · 불참 ${a.no.length}` : ""}
-              {u.admin && isDay ? " · 운영진: 온 사람을 누르면 출석 체크 (내 이름은 두 번 누르면 참석 불가)" : canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
+              {u.admin && isDay ? (kind === "photo" ? " · 운영진: 온 사람을 누르면 출석 체크 (내 이름은 두 번 누르면 참석 불가)" : " · 운영진: 온 사람을 누르면 출석 체크") : kind === "photo" && canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {roster.map((n) => {
@@ -461,8 +461,8 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
                 const label = <>{on ? "✓ " : off ? "✕ " : ""}{n}</>;
                 const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
                 const adminCheck = u.admin && isDay;
-                const mineAbsent = !adminCheck && n === u.nick && !on && raceDate >= today;
-                if (adminCheck && n === u.nick) return <SelfChip key={n} raceId={raceId} afterId={a.id} nick={n} className={cls}>{label}</SelfChip>;
+                const mineAbsent = kind === "photo" && !adminCheck && n === u.nick && !on && raceDate >= today;
+                if (adminCheck && kind === "photo" && n === u.nick) return <SelfChip key={n} raceId={raceId} afterId={a.id} nick={n} className={cls}>{label}</SelfChip>;
                 if (!adminCheck && !mineAbsent) return <span key={n} className={cls}>{label}</span>;
                 return (
                   <form key={n} action={adminCheck ? toggleCame : toggleAbsent}>
@@ -485,7 +485,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
         {(kind === "photo" || kind === "after") && a.no.filter((n) => a.why[n]).sort((x, y) => a.why[x].at - a.why[y].at).map((n) => (
           <div key={n} className="why-comment"><b>{n}</b><span>{a.why[n].t}</span><time className="text-xs text-muted">{new Date(a.why[n].at + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ").replace("-", "/")}</time></div>
         ))}
-        {kind !== "carpool" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}
+        {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}
       </div>
     </details>
   );

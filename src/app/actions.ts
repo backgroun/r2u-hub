@@ -421,9 +421,11 @@ export async function toggleCame(fd: FormData) {
   if ((kind !== "photo" && kind !== "after") || race.date !== kstToday()) return;
   const was = await redis.hexists(K.afterCame(afterId), nick);
   if (was) await redis.hdel(K.afterCame(afterId), nick);
-  else { await redis.hset(K.afterCame(afterId), { [nick]: Date.now() }); await redis.hdel(K.rsvp(afterId), nick); await redis.hdel(K.afterWhy(afterId), nick); }
-  // 뒷풀이는 출석 체크가 곧 참석: 체크하면 포인트, 풀면 되돌린다
-  if (kind === "after" && !isStaffNick(nick)) await setPoints(nick, `after:${afterId}`, was ? 0 : (await pts()).after, "뒤풀이 참석");
+  else {
+    await redis.hset(K.afterCame(afterId), { [nick]: Date.now() });
+    // 단사는 출석 체크하면 ‘참석 불가’ 표시를 지운다. 뒷풀이는 참석 신청(포인트)을 그대로 둔다
+    if (kind === "photo") { await redis.hdel(K.rsvp(afterId), nick); await redis.hdel(K.afterWhy(afterId), nick); }
+  }
   revalidatePath("/races");
 }
 

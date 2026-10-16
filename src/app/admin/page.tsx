@@ -2,13 +2,13 @@ import Link from "next/link";
 import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, isManagerUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, removeNotice, decideJoin, bingoInfo, bingoMember, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
+import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, removeNotice, decideJoin, bingoInfo, bingoMember, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { bingoView } from "@/lib/bingo-admin";
 import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
 import { listJoins, pendingJoinCount } from "@/lib/join";
 import { listNickChangeRequests } from "@/lib/nickname";
-import { getNotices, getPushEnabledNicks, noticeState, pushReady, subCount } from "@/lib/notice";
+import { adminAbsentNoticeOn, getNotices, getPushEnabledNicks, noticeState, pushReady, subCount } from "@/lib/notice";
 import MemberSheetSync from "@/components/member-sheet-sync";
 import LogoutButton from "@/components/logout-button";
 import RaceForm from "@/components/race-form";
@@ -608,12 +608,27 @@ function LinkForm({ l }: { l?: HubLink }) {
   );
 }
 
+/** 단사·뒷풀이에 못 온다고 누르면 운영진에게 가는 알림 켜기/끄기 */
+function AbsentNoticeSwitch({ on }: { on: boolean }) {
+  return (
+    <ActionForm action={setAdminAbsentNoticeAction} keep className="panel p-3.5 flex items-center gap-3">
+      <input type="hidden" name="on" value={on ? "0" : "1"} />
+      <span className="grid gap-0.5 min-w-0">
+        <b className="text-sm">🔔 운영진 불참 알림 <span className={`chip ${on ? "chip-open" : ""}`}>{on ? "켜짐" : "꺼짐"}</span></b>
+        <span className="text-xs text-muted">크루원이 단사·뒷풀이에 못 온다고 누르면 알림을 켠 운영진에게 알려요.</span>
+      </span>
+      <Submit className={`btn text-sm shrink-0 ml-auto ${on ? "" : "btn-primary"}`} pendingText="바꾸는 중…">{on ? "끄기" : "켜기"}</Submit>
+    </ActionForm>
+  );
+}
+
 async function Races({ past, edit }: { past: boolean; edit?: string }) {
   const today = kstToday();
   const all = await getRaces();
   const races = past ? all.filter((r) => r.date < today).reverse() : all.filter((r) => r.date >= today);
   return (
     <section className="grid gap-3">
+      <AbsentNoticeSwitch on={await adminAbsentNoticeOn()} />
       <details className="panel p-4">
         <summary className="font-bold">+ 대회 추가</summary>
         <RaceForm />

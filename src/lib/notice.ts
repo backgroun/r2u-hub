@@ -38,6 +38,15 @@ export async function getNoticeImage(id: string): Promise<{ type: string; data: 
   return await redis.get<{ type: string; data: string }>(noticeImageKey(id));
 }
 
+/* ---------- 운영진 알림 켜기/끄기 (단사·뒷풀이에 못 온다고 누르면 운영진에게 가는 알림) ---------- */
+const ADMIN_ABSENT_KEY = "r2u:cfg:adminAbsentNotify"; // "0" 이면 끔, 없으면 켬
+export async function adminAbsentNoticeOn(): Promise<boolean> {
+  try { return String(await redis.get(ADMIN_ABSENT_KEY)) !== "0"; } catch { return true; }
+}
+export async function setAdminAbsentNotice(on: boolean) {
+  if (on) await redis.del(ADMIN_ABSENT_KEY); else await redis.set(ADMIN_ABSENT_KEY, "0");
+}
+
 /* ---------- 웹 푸시 알림 ---------- */
 type Sub = { endpoint: string; keys: { p256dh: string; auth: string } };
 const key = (endpoint: string) => createHash("sha256").update(endpoint).digest("base64url").slice(0, 24);

@@ -9,7 +9,7 @@ import {
 import { syncMembers } from "@/lib/sheet";
 import type { SyncResult } from "@/lib/member-sync-types";
 import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoinId, queueMemberNameForSheet, renameMemberInSheet, saveJoin, updateMemberNameInSheet } from "@/lib/join";
-import { addNotice, deleteNotice, getPushEnabledNicks, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
+import { addNotice, adminAbsentNoticeOn, deleteNotice, getPushEnabledNicks, setAdminAbsentNotice, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
 import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
 import { clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
 import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive } from "@/lib/event-blocks";
@@ -472,7 +472,7 @@ export async function toggleAbsent(fd: FormData) {
     // 못 오는 사람이 생기면 운영진에게 무조건 알린다 (알림을 켠 운영진 기기로, 실패해도 표시는 그대로)
     try {
       const admins = new Set((await getMembers()).filter((m) => m.role === "admin").map((m) => m.nick));
-      if (pushReady() && admins.size) await sendPushToNicks(admins, kind === "after" ? "🍻 뒷풀이 불참" : "📷 단사 참석 불가", `${u.nick}님이 ${kind === "after" ? "뒷풀이" : "단사"}에 못 와요 · ${race.name}`, `/races#${id}`);
+      if (pushReady() && admins.size && (await adminAbsentNoticeOn())) await sendPushToNicks(admins, kind === "after" ? "🍻 뒷풀이 불참" : "📷 단사 참석 불가", `${u.nick}님이 ${kind === "after" ? "뒷풀이" : "단사"}에 못 와요 · ${race.name}`, `/races#${id}`);
     } catch { /* 알림 실패는 무시 */ }
   }
   revalidatePath("/races");
@@ -643,7 +643,7 @@ export async function rsvpAfter(fd: FormData) {
     try {
       const [admins, raceRaw] = [new Set((await getMembers()).filter((m) => m.role === "admin").map((m) => m.nick)), await redis.hget(K.races, str(fd, "id"))];
       const race = raceRaw ? ((typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race) : null;
-      if (pushReady() && admins.size) await sendPushToNicks(admins, "🍻 뒷풀이 불참", `${u.nick}님이 뒷풀이에 못 와요${race ? ` · ${race.name}` : ""}`, `/races#${str(fd, "id")}`);
+      if (pushReady() && admins.size && (await adminAbsentNoticeOn())) await sendPushToNicks(admins, "🍻 뒷풀이 불참", `${u.nick}님이 뒷풀이에 못 와요${race ? ` · ${race.name}` : ""}`, `/races#${str(fd, "id")}`);
     } catch { /* 알림 실패는 무시 */ }
   }
   if (post.kind === "carpool") await setPoints(u.nick, `ride:${afterId}`, v === "yes" ? (await pts()).ride : 0, "카풀 탑승");
@@ -954,6 +954,15 @@ export async function removeEventBlock(fd: FormData) {
   await admin();
   await deleteBlock(str(fd, "id", 20));
   revalidatePath("/", "layout");
+}
+
+/* ---------- 운영진 알림 켜기/끄기 (관리 > 대회) ---------- */
+export async function setAdminAbsentNoticeAction(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const on = fd.get("on") === "1";
+  await setAdminAbsentNotice(on);
+  revalidatePath("/admin");
+  return ok(on ? "단사·뒷풀이 불참 알림을 켰어요." : "단사·뒷풀이 불참 알림을 껐어요.");
 }
 
 /* ---------- 이벤트 노출/비노출 (운영진) ---------- */

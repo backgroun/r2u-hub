@@ -185,7 +185,7 @@ function ModeCheckIcon({ on, size = 22 }: { on: boolean; size?: number }) {
   );
 }
 
-function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; past: boolean; showReg?: boolean }) {
+async function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false }: { r: RaceFull; u: User; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number>; past: boolean; showReg?: boolean }) {
   // 대회까지 남은 날(오늘 = 0, 지났으면 음수), 한국 날짜 기준
   const dd = Math.round((Date.parse(`${r.date}T00:00:00Z`) - Date.parse(`${kstToday()}T00:00:00Z`)) / 86400000);
   const d = fmtRaceDate(r.date);
@@ -230,6 +230,15 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
     { key: "carpool", label: "🚗 카풀", count: r.afters.filter((a) => a.kind === "carpool" && upcoming(a.time)).length },
     { key: "after", label: "🍽️ 뒷풀이", count: r.afters.filter((a) => (a.kind ?? "after") === "after" && upcoming(a.time)).length },
   ].filter((k) => k.count > 0);
+  // 알림 받을 사람(대상)과 그중 알림을 켠 사람: 확인창에 인원을 보여 준다
+  const pushOn = await pushNicks();
+  const noticeInfo = (key: string) => {
+    const targets = new Set<string>(
+      key === "race" ? [...r.participants.map((p) => p.nick), ...r.cheers]
+        : r.afters.filter((a) => kindOf(a) === "carpool" && upcoming(a.time)).flatMap((a) => [...a.yes, driverOf(a)]));
+    const list = [...targets].filter((n) => n && !isStaffNick(n));
+    return { total: list.length, reach: list.filter((n) => pushOn.has(n)).length };
+  };
   return (
     <article id={r.id} className={`panel p-4 grid gap-3 ${dd >= 0 && dd <= 3 ? "race-gold keep-motion" : ""}`} style={past ? { opacity: 0.8 } : undefined}>
       <div className="race-head">
@@ -361,7 +370,7 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
             {noticeKinds.filter((k) => k.key === "race" || k.key === "carpool").map((k) => (
               <ActionForm key={k.key} action={sendScheduleNotices} keep alertError>
                 <input type="hidden" name="id" value={r.id} /><input type="hidden" name="k" value={k.key} />
-                <Submit className="btn text-sm py-1.5 px-3" pendingText="보내는 중…" confirm={`${k.label.replace(/^\S+\s/, "")} 알림을 보낼까요?`}><BellIcon />{k.label.replace(/^\S+\s/, "")} 알림{k.count > 1 ? ` ${k.count}` : ""}</Submit>
+                <Submit className="btn text-sm py-1.5 px-3" pendingText="보내는 중…" confirm={`${k.label.replace(/^\S+\s/, "")} 알림을 보낼까요?\n알림을 켠 ${noticeInfo(k.key).reach}명에게 가요. (대상 ${noticeInfo(k.key).total}명)`}><BellIcon />{k.label.replace(/^\S+\s/, "")} 알림{k.count > 1 ? ` ${k.count}` : ""}</Submit>
               </ActionForm>
             ))}
           </div>

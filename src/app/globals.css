@@ -1599,5 +1599,15 @@ button.came-chip { cursor: pointer; }
 .race-head .chip.dday { display: flex; justify-content: center; align-items: center; text-align: center; width: auto; }
 /* 참가 코스 팝업 */
 .join-pop-back { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.6); }
-.join-pop { width: min(380px, 100%); display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(0,0,0,.55); }
+.join-pop { width: min(340px, 100%); display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: #e9ebee; color: #1b2127; border: 0; box-shadow: 0 20px 50px rgba(0,0,0,.55); }
 .join-pop .course-row { display: flex; flex-wrap: wrap; gap: 8px; }
+/* 팝업은 연한 회색 박스: 안의 칩·입력·버튼도 밝은 배경에 맞춘다 */
+.join-pop .text-muted { color: #5b636b; }
+.join-pop .cchip span { background: #fff; color: #1b2127; border: 1px solid #cfd3d8; box-shadow: none; }
+.join-pop .cchip input:checked + span { background: var(--bib); color: var(--bib-ink); border-color: var(--bib); }
+.join-pop .input { background: #fff; color: #1b2127; border: 1px solid #cfd3d8; }
+.join-pop .input::placeholder { color: #8a929a; }
+.join-pop .btn:not(.btn-primary) { background: #fff; color: #1b2127; border: 1px solid #cfd3d8; box-shadow: none; }
+.join-pop button[aria-label="닫기"] { color: #5b636b; }
+.join-pop .course-row { gap: 6px; flex-wrap: nowrap; }
+.join-pop .cchip span { padding-left: 11px; padding-right: 11px; white-space: nowrap; }

@@ -12,6 +12,7 @@ function Go({ label }: { label: string }) {
 /** 참가해요/코스 변경 버튼: 누르면 코스 선택·입력 팝업이 뜬다. 이전에 고른 코스는 미리 채우지 않고 빈 상태로 시작한다. */
 export default function JoinPopup({ raceId, raceName, courses, joined }: { raceId: string; raceName: string; courses: string[]; joined: boolean }) {
   const [open, setOpen] = useState(false);
+  const [sel, setSel] = useState(""); // 고른 코스 ("" 없음, "__etc" 직접 입력)
   const [state, run] = useActionState(joinRace, null);
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export default function JoinPopup({ raceId, raceName, courses, joined }: { raceI
 
   return (
     <>
-      <button type="button" className="btn btn-primary race-act text-xs justify-center" onClick={() => setOpen(true)}>{joined ? "코스 변경" : "참가해요"}</button>
+      <button type="button" className="btn btn-primary race-act text-xs justify-center" onClick={() => { setSel(""); setOpen(true); }}>{joined ? "코스 변경" : "참가해요"}</button>
       {open && (
         <div className="join-pop-back" role="presentation" onPointerDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
           <form action={run} className="join-pop" role="dialog" aria-modal="true" aria-label="참가 코스 선택" key={String(open)}>
@@ -40,12 +41,17 @@ export default function JoinPopup({ raceId, raceName, courses, joined }: { raceI
             <div className="course-row" role="radiogroup" aria-label="코스 선택">
               {courses.map((c) => (
                 <label key={c} className="cchip">
-                  <input type="radio" name="course" value={c} />
+                  <input type="radio" name="course" value={c} checked={sel === c} onChange={() => setSel(c)} />
                   <span>{c}</span>
                 </label>
               ))}
+              {/* 풀 옆: 누르면 코스를 직접 입력하는 칸이 열린다 */}
+              <label className="cchip">
+                <input type="radio" checked={sel === "__etc"} onChange={() => setSel("__etc")} />
+                <span>직접 입력</span>
+              </label>
             </div>
-            <input name="courseEtc" className="input" placeholder="코스 직접 입력 (예: 3K, 하프)" maxLength={20} aria-label="코스 직접입력" autoComplete="off" />
+            {sel === "__etc" && <input name="courseEtc" className="input" placeholder="예: 3K, 하프" maxLength={20} aria-label="코스 직접입력" autoComplete="off" autoFocus />}
             <div className="flex gap-2">
               <button type="button" className="btn flex-1 justify-center" onClick={() => setOpen(false)}>취소</button>
               <Go label={joined ? "코스 변경" : "참가하기"} />

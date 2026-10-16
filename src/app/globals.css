@@ -152,8 +152,7 @@ details.past[open] .past-caret { transform: rotate(90deg); }
 .logo-mark.lg { width: 64px; }
 .logo-mark.xl { width: 120px; }
 /* viewport-fit=cover 라서 iPhone 상태바·노치 아래로 내용이 들어가지 않게 위쪽 안전 영역만큼 띄운다 */
-.hubnav { position: sticky; top: 0; padding-top: env(safe-area-inset-top, 0px); z-index: 40; background: color-mix(in srgb, var(--paper) 88%, transparent);
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.hubnav { position: sticky; top: 0; padding-top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 40; background: var(--paper); border-bottom: 1px solid var(--line); }
 .hubnav-in { max-width: 720px; margin: 0 auto; padding: 8px 16px; display: flex; align-items: center; gap: 12px; }
 .hubnav-logo { display: flex; flex: none; }
 .hubnav-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
@@ -585,11 +584,11 @@ html:has([data-tone="admin"]) .hubnav-tabs [data-tab="/admin"] { background: var
 
 /* 위쪽 메뉴 (휴대폰·PC 공통). 아이폰 상태바·노치 아래로 들어가지 않게 위쪽 안전 영역만큼 띄운다 */
 .tabbar {
-  position: sticky; top: 0; z-index: 45; padding-top: env(safe-area-inset-top, 0px);
-  background: color-mix(in srgb, var(--card) 82%, transparent); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+  position: sticky; top: 0; z-index: 45; padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+  background: var(--card); /* 반투명·블러면 상태바 쪽이 잘리며 연해 보여서 불투명으로 */
   border-bottom: 2px solid color-mix(in srgb, var(--bib) 55%, var(--line));
 }
-.tabbar-in { max-width: 720px; margin: 0 auto; display: flex; justify-content: space-around; padding: 6px 4px; }
+.tabbar-in { max-width: 720px; margin: 0 auto; display: flex; justify-content: space-around; padding: 8px 4px 8px; }
 .tabbar a { flex: 1; min-width: 0; display: grid; justify-items: center; gap: 2px; padding: 2px 0; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: -0.01em; -webkit-tap-highlight-color: transparent; }
 .tabbar a span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tabbar a:active { opacity: .55; }

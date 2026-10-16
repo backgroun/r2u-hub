@@ -43,9 +43,10 @@ export default function PhotoPicker({ current, removable }: { current?: string; 
       <span className="label">사진 (1장 · 대회 다음 날 자동 삭제)</span>
       <input ref={out} type="file" name="photo" hidden />
       <input ref={pick} type="file" accept="image/*" className="input" onChange={onPick} />
-      {(preview || current) && <img src={preview || current} alt="단체사진 미리보기" className="mt-2 rounded-lg" style={{ maxHeight: 160, maxWidth: "100%" }} />}
+      {preview && <img src={preview} alt="단체사진 미리보기" className="mt-2 rounded-lg" style={{ maxHeight: 160, maxWidth: "100%" }} />}
       {busy && <span className="text-xs text-muted">줄이는 중…</span>}
       {msg && <span className="text-xs text-muted">{msg}</span>}
+      {current && !preview && <span className="text-xs text-muted">올려 둔 사진이 있어요. 새로 고르면 바뀌어요.</span>}
       {removable && current && <label className="text-xs mt-1"><input type="checkbox" name="removePhoto" value="1" /> 사진 지우기</label>}
     </div>
   );

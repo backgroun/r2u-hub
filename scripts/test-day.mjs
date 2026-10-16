@@ -62,12 +62,18 @@ function run([cmd, ...a]) {
 const b64 = (v) => (typeof v === "string" ? Buffer.from(v).toString("base64") : Array.isArray(v) ? v.map(b64) : v);
 const exec = (c, enc) => { try { const r = run(c); return { result: enc ? b64(r) : r }; } catch (e) { return { error: String(e.message) }; } };
 
+const cmdStats = {}; let cmdCount = 0; // 명령 수 측정용 (GET /__count 로 읽고, POST /__reset 으로 0으로)
 const srv = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     const enc = req.headers["upstash-encoding"] === "base64";
     const cmds = JSON.parse(body || "[]");
+    if (!req.url.startsWith("/__")) (req.url.startsWith("/pipeline") || req.url.startsWith("/multi-exec") ? cmds : [cmds]).forEach((c) => { const k = `${String(c[0]).toLowerCase()} ${String(c[1]).replace(/[A-Za-z0-9_-]{6,}/g, "*")}`; cmdStats[k] = (cmdStats[k] ?? 0) + 1; });
+    if (!req.url.startsWith("/__")) cmdCount += req.url.startsWith("/pipeline") || req.url.startsWith("/multi-exec") ? cmds.length : 1;
+    if (req.url === "/__count") { res.end(JSON.stringify({ cmdCount })); return; }
+    if (req.url === "/__stats") { res.end(JSON.stringify(cmdStats)); return; }
+    if (req.url === "/__reset") { cmdCount = 0; for (const k of Object.keys(cmdStats)) delete cmdStats[k]; res.end("{}"); return; }
     const out = req.url.startsWith("/pipeline") || req.url.startsWith("/multi-exec") ? cmds.map((c) => exec(c, enc)) : exec(cmds, enc);
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(out));

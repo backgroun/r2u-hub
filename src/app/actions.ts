@@ -1,11 +1,13 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   K, redis, checkPw, hashPw, currentUser, currentRealUser, isManagerUser, VIEW_COOKIE, startSession, endSession, getMember, saveMember, getMembers, getAllVs, isStaffNick,
-  attendanceMode, getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type RaceRec, OWN_RACE_PREFIX, type SheetKind,
+  attendanceMode, bustRaces, getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type RaceRec, OWN_RACE_PREFIX, type SheetKind,
 } from "@/lib/hub";
+/** 화면을 새로 그리라고 알릴 때 대회 목록 모음(캐시)도 함께 비운다 */
+const revalidatePath = (...a: Parameters<typeof nextRevalidatePath>) => { bustRaces(); nextRevalidatePath(...a); };
 import { syncMembers } from "@/lib/sheet";
 import type { SyncResult } from "@/lib/member-sync-types";
 import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoinId, queueMemberNameForSheet, renameMemberInSheet, saveJoin, updateMemberNameInSheet } from "@/lib/join";

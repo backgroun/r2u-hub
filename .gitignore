@@ -10,3 +10,4 @@ node_modules
 
 # 개인 가민 활동 기록 원본 (올리지 않는다)
 /Activities.csv
+.next-prod

@@ -1,6 +1,7 @@
 import "server-only";
 import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 
 // 공구(gb:)와 같은 Upstash 저장소. 허브 데이터는 r2u: 접두어로 구분한다.
@@ -161,7 +162,14 @@ export async function saveLinks(links: Link[]) {
 }
 
 /* ---------- 대회 ---------- */
-export async function getRaces(): Promise<RaceFull[]> {
+/** 대회 목록(참가·응원·단사·뒷풀이 포함)은 읽을 때 Redis 명령이 수백 개 나가서, 결과를 모아 두고(최대 15분) 글이 바뀔 때만 다시 읽는다 */
+const RACES_TAG = "r2u-races";
+export function bustRaces() {
+  try { revalidateTag(RACES_TAG); } catch { /* 캐시를 비우지 못해도 15분 뒤에는 새로 읽는다 */ }
+}
+export const getRaces = unstable_cache(loadRaces, ["r2u-races-v2"], { tags: [RACES_TAG], revalidate: 900 });
+
+async function loadRaces(): Promise<RaceFull[]> {
   const h = (await redis.hgetall<Record<string, unknown>>(K.races)) ?? {};
   const races = Object.values(h).map((v) => parse<Race>(v));
   races.sort((a, b) => a.date.localeCompare(b.date) || (a.no ?? 1e9) - (b.no ?? 1e9) || a.name.localeCompare(b.name, "ko"));

@@ -633,6 +633,15 @@ export async function rsvpAfter(fd: FormData) {
   revalidatePath("/admin");
 }
 
+/** 뒷풀이: 내 닉네임 뱃지를 누를 때마다 참석 → 불참 → 해제 순으로 바뀐다 (참석 버튼과 같은 규칙) */
+export async function cycleAfterRsvp(fd: FormData) {
+  const u = await me();
+  const cur = await redis.hget(K.rsvp(str(fd, "after")), u.nick);
+  const next = new FormData();
+  next.set("id", str(fd, "id")); next.set("after", str(fd, "after")); next.set("v", cur === "yes" ? "no" : cur === "no" ? "" : "yes");
+  await rsvpAfter(next);
+}
+
 export async function deleteAfter(fd: FormData) {
   const u = await me();
   const id = str(fd, "id"), afterId = str(fd, "after");

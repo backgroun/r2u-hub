@@ -4,7 +4,7 @@ import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, deleteAfter, setAbsentReason, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
+import { addAfter, deleteAfter, cycleAfterRsvp, setAbsentReason, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
 import ScheduleNoticePanel from "@/components/schedule-notice";
 import { Nick, WheelIcon } from "@/components/crown";
@@ -449,7 +449,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
           <div className="grid gap-1">
             <span className="text-xs text-muted">
               {kind === "after" ? "뒷풀이" : "단사"} 참석 {a.yes.length}/{camePeople.length}{a.no.length > 0 ? ` · 불가 ${a.no.length}` : ""}
-              {u.admin && isDay ? " · 운영진: 온 사람을 누르면 체크" : kind === "after" ? (canAbsent(u.nick) ? " · 못 오면 위 참석 버튼을 한 번 더 눌러 불참" : "") : canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
+              {u.admin && isDay ? " · 운영진: 온 사람을 누르면 체크" : kind === "after" ? (canAbsent(u.nick) ? " · 내 닉네임을 누르면 참석 → 불참 → 해제" : "") : canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {camePeople.map((n) => {
@@ -458,6 +458,13 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
                 const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
                 const adminCheck = u.admin && isDay;
                 const mineAbsent = kind === "photo" && !adminCheck && n === u.nick && !on && raceDate >= today;
+                const mineAfter = kind === "after" && !adminCheck && n === u.nick && raceDate >= today;
+                if (mineAfter) return (
+                  <form key={n} action={cycleAfterRsvp}>
+                    <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} />
+                    <button type="submit" className={cls} aria-pressed={on || off}>{label}</button>
+                  </form>
+                );
                 if (!adminCheck && !mineAbsent) return <span key={n} className={cls}>{label}</span>;
                 return (
                   <form key={n} action={adminCheck ? toggleCame : toggleAbsent}>

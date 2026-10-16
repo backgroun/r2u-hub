@@ -552,17 +552,19 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
         <b className="after-time num">{a.time || "--:--"}</b>
         {count && <span className={`chip ${mine === "yes" ? "chip-open" : ""} ml-auto shrink-0 count-chip`}>{mine === "yes" ? "✓ " : ""}{count}</span>}
       </summary>
-      {/* 알림 버튼: 박스 안쪽 맨 위, 단사·뒷풀이 뱃지와 같은 높이(오른쪽) */}
-      {canNotify && (
+      {/* 맨 위 오른쪽: 알림·참석 버튼을 뱃지와 같은 윗선(top)에 맞춰 나란히 */}
+      {(canNotify || kind !== "photo") && (
         <div className="notify-abs">
-          <ActionForm action={sendItemNotice} keep alertError>
-            <input type="hidden" name="id" value={raceId} /><input type="hidden" name="item" value={a.id} />
-            <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?\n알림을 켠 ${noticeReach}명에게 가요. (대상 ${noticeTargets.length}명)`}><BellIcon />알림</Submit>
-          </ActionForm>
+          {canNotify && (
+            <ActionForm action={sendItemNotice} keep alertError>
+              <input type="hidden" name="id" value={raceId} /><input type="hidden" name="item" value={a.id} />
+              <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?\n알림을 켠 ${noticeReach}명에게 가요. (대상 ${noticeTargets.length}명)`}><BellIcon />알림</Submit>
+            </ActionForm>
+          )}
+          {kind !== "photo" && <div className="rsvp-fixed"><RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} /></div>}
         </div>
       )}
       <div className="grid gap-2 pt-2">
-        {/* 위치 정보(왼쪽)와 참석 버튼(오른쪽)을 같은 줄 맨 위에 맞춘다 */}
         <div className="flex items-start justify-between gap-2">
           <div className="grid gap-0.5 min-w-0">
             {a.placeUrl && <a href={a.placeUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--lane)] underline">{a.place || "장소 보기"} 지도 ↗</a>}
@@ -578,11 +580,6 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
               </div>
             )}
           </div>
-          {kind !== "photo" && (
-            <div className="shrink-0 grid justify-items-end gap-1.5">
-              <div className="rsvp-fixed"><RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} /></div>
-            </div>
-          )}
         </div>
         {(a.memo || photoAlive) && <div className="grid gap-0.5 min-w-0">
           {a.memo && <span className="text-sm">{a.memo}</span>}

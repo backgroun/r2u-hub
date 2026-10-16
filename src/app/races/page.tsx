@@ -456,7 +456,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
             </span>
             <div className="flex flex-wrap gap-1.5">
               {roster.map((n) => {
-                const on = a.came.includes(n), off = kind === "photo" && a.no.includes(n) && !on;
+                const on = a.came.includes(n), off = a.no.includes(n) && !on;
                 const label = <>{on ? "✓ " : off ? "✕ " : ""}{n}</>;
                 const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
                 const adminCheck = u.admin && isDay;

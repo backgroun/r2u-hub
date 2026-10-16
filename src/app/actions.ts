@@ -417,9 +417,13 @@ export async function toggleCame(fd: FormData) {
   if (!raceRaw || !afterRaw || !nick) return;
   const race = (typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race;
   const a = (typeof afterRaw === "string" ? JSON.parse(afterRaw) : afterRaw) as AfterParty;
-  if (a.kind !== "photo" || race.date !== kstToday()) return;
-  if ((await redis.hget(K.rsvp(afterId), nick)) === "yes") await redis.hdel(K.rsvp(afterId), nick);
-  else await redis.hset(K.rsvp(afterId), { [nick]: "yes" });
+  const kind = a.kind ?? "after";
+  if ((kind !== "photo" && kind !== "after") || race.date !== kstToday()) return;
+  const was = (await redis.hget(K.rsvp(afterId), nick)) === "yes";
+  if (was) await redis.hdel(K.rsvp(afterId), nick);
+  else { await redis.hset(K.rsvp(afterId), { [nick]: "yes" }); await redis.hdel(K.afterWhy(afterId), nick); }
+  // 뒷풀이는 참석 = 포인트. 신청 버튼과 같은 규칙으로 맞춘다
+  if (kind === "after") await setPoints(nick, `after:${afterId}`, was ? 0 : (await pts()).after, "뒤풀이 참석");
   revalidatePath("/races");
 }
 

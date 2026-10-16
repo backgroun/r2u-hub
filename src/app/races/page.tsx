@@ -449,14 +449,14 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
           <div className="grid gap-1">
             <span className="text-xs text-muted">
               {kind === "after" ? "뒷풀이" : "단사"} 참석 {a.yes.length}/{camePeople.length}{a.no.length > 0 ? ` · 불가 ${a.no.length}` : ""}
-              {kind === "after" ? (canAbsent(u.nick) ? " · 못 오면 위 참석 버튼을 한 번 더 눌러 불참" : "") : u.admin && isDay ? " · 운영진: 온 사람을 누르면 체크" : canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
+              {u.admin && isDay ? " · 운영진: 온 사람을 누르면 체크" : kind === "after" ? (canAbsent(u.nick) ? " · 못 오면 위 참석 버튼을 한 번 더 눌러 불참" : "") : canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {camePeople.map((n) => {
                 const on = a.yes.includes(n), off = a.no.includes(n) && !on;
                 const label = <>{on ? "✓ " : off ? "✕ " : ""}{n}</>;
                 const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
-                const adminCheck = kind === "photo" && u.admin && isDay;
+                const adminCheck = u.admin && isDay;
                 const mineAbsent = kind === "photo" && !adminCheck && n === u.nick && !on && raceDate >= today;
                 if (!adminCheck && !mineAbsent) return <span key={n} className={cls}>{label}</span>;
                 return (

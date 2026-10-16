@@ -62,7 +62,7 @@ function run([cmd, ...a]) {
 const b64 = (v) => (typeof v === "string" ? Buffer.from(v).toString("base64") : Array.isArray(v) ? v.map(b64) : v);
 const exec = (c, enc) => { try { const r = run(c); return { result: enc ? b64(r) : r }; } catch (e) { return { error: String(e.message) }; } };
 
-http.createServer((req, res) => {
+const srv = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
@@ -72,7 +72,13 @@ http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(out));
   });
-}).listen(PORT, () => console.log(`[test-day] 가짜 Redis :${PORT}`));
+});
+srv.on("error", (e) => {
+  if (e.code !== "EADDRINUSE") throw e;
+  console.error(`[test-day] 이미 실행 중이에요 (포트 ${PORT}). http://localhost:${WEB}/login 으로 들어가거나, 끄려면: pkill -f test-day.mjs; pkill -f "next dev -p ${WEB}"`);
+  process.exit(1);
+});
+srv.listen(PORT, () => console.log(`[test-day] 가짜 Redis :${PORT}`));
 
 /* ---------- 시드 ---------- */
 const hashPw = (pw) => { const salt = randomBytes(16).toString("base64url"); return `${salt}:${scryptSync(pw, salt, 32).toString("base64url")}`; };

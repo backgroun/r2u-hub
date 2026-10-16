@@ -1521,7 +1521,7 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .came-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--line); background: transparent; color: var(--muted); }
 button.came-chip { cursor: pointer; }
 .came-chip.on { border: 1px solid var(--good); background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--ink); font-weight: 700; }
-.came-chip.off { border: 1px solid var(--bad); color: var(--bad); text-decoration: line-through; background: color-mix(in srgb, var(--bad) 10%, transparent); }
+.came-chip.off { border: 1px solid var(--bad); color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
 /* 단사 불참 사유: 댓글처럼 */
 .why-comment { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 13px; padding: 6px 10px; border-radius: 10px; background: var(--fill, rgba(255,255,255,.06)); }
 .why-comment b { color: var(--bad); }

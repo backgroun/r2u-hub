@@ -854,7 +854,7 @@ html[data-theme="dark"]:has([data-tone="groupbuy"]) { --bib: #d9875a; --lane: #d
 /* 홈 화면 앱(주소창 없음)에서만 뜨는 이동 버튼: 뒤로 · 새로고침 · 앞으로 */
 .app-bar {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(4px + env(safe-area-inset-bottom, 0px) * 0.5); /* 홈 인디케이터 바로 위까지 살짝 내림 */
   display: flex; gap: 2px; padding: 3px; border-radius: 999px;
   background: color-mix(in srgb, var(--card) 88%, transparent); border: 1px solid var(--line);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 6px 20px -8px rgba(0,0,0,.5);

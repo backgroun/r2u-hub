@@ -1581,3 +1581,7 @@ button.came-chip { cursor: pointer; }
 .bell-ico { margin-right: 2px; }
 /* 단사·뒷풀이·카풀 박스 사이 여백 */
 .after-block + .after-block { margin-top: 14px; }
+/* 카풀 정리: 펼치면 접힌 줄의 석 수는 숨기고(탑승 버튼에 이미 있음), 탑승자는 닉네임 칩으로 */
+.after-item[open] > .after-line .count-chip { display: none; }
+.after-item[open] > .after-line.has-notify { padding-right: 0; }
+.came-chip.rider { border-style: solid; border-color: var(--line); color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }

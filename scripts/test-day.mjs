@@ -100,11 +100,13 @@ H("r2u:race:today1:after", {
 });
 H("r2u:race:tomorrow1:after", {
   photo002: { id: "photo002", kind: "photo", place: "출발선 왼쪽 R2U 깃발", time: "07:50", memo: "", photo: true, by: "번개", at },
+  carpool002: { id: "carpool002", kind: "carpool", place: "조달림집", time: "05:10", memo: "", seats: 5, by: "달리기왕", at: at + 2 },
   after002: { id: "after002", kind: "after", place: "삼산 고깃집", time: "12:00", memo: "", by: "달리기왕", at: at + 1 },
 });
 run(["hset", "r2u:race:today1:checkers", "새벽러너", String(Date.now())]); // 출석 체크 위임받은 크루원
 run(["set", "r2u:afterPhoto:photo001", photo]); run(["set", "r2u:afterPhoto:photo002", photo]);
 run(["hset", "r2u:afterCame:photo001", "달리기왕", "1"]); // 단사 출석: 달리기왕은 이미 체크
+run(["hset", "r2u:after:carpool002", "꾸준이", "yes"]); run(["hset", "r2u:after:carpool002", "번개", "yes"]);
 run(["hset", "r2u:after:after001", "번개", "yes"]); run(["hset", "r2u:after:after001", "바람돌이", "yes"]); run(["hset", "r2u:after:after001", "꾸준이", "yes"]); // 뒷풀이 참석 신청자
 console.log(`[test-day] 시드 완료 · 오늘=${kst(0)} 대회(단사·뒷풀이·카풀), 내일=${kst(1)} 대회(단사 사진+장소)`);
 

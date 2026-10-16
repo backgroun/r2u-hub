@@ -550,7 +550,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
         {/* 단사·뒷풀이·카풀 공통: 뱃지 / 시간 (장소는 펼친 안쪽에) */}
         <span className={`chip k-tag`}>{tag}</span>
         <b className="after-time num">{a.time || "--:--"}</b>
-        {count && <span className={`chip ${mine === "yes" ? "chip-open" : ""} ml-auto shrink-0`}>{mine === "yes" ? "✓ " : ""}{count}</span>}
+        {count && <span className={`chip ${mine === "yes" ? "chip-open" : ""} ml-auto shrink-0 count-chip`}>{mine === "yes" ? "✓ " : ""}{count}</span>}
       </summary>
       {/* 알림 버튼: 박스 안쪽 맨 위, 단사·뒷풀이 뱃지와 같은 높이(오른쪽) */}
       {canNotify && (
@@ -580,7 +580,15 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
           {a.memo && <span className="text-sm">{a.memo}</span>}
           {photoAlive && <img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260, pointerEvents: "none" }} />}
         </div>}
-        {kind !== "photo" && !(kind === "after" && inMode) && (a.yes.length > 0 || a.no.length > 0) && (
+        {kind === "carpool" && a.yes.length > 0 && (
+          <div className="grid gap-1">
+            <span className="text-xs text-muted">탑승자 {a.yes.length}/{a.seats ?? 0}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {[...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="came-chip rider">{n}</span>)}
+            </div>
+          </div>
+        )}
+        {kind === "after" && !inMode && (a.yes.length > 0 || a.no.length > 0) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {!(kind === "after" && inMode) && [...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
             {!(kind === "after" && inMode) && [...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}

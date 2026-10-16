@@ -364,10 +364,10 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
       </div>}
 
       <AfterParties r={r} u={u} admins={admins} managers={managers} names={names} levels={levels}
-        top={(u.admin || raceAttendee || r.checkers.includes(u.nick)) && noticeKinds.some((k) => k.key === "race" || k.key === "carpool") ? (
+        top={(u.admin || raceAttendee || r.checkers.includes(u.nick)) && noticeKinds.some((k) => k.key === "race") ? (
           // 알림은 종류별로 따로 보낸다 (단사·뒷풀이·카풀·대회 각각 버튼)
           <div className="flex flex-wrap justify-end gap-1.5">
-            {noticeKinds.filter((k) => k.key === "race" || k.key === "carpool").map((k) => (
+            {noticeKinds.filter((k) => k.key === "race").map((k) => (
               <ActionForm key={k.key} action={sendScheduleNotices} keep alertError>
                 <input type="hidden" name="id" value={r.id} /><input type="hidden" name="k" value={k.key} />
                 <Submit className="btn text-sm py-1.5 px-3" pendingText="보내는 중…" confirm={`${k.label.replace(/^\S+\s/, "")} 알림을 보낼까요?\n알림을 켠 ${noticeInfo(k.key).reach}명에게 가요. (대상 ${noticeInfo(k.key).total}명)`}><BellIcon />{k.label.replace(/^\S+\s/, "")} 알림{k.count > 1 ? ` ${k.count}` : ""}</Submit>
@@ -505,7 +505,6 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
   const mine = a.yes.includes(u.nick) ? "yes" : a.no.includes(u.nick) ? "no" : "";
   const tag = KINDS.find((k) => k.kind === kind)!.tag;
   const full = kind === "carpool" && (a.seats ?? 0) > 0 && a.yes.length >= (a.seats ?? 0);
-  const title = kind === "carpool" ? `${a.place || "출발지 미정"} 출발` : a.place || a.time || tag;
   const canEdit = u.admin || a.by === u.nick || driverOf(a) === u.nick;
   const actions = canEdit ? (
     <>
@@ -532,10 +531,10 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
   const photoAlive = !!a.photo && today <= new Date(Date.parse(`${raceDate}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const canCheck = u.admin || checkers.includes(u.nick); // 운영진, 또는 운영진이 출석 체크를 맡긴 크루원
   // 이 일정에 알림 보내기: 운영진·위임받은 사람·대회 참석자, 아직 안 지난 시간이 있을 때
-  // 알림 받을 사람: 단사는 대회 참석자 중 아직 출석 체크 안 된 사람, 뒷풀이는 참석 신청자
-  const noticeTargets = kind === "photo" ? cand.filter((n) => !a.came.includes(n)) : a.yes.filter((n) => !isStaffNick(n));
+  // 알림 받을 사람: 단사는 대회 참석자 중 아직 출석 체크 안 된 사람, 뒷풀이는 참석 신청자, 카풀은 운전자와 탑승 신청자
+  const noticeTargets = kind === "photo" ? cand.filter((n) => !a.came.includes(n)) : kind === "carpool" ? [...new Set([...a.yes, driverOf(a)])].filter((n) => !isStaffNick(n)) : a.yes.filter((n) => !isStaffNick(n));
   const noticeReach = noticeTargets.filter((n) => pushOn.has(n)).length;
-  const canNotify = (kind === "photo" || kind === "after") && (canCheck || cand.includes(u.nick)) && /^([01]\d|2[0-3]):[0-5]\d$/.test(a.time ?? "") && Date.parse(`${raceDate}T${a.time}:00+09:00`) > Date.now();
+  const canNotify = (kind === "photo" || kind === "after" || kind === "carpool") && (canCheck || (kind === "carpool" ? a.yes.includes(u.nick) || driverOf(a) === u.nick : cand.includes(u.nick))) && /^([01]\d|2[0-3]):[0-5]\d$/.test(a.time ?? "") && Date.parse(`${raceDate}T${a.time}:00+09:00`) > Date.now();
   // 확인 모드가 켜지면 단사·뒷풀이를 펼치고, 아니면 접어 둔다
   const openNow = (kind === "photo" || kind === "after") && inMode;
   const canAbsent = (nick: string) => cand.includes(nick) && raceDate >= today;
@@ -548,20 +547,9 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
     <div className="grid gap-1 after-block">
     <details className={`after-item k-${kind}`} open={openNow || undefined}>
       <summary className={`after-line ${canNotify ? "has-notify" : ""}`}>
-        {kind === "carpool" ? (
-          <>
-            <span className="after-ico" aria-hidden>{AFTER_ICON[kind]}</span>
-            <b className="after-time num">{a.time || "--:--"}</b>
-            <span className={`chip k-tag`}>{tag}</span>
-            <span className="min-w-0 truncate">{title !== a.time ? title : ""}</span>
-          </>
-        ) : (
-          // 단사·뒷풀이: 뱃지 / 시간 (아이콘·장소는 빼고, 장소는 펼친 안쪽에 있다)
-          <>
-            <span className={`chip k-tag`}>{tag}</span>
-            <b className="after-time num">{a.time || "--:--"}</b>
-          </>
-        )}
+        {/* 단사·뒷풀이·카풀 공통: 뱃지 / 시간 (장소는 펼친 안쪽에) */}
+        <span className={`chip k-tag`}>{tag}</span>
+        <b className="after-time num">{a.time || "--:--"}</b>
         {count && <span className={`chip ${mine === "yes" ? "chip-open" : ""} ml-auto shrink-0`}>{mine === "yes" ? "✓ " : ""}{count}</span>}
       </summary>
       {/* 알림 버튼: 박스 안쪽 맨 위, 단사·뒷풀이 뱃지와 같은 높이(오른쪽) */}
@@ -578,6 +566,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
         <div className="flex items-start justify-between gap-2">
           <div className="grid gap-0.5 min-w-0">
             {a.placeUrl && <a href={a.placeUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--lane)] underline">{a.place || "장소 보기"} 지도 ↗</a>}
+            {!a.placeUrl && a.place && <span className="text-sm">{kind === "carpool" ? `${a.place} 출발` : a.place}</span>}
             {a.address && <span className="text-xs text-muted">{a.address}</span>}
             {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           </div>

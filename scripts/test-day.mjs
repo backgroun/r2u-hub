@@ -103,8 +103,8 @@ H("r2u:race:tomorrow1:after", {
   after002: { id: "after002", kind: "after", place: "삼산 고깃집", time: "12:00", memo: "", by: "달리기왕", at: at + 1 },
 });
 run(["set", "r2u:afterPhoto:photo001", photo]); run(["set", "r2u:afterPhoto:photo002", photo]);
-run(["hset", "r2u:after:photo001", "달리기왕", "yes"]); // 단사 출석: 달리기왕은 이미 체크
-run(["hset", "r2u:after:after001", "번개", "yes"]);
+run(["hset", "r2u:afterCame:photo001", "달리기왕", "1"]); // 단사 출석: 달리기왕은 이미 체크
+run(["hset", "r2u:after:after001", "번개", "yes"]); run(["hset", "r2u:after:after001", "바람돌이", "yes"]); // 뒷풀이 참석 신청자
 console.log(`[test-day] 시드 완료 · 오늘=${kst(0)} 대회(단사·뒷풀이·카풀), 내일=${kst(1)} 대회(단사 사진+장소)`);
 
 /* ---------- next dev ---------- */

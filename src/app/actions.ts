@@ -386,7 +386,7 @@ export async function deleteRace(fd: FormData) {
     ...afters.flatMap((aid, i) => (rsvps[i] ?? []).flatMap((n) => [setPoints(n, `after:${aid}`, 0, ""), setPoints(n, `ride:${aid}`, 0, "")])),
   ]);
   await redis.hdel(K.races, id);
-  await redis.del(K.raceP(id), K.cheer(id), K.after(id), ...afters.flatMap((a) => [K.rsvp(a), K.afterPhoto(a), K.afterWhy(a)]));
+  await redis.del(K.raceP(id), K.cheer(id), K.after(id), ...afters.flatMap((a) => [K.rsvp(a), K.afterPhoto(a), K.afterWhy(a), K.afterCame(a)]));
   revalidatePath("/", "layout");
 }
 
@@ -409,7 +409,7 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   return ok(`${who} · ${course} 크루 참가로 표시했어요. 대회 접수는 주최 측 페이지에서 별도로 확인해 주세요.`);
 }
 
-/** 운영진: 대회 당일 단사에 온 사람을 누를 때마다 체크/해제 (참석 명단 K.rsvp 의 yes 를 쓴다) */
+/** 운영진: 대회 당일 단사·뒷풀이에 온 사람을 누를 때마다 출석 체크/해제 */
 export async function toggleCame(fd: FormData) {
   await admin();
   const id = str(fd, "id"), afterId = str(fd, "after"), nick = str(fd, "nick", 30);
@@ -419,11 +419,8 @@ export async function toggleCame(fd: FormData) {
   const a = (typeof afterRaw === "string" ? JSON.parse(afterRaw) : afterRaw) as AfterParty;
   const kind = a.kind ?? "after";
   if ((kind !== "photo" && kind !== "after") || race.date !== kstToday()) return;
-  const was = (await redis.hget(K.rsvp(afterId), nick)) === "yes";
-  if (was) await redis.hdel(K.rsvp(afterId), nick);
-  else { await redis.hset(K.rsvp(afterId), { [nick]: "yes" }); await redis.hdel(K.afterWhy(afterId), nick); }
-  // 뒷풀이는 참석 = 포인트. 신청 버튼과 같은 규칙으로 맞춘다
-  if (kind === "after") await setPoints(nick, `after:${afterId}`, was ? 0 : (await pts()).after, "뒤풀이 참석");
+  if (await redis.hexists(K.afterCame(afterId), nick)) await redis.hdel(K.afterCame(afterId), nick);
+  else await redis.hset(K.afterCame(afterId), { [nick]: Date.now() });
   revalidatePath("/races");
 }
 
@@ -633,15 +630,6 @@ export async function rsvpAfter(fd: FormData) {
   revalidatePath("/admin");
 }
 
-/** 뒷풀이: 내 닉네임 뱃지를 누를 때마다 참석 → 불참 → 해제 순으로 바뀐다 (참석 버튼과 같은 규칙) */
-export async function cycleAfterRsvp(fd: FormData) {
-  const u = await me();
-  const cur = await redis.hget(K.rsvp(str(fd, "after")), u.nick);
-  const next = new FormData();
-  next.set("id", str(fd, "id")); next.set("after", str(fd, "after")); next.set("v", cur === "yes" ? "no" : cur === "no" ? "" : "yes");
-  await rsvpAfter(next);
-}
-
 export async function deleteAfter(fd: FormData) {
   const u = await me();
   const id = str(fd, "id"), afterId = str(fd, "after");
@@ -651,7 +639,7 @@ export async function deleteAfter(fd: FormData) {
   if (a.by !== u.nick && !u.admin) return;
   const rsvps = (await redis.hgetall<Record<string, string>>(K.rsvp(afterId))) ?? {};
   await redis.hdel(K.after(id), afterId);
-  await redis.del(K.rsvp(afterId), K.afterPhoto(afterId), K.afterWhy(afterId));
+  await redis.del(K.rsvp(afterId), K.afterPhoto(afterId), K.afterWhy(afterId), K.afterCame(afterId));
   // 글이 지워지면 그 글로 받은 포인트도 되돌린다
   await Promise.all([
     setPoints(a.by, `photo:${afterId}`, 0, ""), setPoints(a.driver || a.by, `drive:${afterId}`, 0, ""),

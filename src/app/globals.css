@@ -1517,14 +1517,10 @@ h1 .tier-dot { width: 12px; height: 12px; margin-left: 2px; }
 .collection-cell.is-got:active { transform: scale(.94); }
 
 /* 단사 당일 출석 체크: 누르면 뱃지가 채워진다 */
-.came-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid #c4c8ce; background: transparent; color: var(--muted); } /* 참석 예정: 연회색 테두리 */
+.came-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px dashed #c4c8ce; background: transparent; color: var(--muted); } /* 참석 예정: 연회색 점선 테두리 */
 button.came-chip { cursor: pointer; }
 .came-chip.on { border: 1px solid var(--good); background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--ink); font-weight: 700; }
 .came-chip.off { border: 1px solid var(--bad); color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
-/* 단사 불참 사유: 댓글처럼 */
-.why-comment { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 13px; padding: 6px 10px; border-radius: 10px; background: var(--fill, rgba(255,255,255,.06)); }
-.why-comment b { color: var(--bad); }
-.why-comment time { margin-left: auto; }
 
 /* 홈: 대회 당일 응원 카드 */
 .cheer-card { position: relative; overflow: hidden; border-radius: 18px; border: 1.5px solid var(--bib); background: linear-gradient(135deg, color-mix(in srgb, var(--bib) 26%, var(--card)), color-mix(in srgb, var(--bib) 8%, var(--card)) 60%, color-mix(in srgb, #ffd54a 14%, var(--card))); box-shadow: 0 0 0 1px color-mix(in srgb, var(--bib) 30%, transparent), 0 8px 26px color-mix(in srgb, var(--bib) 24%, transparent); }
@@ -1545,3 +1541,8 @@ button.came-chip { cursor: pointer; }
 .pick-list button:hover, .pick-list button:focus-visible { background: color-mix(in srgb, var(--bib) 16%, transparent); }
 .member-picker + button.btn, .after-add .btn.text-sm { min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
 .btn.btn-danger:not(.btn-ghost) { border: 1px solid var(--bad); color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
+
+/* 출석 모드 */
+.mode-banner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; font-size: 13px; background: color-mix(in srgb, var(--good) 14%, transparent); border: 1px solid color-mix(in srgb, var(--good) 45%, transparent); }
+.mode-tag { color: var(--good); }
+.chk-x { color: var(--bad); font-size: 12px; margin-right: 2px; }

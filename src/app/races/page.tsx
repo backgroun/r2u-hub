@@ -4,7 +4,7 @@ import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, addChecker, sendScheduleNotices, deleteAfter, removeChecker, setAbsentReason, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
+import { addAfter, addChecker, sendScheduleNotices, deleteAfter, removeChecker, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
 import { Nick, WheelIcon } from "@/components/crown";
 import { cache } from "react";
@@ -170,6 +170,33 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
   const reg = regInfo(r);
   const groups = groupByCourse(r.participants);
   const schedule = sortAfters(r.afters);
+  // 출석 모드: 단사 글이 있고 대회 2일 전~당일이면 위쪽 참가·응원 목록이 출석 체크 목록으로 바뀐다 (단사 참석자 = 대회 참석자 전원)
+  const photoPost = schedule.find((a) => kindOf(a) === "photo");
+  const checkMode = !!photoPost && dd >= 0 && dd <= 2;
+  const canCheck = u.admin || r.checkers.includes(u.nick);
+  const everyone = new Set([...r.participants.map((p) => p.nick), ...r.cheers]);
+  const cameCount = photoPost ? [...everyone].filter((n) => photoPost.came.includes(n)).length : 0;
+  /** 참가·응원 칩 하나: 출석 모드에선 앞에 체크 버튼, 아니면 기존 모습 (불참은 ✕ 빨강) */
+  const chip = (nick: string, extra: string, leave?: React.ReactNode) => {
+    const on = !!photoPost?.came.includes(nick), off = !!photoPost && photoPost.no.includes(nick) && !on;
+    if (!checkMode) {
+      return (
+        <span key={nick} className={`pchip ${extra} ${off ? "chk-off" : ""}`}>
+          {off && <b aria-hidden className="chk-x">✕</b>}
+          <MemberChip nick={nick}><Nick n={nick} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip>
+          {leave}
+        </span>
+      );
+    }
+    // 출석 모드: 뒷풀이 출석 칩과 같은 모습 (닉네임만, 점선 테두리 → 출석 ✓ 초록 / 불참 ✕ 빨강)
+    const label = <>{on ? "✓ " : off ? "✕ " : ""}{nick}</>;
+    const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
+    const hidden = <><input type="hidden" name="id" value={r.id} /><input type="hidden" name="after" value={photoPost!.id} /><input type="hidden" name="nick" value={nick} /></>;
+    if (canCheck && nick === u.nick) return <SelfChip key={nick} raceId={r.id} afterId={photoPost!.id} nick={nick} className={cls}>{label}</SelfChip>;
+    if (canCheck) return <form key={nick} action={toggleCame} className="inline-flex">{hidden}<button type="submit" className={cls} aria-pressed={on}>{label}</button></form>;
+    if (nick === u.nick && !on) return <form key={nick} action={toggleAbsent} className="inline-flex">{hidden}<button type="submit" className={cls} aria-pressed={off}>{label}</button></form>;
+    return <span key={nick} className={cls}>{label}</span>;
+  };
   // 알림을 보낼 수 있는 일정: 시간이 정해져 있고 아직 안 지난 대회·단사·카풀·뒷풀이
   const upcoming = (t?: string) => !!t && /^([01]\d|2[0-3]):[0-5]\d$/.test(t) && Date.parse(`${r.date}T${t}:00+09:00`) > Date.now();
   const noticeKinds = [
@@ -248,7 +275,7 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
         <summary className="race-sum">
           {/* 1줄: 참가 인원(코스별) · 2줄: 응원 · 단사·카풀·뒷풀이 시간 */}
           <span className="race-sum-text grid gap-0.5">
-            <span className="truncate"><b>👥 참가 {r.participants.length}</b>
+            <span className="truncate">{checkMode && <b className="mode-tag">✅ 출석 모드 </b>}<b>👥 참가 {r.participants.length}</b>
               {groups.length > 0 && <span className="text-muted"> ({groups.map((g) => `${g.label} ${g.list.length}`).join(" · ")})</span>}</span>
             {/* 응원·단사·카풀·뒷풀이는 있을 때만 (0명이면 안 적는다) */}
             {(r.cheers.length > 0 || schedule.length > 0) && (
@@ -262,23 +289,25 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
         <div className="grid gap-3 pt-3">
       <div className="grid gap-1.5">
         {r.participants.length === 0 && <span className="text-sm text-muted">아직 없어요.</span>}
+        {checkMode && (
+          <div className="mode-banner">
+            <b>✅ 출석 모드</b>
+            <span>{canCheck ? "이름을 누르면 출석 체크돼요" : "운영진이 출석을 체크해요 · 못 오면 내 이름을 눌러 참석 불가"}</span>
+            <b className="num ml-auto">{cameCount}/{everyone.size}</b>
+          </div>
+        )}
         <div className="grid gap-1.5">
           {groups.map((g) => (
             <div key={g.key} className="pgroup">
               <span className="pgroup-l">{g.label}<small>{g.list.length}</small></span>
               <div className="flex flex-wrap gap-1.5">
-                {g.list.map((p) => (
-                  <span key={p.nick} className={`pchip ${p.nick === u.nick ? "me" : ""}`}>
-                    <MemberChip nick={p.nick}><Nick n={p.nick} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip>
-                    {p.nick === u.nick && !past && (
-                      <form action={leaveRace} className="inline">
-                        <input type="hidden" name="id" value={r.id} />
-                        <input type="hidden" name="nick" value={p.nick} />
-                        <ConfirmButton className="" label={`${p.nick} 참가 취소`} message={`${r.name} 참가를 취소할까요?`}>✕</ConfirmButton>
-                      </form>
-                    )}
-                  </span>
-                ))}
+                {g.list.map((p) => chip(p.nick, p.nick === u.nick ? "me" : "", p.nick === u.nick && !past && !checkMode ? (
+                  <form action={leaveRace} className="inline">
+                    <input type="hidden" name="id" value={r.id} />
+                    <input type="hidden" name="nick" value={p.nick} />
+                    <ConfirmButton className="" label={`${p.nick} 참가 취소`} message={`${r.name} 참가를 취소할까요?`}>✕</ConfirmButton>
+                  </form>
+                ) : undefined))}
               </div>
             </div>
           ))}
@@ -287,11 +316,7 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
 
       {r.cheers.length > 0 && <div className="flex flex-wrap items-center gap-1.5">
         <span className="label">📣 응원 {r.cheers.length}명</span>
-        {[...r.cheers].sort((a, b) => a.localeCompare(b, "ko")).map((n) => (
-          <span key={n} className={`pchip cheer ${n === u.nick ? "me" : ""}`}>
-            <MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip>
-          </span>
-        ))}
+        {[...r.cheers].sort((a, b) => a.localeCompare(b, "ko")).map((n) => chip(n, `cheer ${n === u.nick ? "me" : ""}`))}
       </div>}
 
       <AfterParties r={r} u={u} admins={admins} managers={managers} names={names} levels={levels}
@@ -381,13 +406,14 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   const items = sortAfters(r.afters);
   const today = kstToday();
   const dayBefore = new Date(Date.parse(`${r.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+  const modeFrom = new Date(Date.parse(`${r.date}T00:00:00Z`) - 2 * 86400000).toISOString().slice(0, 10); // 출석 모드 시작(2일 전)
   const cand = [...new Set([...r.participants.map((p) => p.nick), ...r.cheers])].filter((n) => !isStaffNick(n));
   // 운영진이 참가·응원 명단에 한 명도 없을 때만 출석 체크 위임을 보여 준다 (이미 위임한 게 있으면 취소할 수 있게 계속 보인다)
   const adminAttending = [...r.participants.map((p) => p.nick), ...r.cheers].some((n) => admins.has(n));
   return (
     <div className="after-wrap">
       {top}
-      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} cand={cand} checkers={r.checkers} admins={admins} managers={managers} names={names} levels={levels} />)}
+      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} modeFrom={modeFrom} cand={cand} checkers={r.checkers} admins={admins} managers={managers} names={names} levels={levels} />)}
       {u.admin && r.date >= today && (!adminAttending || r.checkers.length > 0) && (
         <details className="after-add">
           <summary>출석 체크 위임{r.checkers.length ? ` (${r.checkers.join(", ")})` : ""}</summary>
@@ -426,7 +452,7 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   );
 }
 
-function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, checkers, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; today: string; raceDate: string; dayBefore: string; cand: string[]; checkers: string[]; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
+function AfterItem({ a, raceId, u, today, raceDate, dayBefore, modeFrom, cand, checkers, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; today: string; raceDate: string; dayBefore: string; modeFrom: string; cand: string[]; checkers: string[]; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
   const kind = kindOf(a);
   const mine = a.yes.includes(u.nick) ? "yes" : a.no.includes(u.nick) ? "no" : "";
   const tag = KINDS.find((k) => k.kind === kind)!.tag;
@@ -454,16 +480,17 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, checkers, a
   ) : null;
   // 대회 당일엔 단사·뒷풀이 모두 펼치고, 단사는 사진과 장소가 입력돼 있으면 전날부터 펼친다
   const isDay = today === raceDate;
+  const inMode = today >= modeFrom && today <= raceDate; // 출석 모드 기간 (2일 전~당일)
   // 사진은 대회 다음 날 밤에 저장소에서 자동 삭제되므로, 그 뒤에는 깨진 그림이 보이지 않게 숨긴다
   const photoAlive = !!a.photo && today <= new Date(Date.parse(`${raceDate}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const canCheck = u.admin || checkers.includes(u.nick); // 운영진, 또는 운영진이 출석 체크를 맡긴 크루원
   const openNow = (kind !== "carpool" && isDay) || (kind === "photo" && !!a.photo && !!a.place && today >= dayBefore && today <= raceDate);
   const canAbsent = (nick: string) => cand.includes(nick) && raceDate >= today;
   // 단사: 대회 참석자(참가·응원) 모두가 기본 명단, 못 오면 본인이 참석 불가. 뒷풀이: 평소엔 참석 신청자 목록, 당일엔 그 신청자로 출석 체크
-  const showList = (kind === "photo" && !!a.photo && !!a.place) || (kind === "after" && isDay);
-  const roster = [...new Set(kind === "after" ? [...a.yes, ...a.came] : [...cand, ...a.came])].sort((x, y) => x.localeCompare(y, "ko"));
+  const showList = kind === "after" && inMode; // 단사 명단은 위쪽 참가·응원 목록(출석 모드)으로 대신한다
+  const roster = [...new Set([...a.yes, ...a.came])].sort((x, y) => x.localeCompare(y, "ko"));
   // 한 줄: 아이콘 · 시간 · 장소(제목) · 참석 수 / 누르면 참석 버튼·명단·운전자·메모·수정
-  const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" ? (isDay ? `출석 ${a.came.length}/${roster.length}` : `${a.yes.length}명`) : "";
+  const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" ? (inMode ? `출석 ${a.came.length}/${roster.length}` : `${a.yes.length}명`) : "";
   return (
     <details className={`after-item k-${kind}`} open={mine === "yes" || openNow || undefined}>
       <summary className="after-line">
@@ -485,48 +512,33 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, checkers, a
         {kind !== "photo" && (
           <div className="flex flex-wrap items-center gap-1.5">
             <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
-            {!(kind === "after" && isDay) && [...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
-            {!(kind === "after" && isDay) && [...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
+            {!(kind === "after" && inMode) && [...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
+            {!(kind === "after" && inMode) && [...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
             {actions}
           </div>
         )}
         {showList && roster.length > 0 && (
           <div className="grid gap-1">
             <span className="text-xs text-muted">
-              {kind === "after" ? "뒷풀이" : "단사"} {a.came.length > 0 || isDay ? "출석" : "참석 예정"} {isDay ? `${a.came.length}/${roster.length}` : roster.length}
-              {a.no.length > 0 ? ` · 불참 ${a.no.length}` : ""}
-              {canCheck && isDay ? `${u.admin ? " · 운영진: 온 사람을 누르면 출석 체크" : " · 출석 체크를 맡았어요: 온 사람을 누르세요"}${kind === "photo" ? " (내 이름은 두 번 누르면 참석 불가)" : ""}` : kind === "photo" && canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
+              ✅ 출석 모드 · 뒷풀이 출석 {a.came.length}/{roster.length}
+              {canCheck ? (u.admin ? " · 온 사람을 누르면 출석 체크" : " · 출석 체크를 맡았어요: 온 사람을 누르세요") : ""}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {roster.map((n) => {
-                const on = a.came.includes(n), off = a.no.includes(n) && !on;
-                const label = <>{on ? "✓ " : off ? "✕ " : ""}{n}</>;
-                const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
-                const adminCheck = canCheck && isDay;
-                const mineAbsent = kind === "photo" && !adminCheck && n === u.nick && !on && raceDate >= today;
-                if (adminCheck && kind === "photo" && n === u.nick) return <SelfChip key={n} raceId={raceId} afterId={a.id} nick={n} className={cls}>{label}</SelfChip>;
-                if (!adminCheck && !mineAbsent) return <span key={n} className={cls}>{label}</span>;
+                const on = a.came.includes(n);
+                const label = <>{on ? "✓ " : ""}{n}</>;
+                const cls = `came-chip ${on ? "on" : ""}`;
+                if (!canCheck) return <span key={n} className={cls}>{label}</span>;
                 return (
-                  <form key={n} action={adminCheck ? toggleCame : toggleAbsent}>
-                    <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} />
-                    {adminCheck && <input type="hidden" name="nick" value={n} />}
-                    <button type="submit" className={cls} aria-pressed={on || off}>{label}</button>
+                  <form key={n} action={toggleCame}>
+                    <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} /><input type="hidden" name="nick" value={n} />
+                    <button type="submit" className={cls} aria-pressed={on}>{label}</button>
                   </form>
                 );
               })}
             </div>
           </div>
         )}
-        {(kind === "photo" || kind === "after") && a.no.includes(u.nick) && !a.yes.includes(u.nick) && !a.came.includes(u.nick) && (
-          <ActionForm action={setAbsentReason} keep hideInline className="flex items-center gap-1.5">
-            <input type="hidden" name="id" value={raceId} /><input type="hidden" name="after" value={a.id} />
-            <input name="why" className="input" maxLength={40} defaultValue={a.why[u.nick]?.t ?? ""} placeholder="못 오는 이유 (짧게, 선택)" style={{ minHeight: 36, padding: "4px 10px" }} />
-            <Submit className="btn btn-ghost text-xs py-1 px-2 shrink-0">저장</Submit>
-          </ActionForm>
-        )}
-        {(kind === "photo" || kind === "after") && a.no.filter((n) => a.why[n]).sort((x, y) => a.why[x].at - a.why[y].at).map((n) => (
-          <div key={n} className="why-comment"><b>{n}</b><span>{a.why[n].t}</span><time className="text-xs text-muted">{new Date(a.why[n].at + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ").replace("-", "/")}</time></div>
-        ))}
         {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}
       </div>
     </details>

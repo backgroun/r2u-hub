@@ -242,11 +242,14 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
   return (
     <article id={r.id} className={`panel p-4 grid gap-3 ${dd >= 0 && dd <= 3 ? "race-gold keep-motion" : ""}`} style={past ? { opacity: 0.8 } : undefined}>
       <div className="race-head">
-        <span className="datebox"><b>{d.md}</b><span>{d.w}요일</span></span>
+        {/* 날짜 박스 아래에 D-day 뱃지 */}
+        <div className="grid justify-items-center gap-1.5 content-start">
+          <span className="datebox"><b>{d.md}</b><span>{d.w}요일</span></span>
+          <span className={`chip dday ${dd < 0 ? "past" : dd === 0 ? "today" : dd <= 3 ? "gold keep-motion" : dd <= 7 ? "soon" : ""}`}>{dd < 0 ? "종료" : dd === 0 ? "D-DAY" : `D-${dd}`}</span>
+        </div>
         <div className="min-w-0 grid gap-0.5" style={{ flex: 1 }}>
           <h3 className="font-bold text-lg leading-snug flex flex-wrap items-center gap-x-2 gap-y-1">
             {r.name}
-            <span className={`chip dday ${dd < 0 ? "past" : dd === 0 ? "today" : dd <= 3 ? "gold keep-motion" : dd <= 7 ? "soon" : ""}`}>{dd < 0 ? "종료" : dd === 0 ? "D-DAY" : `D-${dd}`}</span>
           </h3>
           {/* 시간·장소는 이름 바로 아래(날짜 박스 옆)에, 코스·링크 메모와 대회 정보 이동은 다음 줄 */}
           <p className="text-sm text-muted flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">

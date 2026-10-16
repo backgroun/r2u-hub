@@ -1546,3 +1546,5 @@ button.came-chip { cursor: pointer; }
 .mode-banner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; font-size: 13px; background: color-mix(in srgb, var(--good) 14%, transparent); border: 1px solid color-mix(in srgb, var(--good) 45%, transparent); }
 .mode-tag { color: var(--good); }
 .chk-x { color: var(--bad); font-size: 12px; margin-right: 2px; }
+.mode-check { font-size: 20px; line-height: 1; padding: 0; background: none; border: 0; cursor: pointer; }
+.mode-banner.mode-off { background: transparent; border-style: dashed; border-color: #c4c8ce; color: var(--muted); }

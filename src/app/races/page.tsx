@@ -3,8 +3,8 @@ import { getLevels } from "@/lib/points";
 import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
-import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, addChecker, sendScheduleNotices, deleteAfter, removeChecker, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
+import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, attendanceMode, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
+import { addAfter, addChecker, setCheckMode, sendScheduleNotices, deleteAfter, removeChecker, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
 import { Nick, WheelIcon } from "@/components/crown";
 import { cache } from "react";
@@ -172,8 +172,9 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
   const schedule = sortAfters(r.afters);
   // 출석 모드: 단사 글이 있고 대회 2일 전~당일이면 위쪽 참가·응원 목록이 출석 체크 목록으로 바뀐다 (단사 참석자 = 대회 참석자 전원)
   const photoPost = schedule.find((a) => kindOf(a) === "photo");
-  const checkMode = !!photoPost && dd >= 0 && dd <= 2;
+  const checkMode = !!photoPost && attendanceMode(r, kstToday());
   const canCheck = u.admin || r.checkers.includes(u.nick);
+  const canToggleMode = u.admin && !past && !!photoPost; // 운영진은 출석 모드를 체크 버튼으로 켜고 끈다 (기본은 2일 전부터 자동)
   const everyone = new Set([...r.participants.map((p) => p.nick), ...r.cheers]);
   const cameCount = photoPost ? [...everyone].filter((n) => photoPost.came.includes(n)).length : 0;
   /** 참가·응원 칩 하나: 출석 모드에선 앞에 체크 버튼, 아니면 기존 모습 (불참은 ✕ 빨강) */
@@ -289,11 +290,19 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
         <div className="grid gap-3 pt-3">
       <div className="grid gap-1.5">
         {r.participants.length === 0 && <span className="text-sm text-muted">아직 없어요.</span>}
-        {checkMode && (
-          <div className="mode-banner">
-            <b>✅ 출석 모드</b>
-            <span>{canCheck ? "이름을 누르면 출석 체크돼요" : "운영진이 출석을 체크해요 · 못 오면 내 이름을 눌러 참석 불가"}</span>
-            <b className="num ml-auto">{cameCount}/{everyone.size}</b>
+        {(checkMode || canToggleMode) && (
+          <div className={`mode-banner ${checkMode ? "" : "mode-off"}`}>
+            {canToggleMode ? (
+              <form action={setCheckMode} className="inline-flex">
+                <input type="hidden" name="id" value={r.id} />
+                <input type="hidden" name="mode" value={checkMode ? "off" : "on"} />
+                <button type="submit" className="mode-check" aria-pressed={checkMode} aria-label={checkMode ? "출석 모드 끄기" : "출석 모드 켜기"}>{checkMode ? "✅" : "⬜"}</button>
+              </form>
+            ) : <span aria-hidden>✅</span>}
+            <b>출석 모드</b>
+            {checkMode
+              ? <><span>{canCheck ? "이름을 누르면 출석 체크돼요" : "운영진이 출석을 체크해요 · 못 오면 내 이름을 눌러 참석 불가"}</span><b className="num ml-auto">{cameCount}/{everyone.size}</b></>
+              : <span className="text-muted">꺼져 있어요 · 체크하면 켜져요</span>}
           </div>
         )}
         <div className="grid gap-1.5">
@@ -354,6 +363,8 @@ const KINDS: { kind: AfterKind; add: string; tag: string }[] = [
   { kind: "after", add: "+ 뒷풀이 추가", tag: "뒷풀이" },
 ];
 const kindOf = (a: AfterFull): AfterKind => a.kind ?? "after";
+/** 한국 시각 MM/DD HH:MM */
+const fmtStamp = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ").replace("-", "/");
 const AFTER_ICON: Record<AfterKind, string> = { photo: "📷", carpool: "🚗", after: "🍻" };
 /** 단사·카풀·뒷풀이를 시간 순서로 (시간 없는 건 뒤로) */
 const sortAfters = (list: AfterFull[]) => [...list].sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99") || a.at - b.at);
@@ -406,14 +417,14 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   const items = sortAfters(r.afters);
   const today = kstToday();
   const dayBefore = new Date(Date.parse(`${r.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
-  const modeFrom = new Date(Date.parse(`${r.date}T00:00:00Z`) - 2 * 86400000).toISOString().slice(0, 10); // 출석 모드 시작(2일 전)
+  const inMode = attendanceMode(r, today); // 출석 모드: 자동(2일 전~당일) 또는 운영진이 정한 켬/끔
   const cand = [...new Set([...r.participants.map((p) => p.nick), ...r.cheers])].filter((n) => !isStaffNick(n));
   // 운영진이 참가·응원 명단에 한 명도 없을 때만 출석 체크 위임을 보여 준다 (이미 위임한 게 있으면 취소할 수 있게 계속 보인다)
   const adminAttending = [...r.participants.map((p) => p.nick), ...r.cheers].some((n) => admins.has(n));
   return (
     <div className="after-wrap">
       {top}
-      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} modeFrom={modeFrom} cand={cand} checkers={r.checkers} admins={admins} managers={managers} names={names} levels={levels} />)}
+      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} inMode={inMode} cand={cand} checkers={r.checkers} admins={admins} managers={managers} names={names} levels={levels} />)}
       {u.admin && r.date >= today && (!adminAttending || r.checkers.length > 0) && (
         <details className="after-add">
           <summary>출석 체크 위임{r.checkers.length ? ` (${r.checkers.join(", ")})` : ""}</summary>
@@ -452,7 +463,7 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   );
 }
 
-function AfterItem({ a, raceId, u, today, raceDate, dayBefore, modeFrom, cand, checkers, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; today: string; raceDate: string; dayBefore: string; modeFrom: string; cand: string[]; checkers: string[]; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
+function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, checkers, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; today: string; raceDate: string; dayBefore: string; inMode: boolean; cand: string[]; checkers: string[]; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
   const kind = kindOf(a);
   const mine = a.yes.includes(u.nick) ? "yes" : a.no.includes(u.nick) ? "no" : "";
   const tag = KINDS.find((k) => k.kind === kind)!.tag;
@@ -480,7 +491,6 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, modeFrom, cand, c
   ) : null;
   // 대회 당일엔 단사·뒷풀이 모두 펼치고, 단사는 사진과 장소가 입력돼 있으면 전날부터 펼친다
   const isDay = today === raceDate;
-  const inMode = today >= modeFrom && today <= raceDate; // 출석 모드 기간 (2일 전~당일)
   // 사진은 대회 다음 날 밤에 저장소에서 자동 삭제되므로, 그 뒤에는 깨진 그림이 보이지 않게 숨긴다
   const photoAlive = !!a.photo && today <= new Date(Date.parse(`${raceDate}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const canCheck = u.admin || checkers.includes(u.nick); // 운영진, 또는 운영진이 출석 체크를 맡긴 크루원
@@ -492,6 +502,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, modeFrom, cand, c
   // 한 줄: 아이콘 · 시간 · 장소(제목) · 참석 수 / 누르면 참석 버튼·명단·운전자·메모·수정
   const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" ? (inMode ? `출석 ${a.came.length}/${roster.length}` : `${a.yes.length}명`) : "";
   return (
+    <div className="grid gap-1">
     <details className={`after-item k-${kind}`} open={mine === "yes" || openNow || undefined}>
       <summary className="after-line">
         <span className="after-ico" aria-hidden>{AFTER_ICON[kind]}</span>
@@ -508,7 +519,6 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, modeFrom, cand, c
           {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           {a.memo && <span className="text-sm">{a.memo}</span>}
           {photoAlive && <img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260, pointerEvents: "none" }} />}
-          <span className="text-xs text-muted"><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림</span>
         </div>
         {kind !== "photo" && (
           <div className="flex flex-wrap items-center gap-1.5">
@@ -542,5 +552,10 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, modeFrom, cand, c
         {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}
       </div>
     </details>
+      {/* 올린 사람·올린 시각·수정 시각: 박스 바깥 오른쪽 */}
+      <div className="after-by text-xs text-muted text-right">
+        <Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림 · {fmtStamp(a.at)}{a.editedAt ? ` · 수정 ${fmtStamp(a.editedAt)}` : ""}
+      </div>
+    </div>
   );
 }

@@ -20,6 +20,7 @@ export const K = {
   cheer: (id: string) => `r2u:race:${id}:cheer`, // hash nick -> 신청 시각
   after: (id: string) => `r2u:race:${id}:after`, // hash afterId -> AfterParty
   afterPhoto: (afterId: string) => `r2u:afterPhoto:${afterId}`, // 단사 사진 1장 {type,data(base64)} · 대회 다음 날 자동 만료
+  checkMode: (raceId: string) => `r2u:race:${raceId}:checkMode`, // 출석 모드 수동 설정 "on" | "off" (없으면 자동: 대회 2일 전~당일)
   checkers: (raceId: string) => `r2u:race:${raceId}:checkers`, // 출석 체크를 위임받은 크루원 hash nick -> 위임 시각
   afterCame: (afterId: string) => `r2u:afterCame:${afterId}`, // 당일 운영진이 체크한 출석 hash nick -> 1
   rsvp: (afterId: string) => `r2u:after:${afterId}`, // hash nick -> "yes" | "no"
@@ -65,10 +66,10 @@ export type Race = {
 };
 /** 대회 아래 함께하기 글: 단체사진(photo) · 카풀(carpool) · 뒷풀이(after, 예전 글은 kind 없음) */
 export type AfterKind = "photo" | "carpool" | "after";
-export type AfterParty = { id: string; kind?: AfterKind; place: string; address?: string; placeUrl?: string; time: string; memo: string; seats?: number; driver?: string; photo?: boolean; by: string; at: number }; // photo: 단사 사진 있음 · by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
+export type AfterParty = { id: string; kind?: AfterKind; place: string; address?: string; placeUrl?: string; time: string; memo: string; seats?: number; driver?: string; photo?: boolean; by: string; at: number; editedAt?: number }; // photo: 단사 사진 있음 · by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
 export const driverOf = (a: { driver?: string; by: string }) => a.driver || a.by;
 export type AfterFull = AfterParty & { yes: string[]; no: string[]; came: string[] };
-export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; checkers: string[]; afters: AfterFull[] };
+export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; checkers: string[]; checkMode?: "on" | "off"; afters: AfterFull[] };
 export type MonthRec = { goal: number; days: Record<string, number>; goalEdits?: number }; // goalEdits: 크루원이 목표를 바꾼 횟수 (월 2번까지)
 export const GOAL_EDIT_LIMIT = 2;
 export type User = { nick: string; admin: boolean; realAdmin?: boolean }; // admin: 지금 보는 모드 기준 · realAdmin: 실제 운영진인가(크루 보기 중에도 true)
@@ -167,10 +168,10 @@ export async function getRaces(): Promise<RaceFull[]> {
   if (!races.length) return [];
   // 대회마다 참가자·응원·뒷풀이를 한 번에 읽는다
   const p = redis.pipeline();
-  races.forEach((r) => { p.hgetall(K.raceP(r.id)); p.hgetall(K.cheer(r.id)); p.hgetall(K.after(r.id)); p.hkeys(K.checkers(r.id)); });
+  races.forEach((r) => { p.hgetall(K.raceP(r.id)); p.hgetall(K.cheer(r.id)); p.hgetall(K.after(r.id)); p.hkeys(K.checkers(r.id)); p.get(K.checkMode(r.id)); });
   const res = (await p.exec()) as (Record<string, unknown> | null)[];
   const afters = races.map((_, i) =>
-    Object.values((res[i * 4 + 2] ?? {}) as Record<string, unknown>).map((v) => parse<AfterParty>(v)).sort((a, b) => a.at - b.at));
+    Object.values((res[i * 5 + 2] ?? {}) as Record<string, unknown>).map((v) => parse<AfterParty>(v)).sort((a, b) => a.at - b.at));
   const flat = afters.flat();
   const q = redis.pipeline();
   flat.forEach((a) => q.hgetall(K.rsvp(a.id)));
@@ -183,9 +184,10 @@ export async function getRaces(): Promise<RaceFull[]> {
   const cameById = new Map(withMeta.map((a, i) => [a.id, ((meta[i] ?? []) as string[])]));
   return races.map((r, i) => ({
     ...r,
-    participants: Object.entries((res[i * 4] ?? {}) as Record<string, unknown>).map(([nick, course]) => ({ nick, course: String(course ?? "") })),
-    cheers: Object.keys((res[i * 4 + 1] ?? {}) as Record<string, unknown>),
-    checkers: ((res[i * 4 + 3] ?? []) as unknown as string[]),
+    participants: Object.entries((res[i * 5] ?? {}) as Record<string, unknown>).map(([nick, course]) => ({ nick, course: String(course ?? "") })),
+    cheers: Object.keys((res[i * 5 + 1] ?? {}) as Record<string, unknown>),
+    checkers: ((res[i * 5 + 3] ?? []) as unknown as string[]),
+    checkMode: ((v) => (v === "on" || v === "off" ? v : undefined))(res[i * 5 + 4] as unknown),
     afters: afters[i].map((a) => {
       const v = Object.entries(byId.get(a.id) ?? {});
       return { ...a, yes: v.filter(([, x]) => x === "yes").map(([n]) => n), no: v.filter(([, x]) => x === "no").map(([n]) => n), came: cameById.get(a.id) ?? [] };
@@ -321,6 +323,13 @@ export async function recordFail(nick: string) {
 }
 
 /* ---------- 날짜 ---------- */
+/** 출석 모드인가: 운영진이 켬/끔으로 정했으면 그대로, 아니면(자동) 대회 2일 전부터 당일까지 */
+export function attendanceMode(r: { date: string; checkMode?: "on" | "off" }, today: string) {
+  if (r.checkMode === "on") return true;
+  if (r.checkMode === "off") return false;
+  const from = new Date(Date.parse(`${r.date}T00:00:00Z`) - 2 * 86400000).toISOString().slice(0, 10);
+  return today >= from && today <= r.date;
+}
 export function kstToday() {
   return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
 }

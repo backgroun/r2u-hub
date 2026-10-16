@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   K, redis, checkPw, hashPw, currentUser, currentRealUser, isManagerUser, VIEW_COOKIE, startSession, endSession, getMember, saveMember, getMembers, getAllVs, isStaffNick,
-  getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type RaceRec, OWN_RACE_PREFIX, type SheetKind,
+  attendanceMode, getLinks, saveLinks, parseRaceTime, getMonth, loginBlocked, recordFail, newId, getSheets, kstToday, vsExpiry, MENU_DEFAULTS, GOAL_EDIT_LIMIT, type AfterKind, type AfterParty, type Race, type MonthRec, type RaceRec, OWN_RACE_PREFIX, type SheetKind,
 } from "@/lib/hub";
 import { syncMembers } from "@/lib/sheet";
 import type { SyncResult } from "@/lib/member-sync-types";
@@ -386,7 +386,7 @@ export async function deleteRace(fd: FormData) {
     ...afters.flatMap((aid, i) => (rsvps[i] ?? []).flatMap((n) => [setPoints(n, `after:${aid}`, 0, ""), setPoints(n, `ride:${aid}`, 0, "")])),
   ]);
   await redis.hdel(K.races, id);
-  await redis.del(K.raceP(id), K.cheer(id), K.after(id), K.checkers(id), ...afters.flatMap((a) => [K.rsvp(a), K.afterPhoto(a), K.afterCame(a)]));
+  await redis.del(K.raceP(id), K.cheer(id), K.after(id), K.checkers(id), ...afters.flatMap((a) => [K.rsvp(a), K.afterPhoto(a), K.afterCame(a)]), K.checkMode(id));
   revalidatePath("/", "layout");
 }
 
@@ -420,10 +420,9 @@ export async function toggleCame(fd: FormData) {
   const race = (typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race;
   const a = (typeof afterRaw === "string" ? JSON.parse(afterRaw) : afterRaw) as AfterParty;
   const kind = a.kind ?? "after";
-  // 출석 모드: 대회 2일 전부터 당일까지
-  const from = new Date(Date.parse(`${race.date}T00:00:00Z`) - 2 * 86400000).toISOString().slice(0, 10);
-  const today = kstToday();
-  if ((kind !== "photo" && kind !== "after") || today < from || today > race.date) return;
+  // 출석 모드일 때만 (자동: 대회 2일 전~당일, 운영진이 켜거나 끌 수 있다)
+  const manual = await redis.get<string>(K.checkMode(id));
+  if ((kind !== "photo" && kind !== "after") || !attendanceMode({ date: race.date, checkMode: manual === "on" || manual === "off" ? manual : undefined }, kstToday())) return;
   const was = await redis.hexists(K.afterCame(afterId), nick);
   if (was) await redis.hdel(K.afterCame(afterId), nick);
   else {
@@ -432,6 +431,16 @@ export async function toggleCame(fd: FormData) {
     if (kind === "photo") { await redis.hdel(K.rsvp(afterId), nick); }
   }
   revalidatePath("/races");
+}
+
+/** 운영진: 출석 모드를 자동(대회 2일 전~당일)으로 둘지, 지금 켤지, 끌지 정한다 */
+export async function setCheckMode(fd: FormData) {
+  await admin();
+  const id = str(fd, "id"), mode = str(fd, "mode");
+  if (!(await redis.hexists(K.races, id))) return;
+  if (mode === "on" || mode === "off") await redis.set(K.checkMode(id), mode); else await redis.del(K.checkMode(id));
+  revalidatePath("/races");
+  revalidatePath("/");
 }
 
 /** 운영진: 본인이 못 오는 대회의 출석 체크를 크루원 한 명에게 위임 (대회 전체 단사·뒷풀이에 적용) */
@@ -783,7 +792,7 @@ export async function updateAfter(_: Result, fd: FormData): Promise<Result> {
   const a = (typeof raw === "string" ? JSON.parse(raw) : raw) as AfterParty;
   // 올린 사람, 카풀 운전자, 운영진이 고칠 수 있다
   if (!u.admin && a.by !== u.nick && (a.driver || a.by) !== u.nick) return fail("올린 사람만 고칠 수 있어요.");
-  const next: AfterParty = { ...a, place: str(fd, "place", 60), address: str(fd, "address", 150), placeUrl: str(fd, "placeUrl", 200), time: str(fd, "time", 30), memo: str(fd, "memo", 200) };
+  const next: AfterParty = { ...a, editedAt: Date.now(), place: str(fd, "place", 60), address: str(fd, "address", 150), placeUrl: str(fd, "placeUrl", 200), time: str(fd, "time", 30), memo: str(fd, "memo", 200) };
   if (!/^https?:\/\/place\.map\.kakao\.com\/\d+\/?$/.test(next.placeUrl ?? "")) { next.address = ""; next.placeUrl = ""; }
   if (a.kind === "carpool") {
     const seats = Math.round(Number(fd.get("seats")) || 0);

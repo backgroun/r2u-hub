@@ -597,7 +597,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
         {showList && roster.length > 0 && (
           <div className="grid gap-1">
             <span className="text-xs text-muted">
-              <span className="inline-flex items-center gap-1 align-middle"><ModeCheckIcon on size={14} /> 단사 확인 모드</span> · 뒷풀이 출석 {a.came.length}/{roster.length}
+              <span className="inline-flex items-center gap-1 align-middle"><ModeCheckIcon on size={14} /> 뒷풀이 확인 모드</span> · 출석 {a.came.length}/{roster.length}
               {canCheck ? (u.admin ? " · 온 사람을 누르면 출석 체크" : " · 출석 체크를 맡았어요: 온 사람을 누르세요") : ""}
             </span>
             <div className="flex flex-wrap gap-1.5">

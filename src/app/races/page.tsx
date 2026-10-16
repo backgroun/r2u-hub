@@ -522,7 +522,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
   return (
     <div className="grid gap-1">
     <details className={`after-item k-${kind}`} open={openNow || undefined}>
-      <summary className="after-line">
+      <summary className={`after-line ${canNotify ? "has-notify" : ""}`}>
         {kind === "carpool" ? (
           <>
             <span className="after-ico" aria-hidden>{AFTER_ICON[kind]}</span>
@@ -539,6 +539,15 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
         )}
         {count && <span className={`chip ${mine === "yes" ? "chip-open" : ""} ml-auto shrink-0`}>{mine === "yes" ? "✓ " : ""}{count}</span>}
       </summary>
+      {/* 알림 버튼: 박스 안쪽 맨 위, 단사·뒷풀이 뱃지와 같은 높이(오른쪽) */}
+      {canNotify && (
+        <div className="notify-abs">
+          <ActionForm action={sendItemNotice} keep alertError>
+            <input type="hidden" name="id" value={raceId} /><input type="hidden" name="item" value={a.id} />
+            <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?`}>🔔 알림</Submit>
+          </ActionForm>
+        </div>
+      )}
       <div className="grid gap-2 pt-2">
         {/* 위치 정보(왼쪽)와 참석 버튼(오른쪽)을 같은 줄 맨 위에 맞춘다 */}
         <div className="flex items-start justify-between gap-2">
@@ -547,15 +556,9 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
             {a.address && <span className="text-xs text-muted">{a.address}</span>}
             {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           </div>
-          {(canNotify || kind !== "photo") && (
+          {kind !== "photo" && (
             <div className="shrink-0 grid justify-items-end gap-1.5">
-              {canNotify && (
-                <ActionForm action={sendItemNotice} keep alertError>
-                  <input type="hidden" name="id" value={raceId} /><input type="hidden" name="item" value={a.id} />
-                  <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?`}>🔔 알림</Submit>
-                </ActionForm>
-              )}
-              {kind !== "photo" && <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />}
+              <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
             </div>
           )}
         </div>

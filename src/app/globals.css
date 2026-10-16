@@ -1565,3 +1565,7 @@ button.came-chip { cursor: pointer; }
 .race-fold-sum::-webkit-details-marker { display: none; }
 .race-fold-sum::after { content: "▾"; font-size: 11px; }
 .race-fold[open] > .race-fold-sum::after { content: "▴"; }
+/* 단사·뒷풀이 박스의 알림 버튼: 뱃지와 같은 높이 오른쪽 위 */
+.after-item { position: relative; }
+.notify-abs { position: absolute; top: 6px; right: 10px; z-index: 2; }
+.after-item[open] > .after-line.has-notify { padding-right: 84px; }

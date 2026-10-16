@@ -1567,5 +1567,11 @@ button.came-chip { cursor: pointer; }
 .race-fold[open] > .race-fold-sum::after { content: "▴"; }
 /* 단사·뒷풀이 박스의 알림 버튼: 뱃지와 같은 높이 오른쪽 위 */
 .after-item { position: relative; }
-.notify-abs { position: absolute; top: 6px; right: 10px; z-index: 2; }
+.notify-abs { position: absolute; top: 9.4px; right: 10px; z-index: 2; }
 .after-item[open] > .after-line.has-notify { padding-right: 84px; }
+/* 알림 버튼: 뱃지(단사·뒷풀이)와 같은 높이·윗선, 흰색 반투명 */
+.notify-abs .btn { height: 21.6px; min-height: 21.6px; padding: 0 9px; font-size: 11.5px; line-height: 1; border-radius: 6px; color: #fff; background: rgba(255,255,255,.16); border: 0; outline: 0; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: none; }
+.notify-abs .btn:active { background: rgba(255,255,255,.26); }
+.bell-ico { flex: none; margin-right: 4px; vertical-align: -2px; }
+.notify-abs .btn { display: inline-flex; align-items: center; justify-content: center; }
+.notify-abs, .notify-abs form { display: flex; line-height: 1; }

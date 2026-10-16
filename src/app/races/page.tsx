@@ -161,6 +161,15 @@ function groupByCourse(ps: RaceFull["participants"]) {
   return [...map.values()].sort((a, b) => rank(a.key) - rank(b.key));
 }
 
+/** 알림 종 아이콘: 선만 있는 단순한 모양 */
+function BellIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg className="bell-ico" viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6 17V11a6 6 0 0 1 12 0v6l1.6 2H4.4L6 17z" /><path d="M10 21.5h4" />
+    </svg>
+  );
+}
+
 /** 확인 모드 체크 아이콘: 켜짐은 초록 그라데이션 + 흰 체크, 꺼짐은 점선 테두리 */
 function ModeCheckIcon({ on, size = 22 }: { on: boolean; size?: number }) {
   return (
@@ -350,7 +359,7 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
             {noticeKinds.filter((k) => k.key === "race" || k.key === "carpool").map((k) => (
               <ActionForm key={k.key} action={sendScheduleNotices} keep alertError>
                 <input type="hidden" name="id" value={r.id} /><input type="hidden" name="k" value={k.key} />
-                <Submit className="btn text-sm py-1.5 px-3" pendingText="보내는 중…" confirm={`${k.label.replace(/^\S+\s/, "")} 알림을 보낼까요?`}>🔔 {k.label.replace(/^\S+\s/, "")} 알림{k.count > 1 ? ` ${k.count}` : ""}</Submit>
+                <Submit className="btn text-sm py-1.5 px-3" pendingText="보내는 중…" confirm={`${k.label.replace(/^\S+\s/, "")} 알림을 보낼까요?`}><BellIcon />{k.label.replace(/^\S+\s/, "")} 알림{k.count > 1 ? ` ${k.count}` : ""}</Submit>
               </ActionForm>
             ))}
           </div>
@@ -544,7 +553,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
         <div className="notify-abs">
           <ActionForm action={sendItemNotice} keep alertError>
             <input type="hidden" name="id" value={raceId} /><input type="hidden" name="item" value={a.id} />
-            <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?`}>🔔 알림</Submit>
+            <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?`}><BellIcon />알림</Submit>
           </ActionForm>
         </div>
       )}

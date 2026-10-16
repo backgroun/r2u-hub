@@ -65,7 +65,7 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   useEffect(() => {
     if (!key) return;
     load();
-    const t = setInterval(load, 20_000);
+    const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 45_000); // 화면이 보일 때만
     return () => clearInterval(t);
   }, [key, load]);
 

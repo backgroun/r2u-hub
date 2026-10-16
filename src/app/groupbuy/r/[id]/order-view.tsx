@@ -45,7 +45,8 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
   }, [round.id]);
 
   useEffect(() => {
-    const t = setInterval(refresh, 30_000);
+    // 화면이 보일 때만 60초마다 새로 읽는다 (탭을 켜 둔 채 두면 계속 요청이 나가서 요청 한도를 잡아먹는다)
+    const t = setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 60_000);
     const onFocus = () => refresh();
     window.addEventListener("focus", onFocus);
     return () => { clearInterval(t); window.removeEventListener("focus", onFocus); };

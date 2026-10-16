@@ -1595,3 +1595,5 @@ button.came-chip { cursor: pointer; }
 .notify-abs .btn, .rsvp-fixed .btn { min-width: 76px; height: 28px; min-height: 28px; padding-top: 0; padding-bottom: 0; font-size: 12px; line-height: 1; }
 .notify-abs .rsvp-fixed { display: flex; }
 .after-item[open] > .after-line.has-notify { padding-right: 0; }
+/* 날짜 박스 아래 D-day 뱃지: 날짜 박스와 같은 너비, 글자 가운데 */
+.race-head .chip.dday { display: flex; justify-content: center; align-items: center; text-align: center; width: auto; }

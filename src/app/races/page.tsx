@@ -243,7 +243,7 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
     <article id={r.id} className={`panel p-4 grid gap-3 ${dd >= 0 && dd <= 3 ? "race-gold keep-motion" : ""}`} style={past ? { opacity: 0.8 } : undefined}>
       <div className="race-head">
         {/* 날짜 박스 아래에 D-day 뱃지 */}
-        <div className="grid justify-items-center gap-1.5 content-start">
+        <div className="grid justify-items-stretch gap-1.5 content-start">
           <span className="datebox"><b>{d.md}</b><span>{d.w}요일</span></span>
           <span className={`chip dday ${dd < 0 ? "past" : dd === 0 ? "today" : dd <= 3 ? "gold keep-motion" : dd <= 7 ? "soon" : ""}`}>{dd < 0 ? "종료" : dd === 0 ? "D-DAY" : `D-${dd}`}</span>
         </div>

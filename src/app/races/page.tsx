@@ -338,12 +338,10 @@ const crewNicks = cache(async () => (await getMembers()).filter((m) => !isStaffN
 async function CheckerSelect() {
   const nicks = await crewNicks();
   return (
-    <label className="field full"><span className="label">맡길 크루원</span>
-      <select name="nick" className="input" defaultValue="" required>
-        <option value="" disabled>선택</option>
-        {nicks.map((m) => <option key={m.nick} value={m.nick}>{m.nick}/{m.name?.trim() || "없음"}</option>)}
-      </select>
-    </label>
+    <select name="nick" className="input min-w-0 flex-1" defaultValue="" required aria-label="맡길 크루원">
+      <option value="" disabled>크루원 선택</option>
+      {nicks.map((m) => <option key={m.nick} value={m.nick}>{m.nick}/{m.name?.trim() || "없음"}</option>)}
+    </select>
   );
 }
 
@@ -403,10 +401,10 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
                 <b>{n}</b><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2" message={`${n} 님의 출석 체크 위임을 취소할까요?`}>위임 취소</ConfirmButton>
               </form>
             ))}
-            <ActionForm action={addChecker} className="grid-2" collapse>
+            <ActionForm action={addChecker} className="flex items-center gap-2" collapse>
               <input type="hidden" name="id" value={r.id} />
               <CheckerSelect />
-              <div className="full"><Submit>위임하기</Submit></div>
+              <Submit className="btn btn-primary shrink-0">위임하기</Submit>
             </ActionForm>
           </div>
         </details>

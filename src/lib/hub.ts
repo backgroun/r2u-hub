@@ -21,6 +21,7 @@ export const K = {
   after: (id: string) => `r2u:race:${id}:after`, // hash afterId -> AfterParty
   afterPhoto: (afterId: string) => `r2u:afterPhoto:${afterId}`, // 단사 사진 1장 {type,data(base64)} · 대회 다음 날 자동 만료
   afterWhy: (afterId: string) => `r2u:afterWhy:${afterId}`, // 단사 불참 사유 hash nick -> 사유
+  checkers: (raceId: string) => `r2u:race:${raceId}:checkers`, // 출석 체크를 위임받은 크루원 hash nick -> 위임 시각
   afterCame: (afterId: string) => `r2u:afterCame:${afterId}`, // 당일 운영진이 체크한 출석 hash nick -> 1
   rsvp: (afterId: string) => `r2u:after:${afterId}`, // hash nick -> "yes" | "no"
   raceRec: (nick: string) => `r2u:racerec:${nick}`, // hash raceId -> RaceRec (내 대회 기록)
@@ -68,7 +69,7 @@ export type AfterKind = "photo" | "carpool" | "after";
 export type AfterParty = { id: string; kind?: AfterKind; place: string; address?: string; placeUrl?: string; time: string; memo: string; seats?: number; driver?: string; photo?: boolean; by: string; at: number }; // photo: 단사 사진 있음 · by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
 export const driverOf = (a: { driver?: string; by: string }) => a.driver || a.by;
 export type AfterFull = AfterParty & { yes: string[]; no: string[]; why: Record<string, { t: string; at: number }>; came: string[] };
-export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; afters: AfterFull[] };
+export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; checkers: string[]; afters: AfterFull[] };
 export type MonthRec = { goal: number; days: Record<string, number>; goalEdits?: number }; // goalEdits: 크루원이 목표를 바꾼 횟수 (월 2번까지)
 export const GOAL_EDIT_LIMIT = 2;
 export type User = { nick: string; admin: boolean; realAdmin?: boolean }; // admin: 지금 보는 모드 기준 · realAdmin: 실제 운영진인가(크루 보기 중에도 true)
@@ -167,10 +168,10 @@ export async function getRaces(): Promise<RaceFull[]> {
   if (!races.length) return [];
   // 대회마다 참가자·응원·뒷풀이를 한 번에 읽는다
   const p = redis.pipeline();
-  races.forEach((r) => { p.hgetall(K.raceP(r.id)); p.hgetall(K.cheer(r.id)); p.hgetall(K.after(r.id)); });
+  races.forEach((r) => { p.hgetall(K.raceP(r.id)); p.hgetall(K.cheer(r.id)); p.hgetall(K.after(r.id)); p.hkeys(K.checkers(r.id)); });
   const res = (await p.exec()) as (Record<string, unknown> | null)[];
   const afters = races.map((_, i) =>
-    Object.values(res[i * 3 + 2] ?? {}).map((v) => parse<AfterParty>(v)).sort((a, b) => a.at - b.at));
+    Object.values((res[i * 4 + 2] ?? {}) as Record<string, unknown>).map((v) => parse<AfterParty>(v)).sort((a, b) => a.at - b.at));
   const flat = afters.flat();
   const q = redis.pipeline();
   flat.forEach((a) => q.hgetall(K.rsvp(a.id)));
@@ -184,8 +185,9 @@ export async function getRaces(): Promise<RaceFull[]> {
   const cameById = new Map(withMeta.map((a, i) => [a.id, ((meta[i * 2 + 1] ?? []) as string[])]));
   return races.map((r, i) => ({
     ...r,
-    participants: Object.entries(res[i * 3] ?? {}).map(([nick, course]) => ({ nick, course: String(course ?? "") })),
-    cheers: Object.keys(res[i * 3 + 1] ?? {}),
+    participants: Object.entries((res[i * 4] ?? {}) as Record<string, unknown>).map(([nick, course]) => ({ nick, course: String(course ?? "") })),
+    cheers: Object.keys((res[i * 4 + 1] ?? {}) as Record<string, unknown>),
+    checkers: ((res[i * 4 + 3] ?? []) as unknown as string[]),
     afters: afters[i].map((a) => {
       const v = Object.entries(byId.get(a.id) ?? {});
       return { ...a, yes: v.filter(([, x]) => x === "yes").map(([n]) => n), no: v.filter(([, x]) => x === "no").map(([n]) => n), why: whyById.get(a.id) ?? {}, came: cameById.get(a.id) ?? [] };

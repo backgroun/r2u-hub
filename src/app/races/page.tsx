@@ -4,7 +4,7 @@ import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, deleteAfter, setAbsentReason, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
+import { addAfter, addChecker, deleteAfter, removeChecker, setAbsentReason, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
 import ScheduleNoticePanel from "@/components/schedule-notice";
 import { Nick, WheelIcon } from "@/components/crown";
@@ -325,6 +325,19 @@ const sortAfters = (list: AfterFull[]) => [...list].sort((a, b) => (a.time || "9
 
 const crewNicks = cache(async () => (await getMembers()).filter((m) => !isStaffNick(m.nick)).sort((a, b) => a.nick.localeCompare(b.nick, "ko")));
 
+/** 출석 체크를 맡길 크루원 고르기 */
+async function CheckerSelect() {
+  const nicks = await crewNicks();
+  return (
+    <label className="field full"><span className="label">맡길 크루원</span>
+      <select name="nick" className="input" defaultValue="" required>
+        <option value="" disabled>선택</option>
+        {nicks.map((m) => <option key={m.nick} value={m.nick}>{m.nick}/{m.name?.trim() || "없음"}</option>)}
+      </select>
+    </label>
+  );
+}
+
 /** 카풀 운전자 고르기: 기본은 올리는 나, 다른 크루원도 고를 수 있다 */
 async function DriverSelect({ me, value }: { me: string; value?: string }) {
   const nicks = await crewNicks();
@@ -369,7 +382,26 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   return (
     <div className="after-wrap">
       {top}
-      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} cand={cand} admins={admins} managers={managers} names={names} levels={levels} />)}
+      {items.map((a) => <AfterItem key={a.id} a={a} raceId={r.id} u={u} today={today} raceDate={r.date} dayBefore={dayBefore} cand={cand} checkers={r.checkers} admins={admins} managers={managers} names={names} levels={levels} />)}
+      {u.admin && r.date >= today && (
+        <details className="after-add">
+          <summary>출석 체크 위임{r.checkers.length ? ` (${r.checkers.join(", ")})` : ""}</summary>
+          <div className="grid gap-2 mt-2">
+            <span className="text-xs text-muted">운영진이 못 오면 크루원 한 명에게 당일 단사·뒷풀이 출석 체크를 맡길 수 있어요.</span>
+            {r.checkers.map((n) => (
+              <form key={n} action={removeChecker} className="flex items-center gap-2 text-sm">
+                <input type="hidden" name="id" value={r.id} /><input type="hidden" name="nick" value={n} />
+                <b>{n}</b><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2" message={`${n} 님의 출석 체크 위임을 취소할까요?`}>위임 취소</ConfirmButton>
+              </form>
+            ))}
+            <ActionForm action={addChecker} className="grid-2" collapse>
+              <input type="hidden" name="id" value={r.id} />
+              <CheckerSelect />
+              <div className="full"><Submit>위임하기</Submit></div>
+            </ActionForm>
+          </div>
+        </details>
+      )}
       <div className="after-adds">
         {KINDS.filter((k) => k.kind === "carpool" || !items.some((a) => kindOf(a) === k.kind)).map((k) => (
           <details key={k.kind} className="after-add">
@@ -387,7 +419,7 @@ function AfterParties({ r, u, admins, managers, names, levels, top }: { r: RaceF
   );
 }
 
-function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; today: string; raceDate: string; dayBefore: string; cand: string[]; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
+function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, checkers, admins, managers, names, levels }: { a: AfterFull; raceId: string; u: User; today: string; raceDate: string; dayBefore: string; cand: string[]; checkers: string[]; admins: Set<string>; managers: Set<string>; names: Record<string, string>; levels: Record<string, number> }) {
   const kind = kindOf(a);
   const mine = a.yes.includes(u.nick) ? "yes" : a.no.includes(u.nick) ? "no" : "";
   const tag = KINDS.find((k) => k.kind === kind)!.tag;
@@ -415,6 +447,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
   ) : null;
   // 대회 당일엔 단사·뒷풀이 모두 펼치고, 단사는 사진과 장소가 입력돼 있으면 전날부터 펼친다
   const isDay = today === raceDate;
+  const canCheck = u.admin || checkers.includes(u.nick); // 운영진, 또는 운영진이 출석 체크를 맡긴 크루원
   const openNow = (kind !== "carpool" && isDay) || (kind === "photo" && !!a.photo && !!a.place && today >= dayBefore && today <= raceDate);
   const canAbsent = (nick: string) => cand.includes(nick) && raceDate >= today;
   // 단사: 대회 참석자(참가·응원) 모두가 기본 명단, 못 오면 본인이 참석 불가. 뒷풀이: 평소엔 참석 신청자 목록, 당일엔 그 신청자로 출석 체크
@@ -453,14 +486,14 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, cand, admins, man
             <span className="text-xs text-muted">
               {kind === "after" ? "뒷풀이" : "단사"} {a.came.length > 0 || isDay ? "출석" : "참석 예정"} {isDay ? `${a.came.length}/${roster.length}` : roster.length}
               {a.no.length > 0 ? ` · 불참 ${a.no.length}` : ""}
-              {u.admin && isDay ? (kind === "photo" ? " · 운영진: 온 사람을 누르면 출석 체크 (내 이름은 두 번 누르면 참석 불가)" : " · 운영진: 온 사람을 누르면 출석 체크") : kind === "photo" && canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
+              {canCheck && isDay ? `${u.admin ? " · 운영진: 온 사람을 누르면 출석 체크" : " · 출석 체크를 맡았어요: 온 사람을 누르세요"}${kind === "photo" ? " (내 이름은 두 번 누르면 참석 불가)" : ""}` : kind === "photo" && canAbsent(u.nick) ? " · 못 오면 내 닉네임을 눌러 참석 불가" : ""}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {roster.map((n) => {
                 const on = a.came.includes(n), off = a.no.includes(n) && !on;
                 const label = <>{on ? "✓ " : off ? "✕ " : ""}{n}</>;
                 const cls = `came-chip ${on ? "on" : off ? "off" : ""}`;
-                const adminCheck = u.admin && isDay;
+                const adminCheck = canCheck && isDay;
                 const mineAbsent = kind === "photo" && !adminCheck && n === u.nick && !on && raceDate >= today;
                 if (adminCheck && kind === "photo" && n === u.nick) return <SelfChip key={n} raceId={raceId} afterId={a.id} nick={n} className={cls}>{label}</SelfChip>;
                 if (!adminCheck && !mineAbsent) return <span key={n} className={cls}>{label}</span>;

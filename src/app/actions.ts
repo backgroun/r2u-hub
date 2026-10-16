@@ -386,7 +386,7 @@ export async function deleteRace(fd: FormData) {
     ...afters.flatMap((aid, i) => (rsvps[i] ?? []).flatMap((n) => [setPoints(n, `after:${aid}`, 0, ""), setPoints(n, `ride:${aid}`, 0, "")])),
   ]);
   await redis.hdel(K.races, id);
-  await redis.del(K.raceP(id), K.cheer(id), K.after(id), ...afters.flatMap((a) => [K.rsvp(a), K.afterPhoto(a), K.afterWhy(a), K.afterCame(a)]));
+  await redis.del(K.raceP(id), K.cheer(id), K.after(id), K.checkers(id), ...afters.flatMap((a) => [K.rsvp(a), K.afterPhoto(a), K.afterWhy(a), K.afterCame(a)]));
   revalidatePath("/", "layout");
 }
 
@@ -411,8 +411,10 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
 
 /** 운영진: 대회 당일 단사·뒷풀이에 온 사람을 누를 때마다 출석 체크/해제 */
 export async function toggleCame(fd: FormData) {
-  await admin();
+  const u = await me();
   const id = str(fd, "id"), afterId = str(fd, "after"), nick = str(fd, "nick", 30);
+  // 운영진 또는 운영진이 출석 체크를 위임한 크루원만
+  if (!u.admin && !(await redis.hexists(K.checkers(id), u.nick))) return;
   const [raceRaw, afterRaw] = await Promise.all([redis.hget(K.races, id), redis.hget(K.after(id), afterId)]);
   if (!raceRaw || !afterRaw || !nick) return;
   const race = (typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race;
@@ -429,6 +431,22 @@ export async function toggleCame(fd: FormData) {
   revalidatePath("/races");
 }
 
+/** 운영진: 본인이 못 오는 대회의 출석 체크를 크루원 한 명에게 위임 (대회 전체 단사·뒷풀이에 적용) */
+export async function addChecker(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const id = str(fd, "id"), nick = str(fd, "nick", 30);
+  if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
+  if (!nick || isStaffNick(nick) || !(await getMember(nick))) return fail("위임할 크루원을 골라 주세요.");
+  await redis.hset(K.checkers(id), { [nick]: Date.now() });
+  revalidatePath("/races");
+  return ok(`${nick} 님에게 출석 체크를 맡겼어요.`);
+}
+export async function removeChecker(fd: FormData) {
+  await admin();
+  await redis.hdel(K.checkers(str(fd, "id")), str(fd, "nick", 30));
+  revalidatePath("/races");
+}
+
 /** 크루원: 단사에 못 오면 본인 이름만 ‘참석 불가’로 눌러 둔다(다시 누르면 취소). 운영진이 이미 온 것으로 체크한 사람은 못 바꾼다 */
 export async function toggleAbsent(fd: FormData) {
   const u = await me();
@@ -440,7 +458,7 @@ export async function toggleAbsent(fd: FormData) {
   const kind = a.kind ?? "after";
   if ((kind !== "photo" && kind !== "after") || race.date < kstToday()) return;
   if (await redis.hexists(K.afterCame(afterId), u.nick)) {
-    if (!u.admin) return; // 운영진이 이미 출석 체크한 크루원은 못 바꾼다 (운영진 본인은 스스로 바꿀 수 있다)
+    if (!u.admin && !(await redis.hexists(K.checkers(str(fd, "id")), u.nick))) return; // 이미 출석 체크된 크루원은 못 바꾼다 (운영진·위임받은 사람 본인은 스스로 바꿀 수 있다)
     await redis.hdel(K.afterCame(afterId), u.nick);
   }
   const cur = await redis.hget(K.rsvp(afterId), u.nick);
@@ -592,7 +610,9 @@ async function sendNoticeOne(u: { nick: string; admin: boolean }, raceId: string
   if (!u.admin && !attendees.has(u.nick)) return fail("이 일정의 참석자나 운영진만 알림을 보낼 수 있어요.");
   if (!pushReady()) return fail("알림 발송 설정이 아직 준비되지 않았어요.");
   const subscribed = await getPushEnabledNicks();
-  const recipients = new Set([...attendees].filter((nick) => subscribed.has(nick)));
+  // 단사는 이미 출석 체크된 사람에게는 알림을 보내지 않는다
+  const came = new Set(kind === "photo" && itemId ? await redis.hkeys(K.afterCame(itemId)) : []);
+  const recipients = new Set([...attendees].filter((nick) => subscribed.has(nick) && !came.has(nick)));
   if (!recipients.size) return fail("알림을 켠 참석자가 없어요.");
   const marker = `r2u:scheduleNotice:${raceId}:${itemId || "race"}`;
   if (await redis.set(marker, "1", { nx: true, ex: 3600 }) !== "OK") return fail("이 일정의 알림은 1시간에 한 번만 보낼 수 있어요.");

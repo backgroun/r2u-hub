@@ -1597,3 +1597,7 @@ button.came-chip { cursor: pointer; }
 .after-item[open] > .after-line.has-notify { padding-right: 0; }
 /* 날짜 박스 아래 D-day 뱃지: 날짜 박스와 같은 너비, 글자 가운데 */
 .race-head .chip.dday { display: flex; justify-content: center; align-items: center; text-align: center; width: auto; }
+/* 참가 코스 팝업 */
+.join-pop-back { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.6); }
+.join-pop { width: min(380px, 100%); display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(0,0,0,.55); }
+.join-pop .course-row { display: flex; flex-wrap: wrap; gap: 8px; }

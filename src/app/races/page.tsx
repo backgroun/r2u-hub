@@ -10,6 +10,7 @@ import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/compone
 import { Nick, WheelIcon } from "@/components/crown";
 import { cache } from "react";
 import MemberPicker from "@/components/member-picker";
+import JoinPopup from "@/components/join-popup";
 import SelfChip from "@/components/self-chip";
 import PhotoPicker from "@/components/photo-picker";
 import RsvpButtons from "@/components/rsvp-buttons";
@@ -279,7 +280,7 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
         {/* 오른쪽: 참가할게요(코스 변경) · 응원 갈게요 버튼 (같은 크기) */}
         <div className="shrink-0 grid justify-items-end gap-1.5">
           {!past && !isStaffAccount(u) && (
-            <Submit form={`join-${r.id}`} className="btn btn-primary race-act text-xs justify-center" confirm={me ? "참가 코스를 바꿀까요?" : undefined}>{me ? "코스 변경" : "참가해요"}</Submit>
+            <JoinPopup raceId={r.id} raceName={r.name} courses={COURSES} joined={!!me} />
           )}
           {!past && !isStaffNick(u.nick) ? (
           <form action={toggleCheer}>
@@ -293,21 +294,6 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
         </div>
       </div>
 
-      {/* 참가 표시 입력(코스 선택)은 늘 보이고, 참가자·응원·단사/카풀/뒷풀이는 요약 줄을 눌러 펼친다 */}
-      {!past && !isStaffAccount(u) && (
-        <ActionForm action={joinRace} className="join-form" id={`join-${r.id}`} alertError>
-          <input type="hidden" name="id" value={r.id} />
-          <div className="course-row" role="radiogroup" aria-label="코스 선택">
-            {COURSES.map((c) => (
-              <label key={c} className="cchip">
-                <input type="radio" name="course" value={c} defaultChecked={me?.course === c} />
-                <span>{c}</span>
-              </label>
-            ))}
-            <input name="courseEtc" className="input cchip-etc" placeholder="코스 선택 및 입력" maxLength={20} aria-label="코스 직접입력" />
-          </div>
-        </ActionForm>
-      )}
 
       {/* D-3 이내(오늘 포함) 대회는 펼쳐 둔다 */}
       <details className="race-more" open={(dd >= 0 && dd <= 3) || undefined}>

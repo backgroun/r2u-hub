@@ -419,8 +419,11 @@ export async function toggleCame(fd: FormData) {
   const a = (typeof afterRaw === "string" ? JSON.parse(afterRaw) : afterRaw) as AfterParty;
   const kind = a.kind ?? "after";
   if ((kind !== "photo" && kind !== "after") || race.date !== kstToday()) return;
-  if (await redis.hexists(K.afterCame(afterId), nick)) await redis.hdel(K.afterCame(afterId), nick);
-  else await redis.hset(K.afterCame(afterId), { [nick]: Date.now() });
+  const was = await redis.hexists(K.afterCame(afterId), nick);
+  if (was) await redis.hdel(K.afterCame(afterId), nick);
+  else { await redis.hset(K.afterCame(afterId), { [nick]: Date.now() }); await redis.hdel(K.rsvp(afterId), nick); await redis.hdel(K.afterWhy(afterId), nick); }
+  // 뒷풀이는 출석 체크가 곧 참석: 체크하면 포인트, 풀면 되돌린다
+  if (kind === "after" && !isStaffNick(nick)) await setPoints(nick, `after:${afterId}`, was ? 0 : (await pts()).after, "뒤풀이 참석");
   revalidatePath("/races");
 }
 
@@ -432,16 +435,17 @@ export async function toggleAbsent(fd: FormData) {
   if (!raceRaw || !afterRaw || !(inRace || inCheer)) return;
   const race = (typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race;
   const a = (typeof afterRaw === "string" ? JSON.parse(afterRaw) : afterRaw) as AfterParty;
-  if (a.kind !== "photo" || race.date < kstToday()) return;
+  const kind = a.kind ?? "after";
+  if ((kind !== "photo" && kind !== "after") || race.date < kstToday()) return;
+  if (await redis.hexists(K.afterCame(afterId), u.nick)) return; // 운영진이 이미 출석 체크한 사람은 못 바꾼다
   const cur = await redis.hget(K.rsvp(afterId), u.nick);
-  if (cur === "yes") return;
   if (cur === "no") { await redis.hdel(K.rsvp(afterId), u.nick); await redis.hdel(K.afterWhy(afterId), u.nick); }
   else {
     await redis.hset(K.rsvp(afterId), { [u.nick]: "no" });
     // 못 오는 사람이 생기면 운영진에게 무조건 알린다 (알림을 켠 운영진 기기로, 실패해도 표시는 그대로)
     try {
       const admins = new Set((await getMembers()).filter((m) => m.role === "admin").map((m) => m.nick));
-      if (pushReady() && admins.size) await sendPushToNicks(admins, "📷 단사 참석 불가", `${u.nick}님이 단사에 못 와요 · ${race.name}`, `/races#${id}`);
+      if (pushReady() && admins.size) await sendPushToNicks(admins, kind === "after" ? "🍻 뒷풀이 불참" : "📷 단사 참석 불가", `${u.nick}님이 ${kind === "after" ? "뒷풀이" : "단사"}에 못 와요 · ${race.name}`, `/races#${id}`);
     } catch { /* 알림 실패는 무시 */ }
   }
   revalidatePath("/races");

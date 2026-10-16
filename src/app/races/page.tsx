@@ -519,10 +519,20 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
     <div className="grid gap-1">
     <details className={`after-item k-${kind}`} open={openNow || undefined}>
       <summary className="after-line">
-        <span className="after-ico" aria-hidden>{AFTER_ICON[kind]}</span>
-        <b className="after-time num">{a.time || "--:--"}</b>
-        <span className={`chip k-tag`}>{tag}</span>
-        <span className="min-w-0 truncate">{title !== a.time ? title : ""}</span>
+        {kind === "carpool" ? (
+          <>
+            <span className="after-ico" aria-hidden>{AFTER_ICON[kind]}</span>
+            <b className="after-time num">{a.time || "--:--"}</b>
+            <span className={`chip k-tag`}>{tag}</span>
+            <span className="min-w-0 truncate">{title !== a.time ? title : ""}</span>
+          </>
+        ) : (
+          // 단사·뒷풀이: 뱃지 / 시간 (아이콘·장소는 빼고, 장소는 펼친 안쪽에 있다)
+          <>
+            <span className={`chip k-tag`}>{tag}</span>
+            <b className="after-time num">{a.time || "--:--"}</b>
+          </>
+        )}
         {count && <span className={`chip ${mine === "yes" ? "chip-open" : ""} ml-auto shrink-0`}>{mine === "yes" ? "✓ " : ""}{count}</span>}
       </summary>
       <div className="grid gap-2 pt-2">

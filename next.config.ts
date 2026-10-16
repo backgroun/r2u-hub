@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // 로컬 테스트 모드(npm run test-day)는 별도 폴더를 써서 npm run dev 의 캐시(.next)와 섞이지 않게 한다 (섞이면 "reading 'call'" 오류가 난다)
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   experimental: { serverActions: { bodySizeLimit: "4mb" } },
   // 개발 서버 화면 왼쪽 아래의 Next.js 표시(검은 동그라미)를 숨긴다
   devIndicators: false,

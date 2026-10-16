@@ -109,7 +109,7 @@ run(["hset", "r2u:after:after001", "번개", "yes"]); run(["hset", "r2u:after:af
 console.log(`[test-day] 시드 완료 · 오늘=${kst(0)} 대회(단사·뒷풀이·카풀), 내일=${kst(1)} 대회(단사 사진+장소)`);
 
 /* ---------- next dev ---------- */
-const env = { ...process.env, KV_REST_API_URL: `http://localhost:${PORT}`, KV_REST_API_TOKEN: TOKEN, UPSTASH_REDIS_REST_URL: `http://localhost:${PORT}`, UPSTASH_REDIS_REST_TOKEN: TOKEN, SESSION_SECRET: "test-day-secret", NODE_ENV: "development" };
+const env = { ...process.env, KV_REST_API_URL: `http://localhost:${PORT}`, KV_REST_API_TOKEN: TOKEN, UPSTASH_REDIS_REST_URL: `http://localhost:${PORT}`, UPSTASH_REDIS_REST_TOKEN: TOKEN, SESSION_SECRET: "test-day-secret", NODE_ENV: "development", NEXT_DIST_DIR: ".next-test" };
 const child = spawn("npx", ["next", "dev", "-p", String(WEB)], { env, stdio: "inherit" });
 console.log(`[test-day] http://localhost:${WEB}/login  ·  운영진 또는 ${crew.join("/")}  ·  비밀번호 ${PW}`);
 child.on("exit", (c) => process.exit(c ?? 0));

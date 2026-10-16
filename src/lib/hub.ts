@@ -19,6 +19,7 @@ export const K = {
   raceP: (id: string) => `r2u:race:${id}:p`, // hash nick -> course
   cheer: (id: string) => `r2u:race:${id}:cheer`, // hash nick -> 신청 시각
   after: (id: string) => `r2u:race:${id}:after`, // hash afterId -> AfterParty
+  afterPhoto: (afterId: string) => `r2u:afterPhoto:${afterId}`, // 단사 사진 1장 {type,data(base64)} · 대회 다음 날 자동 만료
   rsvp: (afterId: string) => `r2u:after:${afterId}`, // hash nick -> "yes" | "no"
   raceRec: (nick: string) => `r2u:racerec:${nick}`, // hash raceId -> RaceRec (내 대회 기록)
   vs: (ym: string) => `r2u:vs:${ym}`, // hash 내 닉네임 -> 이번 달 대결 상대 닉네임
@@ -62,7 +63,7 @@ export type Race = {
 };
 /** 대회 아래 함께하기 글: 단체사진(photo) · 카풀(carpool) · 뒷풀이(after, 예전 글은 kind 없음) */
 export type AfterKind = "photo" | "carpool" | "after";
-export type AfterParty = { id: string; kind?: AfterKind; place: string; address?: string; placeUrl?: string; time: string; memo: string; seats?: number; driver?: string; by: string; at: number }; // by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
+export type AfterParty = { id: string; kind?: AfterKind; place: string; address?: string; placeUrl?: string; time: string; memo: string; seats?: number; driver?: string; photo?: boolean; by: string; at: number }; // photo: 단사 사진 있음 · by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
 export const driverOf = (a: { driver?: string; by: string }) => a.driver || a.by;
 export type AfterFull = AfterParty & { yes: string[]; no: string[] };
 export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; afters: AfterFull[] };

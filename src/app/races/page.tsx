@@ -9,6 +9,7 @@ import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/compone
 import ScheduleNoticePanel from "@/components/schedule-notice";
 import { Nick, WheelIcon } from "@/components/crown";
 import { cache } from "react";
+import PhotoPicker from "@/components/photo-picker";
 import RsvpButtons from "@/components/rsvp-buttons";
 import { viewUrl } from "@/lib/roadrun";
 
@@ -342,6 +343,7 @@ function AfterFields({ kind, me, a }: { kind: AfterKind; me: string; a?: AfterFu
               {kind === "photo" && <>
                 <label className="field"><span className="label">시간</span><input name="time" type="time" className="input" defaultValue={a?.time} /></label>
                 <KakaoPlaceField label="장소" place={a?.place} address={a?.address} placeUrl={a?.placeUrl} placeholder="예: 출발선 왼쪽 R2U 깃발" />
+                <PhotoPicker current={a?.photo ? `/api/after-photo/${a.id}` : undefined} removable={!!a} />
               </>}
               {kind === "carpool" && <>
                 <DriverSelect me={me} value={a ? driverOf(a) : undefined} />
@@ -424,6 +426,7 @@ function AfterItem({ a, raceId, u, admins, managers, names, levels }: { a: After
           {a.address && <span className="text-xs text-muted">{a.address}</span>}
           {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           {a.memo && <span className="text-sm">{a.memo}</span>}
+          {a.photo && <a href={`/api/after-photo/${a.id}`} target="_blank" rel="noopener noreferrer"><img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260 }} /></a>}
           <span className="text-xs text-muted"><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림</span>
         </div>
         {kind !== "photo" && (

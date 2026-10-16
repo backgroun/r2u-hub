@@ -386,7 +386,7 @@ export async function deleteRace(fd: FormData) {
     ...afters.flatMap((aid, i) => (rsvps[i] ?? []).flatMap((n) => [setPoints(n, `after:${aid}`, 0, ""), setPoints(n, `ride:${aid}`, 0, "")])),
   ]);
   await redis.hdel(K.races, id);
-  await redis.del(K.raceP(id), K.cheer(id), K.after(id), ...afters.map((a) => K.rsvp(a)));
+  await redis.del(K.raceP(id), K.cheer(id), K.after(id), ...afters.flatMap((a) => [K.rsvp(a), K.afterPhoto(a)]));
   revalidatePath("/", "layout");
 }
 
@@ -437,11 +437,27 @@ export async function addCheer(_: Result, fd: FormData): Promise<Result> {
   return ok(`${nick} 님을 응원으로 넣었어요.`);
 }
 
+/** 단사 사진: 브라우저에서 줄여 보낸 이미지(최대 400KB)만 받는다. 대회 다음 날 자동으로 지워진다 */
+const PHOTO_MAX = 400 * 1024;
+async function readPhoto(fd: FormData): Promise<{ type: string; data: string } | null | "bad"> {
+  const f = fd.get("photo");
+  if (!(f instanceof File) || !f.size) return null;
+  if (!["image/jpeg", "image/webp", "image/png"].includes(f.type) || f.size > PHOTO_MAX) return "bad";
+  return { type: f.type, data: Buffer.from(await f.arrayBuffer()).toString("base64") };
+}
+async function savePhoto(afterId: string, raceDate: string, img: { type: string; data: string }) {
+  await redis.set(K.afterPhoto(afterId), img);
+  const at = Math.floor(Date.parse(`${raceDate}T23:59:59+09:00`) / 1000) + 86400;
+  await redis.expireat(K.afterPhoto(afterId), Math.max(at, Math.floor(Date.now() / 1000) + 86400));
+}
+
 /* ---------- 뒷풀이 (대회 아래 댓글처럼) ---------- */
 export async function addAfter(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
   const id = str(fd, "id");
-  if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
+  const raceRaw0 = await redis.hget(K.races, id);
+  if (!raceRaw0) return fail("없는 대회예요.");
+  const raceDate0 = ((typeof raceRaw0 === "string" ? JSON.parse(raceRaw0) : raceRaw0) as Race).date;
   const kind = (["photo", "carpool", "after"].includes(str(fd, "kind")) ? str(fd, "kind") : "after") as AfterKind;
   const seats = Math.round(Number(fd.get("seats")) || 0);
   const a: AfterParty = { id: newId(), kind, place: str(fd, "place", 60), address: str(fd, "address", 150), placeUrl: str(fd, "placeUrl", 200), time: str(fd, "time", 30), memo: str(fd, "memo", 200), by: u.nick, at: Date.now() };
@@ -456,7 +472,11 @@ export async function addAfter(_: Result, fd: FormData): Promise<Result> {
       a.driver = driver;
     }
   }
-  if (!a.place && !a.time && !a.memo) return fail(kind === "photo" ? "단체사진 시간이나 장소를 적어 주세요." : "장소나 내용을 적어 주세요.");
+  const photo = kind === "photo" ? await readPhoto(fd) : null;
+  if (photo === "bad") return fail("사진은 JPG·PNG·WebP, 400KB 이하만 올릴 수 있어요.");
+  if (photo) a.photo = true;
+  if (!a.place && !a.time && !a.memo && !photo) return fail(kind === "photo" ? "단체사진 시간이나 장소를 적어 주세요." : "장소나 내용을 적어 주세요.");
+  if (photo) await savePhoto(a.id, raceDate0, photo);
   await redis.hset(K.after(id), { [a.id]: JSON.stringify(a) });
   // 뒷풀이는 올린 사람을 참석으로. 단사는 참석 표시가 없고, 카풀 운전자는 탑승자 수에서 뺀다
   if (kind === "after") { await redis.hset(K.rsvp(a.id), { [u.nick]: "yes" }); await setPoints(u.nick, `after:${a.id}`, (await pts()).after, "뒤풀이 참석"); }
@@ -560,7 +580,7 @@ export async function deleteAfter(fd: FormData) {
   if (a.by !== u.nick && !u.admin) return;
   const rsvps = (await redis.hgetall<Record<string, string>>(K.rsvp(afterId))) ?? {};
   await redis.hdel(K.after(id), afterId);
-  await redis.del(K.rsvp(afterId));
+  await redis.del(K.rsvp(afterId), K.afterPhoto(afterId));
   // 글이 지워지면 그 글로 받은 포인트도 되돌린다
   await Promise.all([
     setPoints(a.by, `photo:${afterId}`, 0, ""), setPoints(a.driver || a.by, `drive:${afterId}`, 0, ""),
@@ -698,7 +718,17 @@ export async function updateAfter(_: Result, fd: FormData): Promise<Result> {
       await redis.hdel(K.rsvp(afterId), driver);
     }
   }
-  if (!next.place && !next.time && !next.memo) return fail("장소나 내용을 적어 주세요.");
+  if (a.kind === "photo") {
+    const photo = await readPhoto(fd);
+    if (photo === "bad") return fail("사진은 JPG·PNG·WebP, 400KB 이하만 올릴 수 있어요.");
+    if (photo) {
+      const raceRaw = await redis.hget(K.races, id);
+      const date = raceRaw ? ((typeof raceRaw === "string" ? JSON.parse(raceRaw) : raceRaw) as Race).date : kstToday();
+      await savePhoto(afterId, date, photo);
+      next.photo = true;
+    } else if (fd.get("removePhoto")) { await redis.del(K.afterPhoto(afterId)); next.photo = false; }
+  }
+  if (!next.place && !next.time && !next.memo && !next.photo) return fail("장소나 내용을 적어 주세요.");
   await redis.hset(K.after(id), { [afterId]: JSON.stringify(next) });
   revalidatePath("/races");
   revalidatePath("/admin");

@@ -514,7 +514,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
   const showList = kind === "after" && inMode; // 단사 명단은 위쪽 참가·응원 목록(확인 모드)으로 대신한다
   const roster = [...new Set([...a.yes, ...a.came])].sort((x, y) => x.localeCompare(y, "ko"));
   // 한 줄: 아이콘 · 시간 · 장소(제목) · 참석 수 / 누르면 참석 버튼·명단·운전자·메모·수정
-  const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" ? (inMode ? `출석 ${a.came.length}/${roster.length}` : `${a.yes.length}명`) : "";
+  const count = kind === "carpool" ? `${a.yes.length}/${a.seats ?? 0}석` : kind === "after" && !inMode ? `${a.yes.length}명` : ""; // 확인 모드에서는 출석 수를 따로 적지 않는다
   return (
     <div className="grid gap-1">
     <details className={`after-item k-${kind}`} open={openNow || undefined}>

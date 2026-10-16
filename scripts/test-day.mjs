@@ -104,7 +104,7 @@ H("r2u:race:tomorrow1:after", {
 });
 run(["set", "r2u:afterPhoto:photo001", photo]); run(["set", "r2u:afterPhoto:photo002", photo]);
 run(["hset", "r2u:afterCame:photo001", "달리기왕", "1"]); // 단사 출석: 달리기왕은 이미 체크
-run(["hset", "r2u:after:after001", "번개", "yes"]); run(["hset", "r2u:after:after001", "바람돌이", "yes"]); // 뒷풀이 참석 신청자
+run(["hset", "r2u:after:after001", "번개", "yes"]); run(["hset", "r2u:after:after001", "바람돌이", "yes"]); run(["hset", "r2u:after:after001", "꾸준이", "yes"]); // 뒷풀이 참석 신청자
 console.log(`[test-day] 시드 완료 · 오늘=${kst(0)} 대회(단사·뒷풀이·카풀), 내일=${kst(1)} 대회(단사 사진+장소)`);
 
 /* ---------- next dev ---------- */

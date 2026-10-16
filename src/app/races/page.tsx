@@ -512,11 +512,16 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
         {count && <span className={`chip ${mine === "yes" ? "chip-open" : ""} ml-auto shrink-0`}>{mine === "yes" ? "✓ " : ""}{count}</span>}
       </summary>
       <div className="grid gap-2 pt-2">
-        {kind !== "photo" && <div className="flex justify-end"><RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} /></div>}
+        {/* 위치 정보(왼쪽)와 참석 버튼(오른쪽)을 같은 줄 맨 위에 맞춘다 */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="grid gap-0.5 min-w-0">
+            {a.placeUrl && <a href={a.placeUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--lane)] underline">{a.place || "장소 보기"} 지도 ↗</a>}
+            {a.address && <span className="text-xs text-muted">{a.address}</span>}
+            {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
+          </div>
+          {kind !== "photo" && <div className="shrink-0"><RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} /></div>}
+        </div>
         <div className="grid gap-0.5 min-w-0">
-          {a.placeUrl && <a href={a.placeUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--lane)] underline">{a.place || "장소 보기"} 지도 ↗</a>}
-          {a.address && <span className="text-xs text-muted">{a.address}</span>}
-          {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           {a.memo && <span className="text-sm">{a.memo}</span>}
           {photoAlive && <img src={`/api/after-photo/${a.id}`} alt="단체사진" loading="lazy" className="rounded-lg" style={{ maxWidth: "100%", maxHeight: 260, pointerEvents: "none" }} />}
         </div>
@@ -524,7 +529,6 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
           <div className="flex flex-wrap items-center gap-1.5">
             {!(kind === "after" && inMode) && [...a.yes].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
             {!(kind === "after" && inMode) && [...a.no].sort((x, y) => x.localeCompare(y, "ko")).map((n) => <span key={n} className="pchip cancelled" title="취소함"><MemberChip nick={n}><Nick n={n} admins={admins} managers={managers} names={names} levels={levels} /></MemberChip></span>)}
-            {actions}
           </div>
         )}
         {showList && roster.length > 0 && (
@@ -549,12 +553,12 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
             </div>
           </div>
         )}
-        {kind === "photo" && actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}
       </div>
     </details>
       {/* 올린 사람·올린 시각·수정 시각: 박스 바깥 오른쪽 */}
-      <div className="after-by text-xs text-muted text-right">
-        <Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림 · {fmtStamp(a.at)}{a.editedAt ? ` · 수정 ${fmtStamp(a.editedAt)}` : ""}
+      <div className="after-by flex flex-wrap items-center justify-end gap-x-2.5 gap-y-1 text-xs text-muted">
+        {actions}
+        <span><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림 · {fmtStamp(a.at)}{a.editedAt ? ` · 수정 ${fmtStamp(a.editedAt)}` : ""}</span>
       </div>
     </div>
   );

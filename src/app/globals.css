@@ -1548,3 +1548,8 @@ button.came-chip { cursor: pointer; }
 .chk-x { color: var(--bad); font-size: 12px; margin-right: 2px; }
 .mode-check { font-size: 20px; line-height: 1; padding: 0; background: none; border: 0; cursor: pointer; }
 .mode-banner.mode-off { background: transparent; border-style: dashed; border-color: #c4c8ce; color: var(--muted); }
+/* 박스 바깥 작성자 줄의 수정: 열면 아래로 한 줄을 다 쓴다 */
+.after-by .after-edit { margin-left: 0; }
+.after-by .after-edit[open] { flex: 1 0 100%; order: 3; }
+.after-by .after-edit > summary { display: inline-flex; justify-content: flex-end; }
+.after-by .after-edit[open] > summary { display: flex; justify-content: flex-end; }

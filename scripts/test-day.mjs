@@ -95,7 +95,7 @@ for (const r of races) { H(`r2u:race:${r.id}:p`, Object.fromEntries(crew.slice(0
 const at = Date.now();
 H("r2u:race:today1:after", {
   photo001: { id: "photo001", kind: "photo", place: "주차:예술의전당 / 실내체육관 앞", time: "07:30", memo: "깃발 앞에 모여요", photo: true, by: "달리기왕", at },
-  after001: { id: "after001", kind: "after", place: "태화강 국밥집", time: "12:30", memo: "", by: "번개", at: at + 1 },
+  after001: { id: "after001", kind: "after", place: "마늘보쌈 울산점", address: "울산 북구 명촌8길 19", placeUrl: "https://place.map.kakao.com/123456789", time: "12:30", memo: "", by: "번개", at: at + 1 },
   carpool001: { id: "carpool001", kind: "carpool", place: "삼산 롯데백화점 앞", time: "05:30", memo: "", seats: 3, by: "꾸준이", at: at + 2 },
 });
 H("r2u:race:tomorrow1:after", {

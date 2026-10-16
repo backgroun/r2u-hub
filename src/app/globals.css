@@ -1620,3 +1620,27 @@ button.came-chip { cursor: pointer; }
 }
 .cheer-race { font-weight: 700; }
 .cheer-race .cheer-sub { font-weight: 400; }
+
+/* ===== 홈 응원 배너: 움직이는 그라데이션 테두리 + 티켓형 대회 카드 ===== */
+.cheer-card {
+  position: relative; overflow: hidden; border-radius: 20px; border: 1.5px solid transparent;
+  background: linear-gradient(165deg, #1e1511 0%, #120d0b 100%) padding-box,
+              linear-gradient(120deg, #ff8a3d, #ffd166, #ff5c8a, #ff8a3d) border-box;
+  background-size: 100% 100%, 300% 300%;
+  animation: cheer-border 7s linear infinite;
+  box-shadow: 0 16px 40px -16px rgba(255,138,61,.55), 0 0 0 1px rgba(255,138,61,.08) inset;
+}
+.cheer-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.07) 50%, transparent 60%); transform: translateX(-120%); animation: cheer-shine 5.5s ease-in-out infinite; }
+@keyframes cheer-border { 0% { background-position: 0 0, 0% 50%; } 100% { background-position: 0 0, 300% 50%; } }
+@keyframes cheer-shine { 0%, 55% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+.cheer-live { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 800; letter-spacing: .16em; color: #ffb26b; }
+.cheer-live i { width: 7px; height: 7px; border-radius: 50%; background: #ff4d4d; animation: cheer-pulse 1.6s ease-out infinite; }
+@keyframes cheer-pulse { 0% { box-shadow: 0 0 0 0 rgba(255,77,77,.7); } 100% { box-shadow: 0 0 0 9px rgba(255,77,77,0); } }
+.cheer-title { font-size: 19px; line-height: 1.25; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+.cheer-grad { background: linear-gradient(90deg, #ffd166, #ff8a3d 55%, #ff5c8a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cheer-race-card { display: grid; gap: 8px; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); }
+.cheer-time { font-size: 12.5px; font-weight: 800; padding: 3px 9px; border-radius: 8px; color: #fff; background: linear-gradient(135deg, #ff8a3d, #ff5c8a); box-shadow: 0 4px 12px -4px rgba(255,92,138,.6); }
+.cheer-plans { display: grid; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 2px solid rgba(255,138,61,.5); }
+.cheer-plans .cheer-row { background: none; padding: 0; border-radius: 0; }
+.cheer-foot { font-weight: 700; background: linear-gradient(90deg, #ffd166, #ff8a3d); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@media (prefers-reduced-motion: reduce) { .cheer-card, .cheer-card::after, .cheer-live i { animation: none !important; } }

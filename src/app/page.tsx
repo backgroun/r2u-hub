@@ -78,33 +78,36 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
 
 
       {todayRaces.length > 0 && (
-        <Link href="/races" className="cheer-card p-4 grid gap-2.5">
+        <Link href="/races" className="cheer-card p-4 grid gap-3">
           <span className="cheer-pom" aria-hidden>🎉</span>
           <span className="cheer-pom cheer-pom-r" aria-hidden>🎊</span>
-          <div className="grid gap-0.5 min-w-0">
-            <b className="cheer-title">🏁 오늘은 대회 날! R2U 파이팅 <span className="cheer-bounce" aria-hidden>🔥</span></b>
+          <div className="grid gap-1 min-w-0">
+            <span className="cheer-live"><i aria-hidden />RACE DAY</span>
+            <b className="cheer-title">오늘은 대회 날! <span className="cheer-grad">R2U 파이팅</span> <span className="cheer-bounce" aria-hidden>🔥</span></b>
             <span className="text-xs cheer-sub">{todayRaces.map((r) => r.name).join(" · ")} · 다 같이 힘내요 📣</span>
           </div>
           <div className="grid gap-2.5">
             {todayRaces.map((r) => (
-              <div key={r.id} className="grid gap-1.5">
-                <span className="cheer-race flex items-center gap-2 text-sm min-w-0">
-                  <span aria-hidden>🏃</span>
+              <div key={r.id} className="cheer-race-card">
+                <span className="cheer-race flex items-center gap-2 min-w-0">
+                  <span className="cheer-time num shrink-0">{r.time || "--:--"}</span>
                   <b className="min-w-0 truncate">{r.name}</b>
-                  {r.time && <span className="num text-xs cheer-sub shrink-0">{r.time} 출발</span>}
                 </span>
-                {plansOf(r).map((a) => (
-                  <span key={a.id} className="cheer-row flex items-center gap-2 text-sm min-w-0">
-                    <span aria-hidden>{a.kind === "photo" ? "📸" : "🍻"}</span>
-                    <b className="num shrink-0">{a.time || "--:--"}</b>
-                    <span className="cheer-tag shrink-0">{a.kind === "photo" ? "단체사진" : "뒷풀이"}</span>
-                    <span className="min-w-0 truncate">{a.place || r.name}</span>
-                  </span>
-                ))}
+                {plansOf(r).length > 0 && (
+                  <div className="cheer-plans">
+                    {plansOf(r).map((a) => (
+                      <span key={a.id} className="cheer-row flex items-center gap-2 text-sm min-w-0">
+                        <b className="num shrink-0">{a.time || "--:--"}</b>
+                        <span className="cheer-tag shrink-0">{a.kind === "photo" ? "단체사진" : "뒷풀이"}</span>
+                        <span className="min-w-0 truncate">{a.place || r.name}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
-          <span className="text-xs cheer-foot">✨ 완주도 응원도 모두 멋져요, 오늘도 즐겁게 달려요!</span>
+          <span className="cheer-foot text-xs">✨ 완주도 응원도 모두 멋져요, 오늘도 즐겁게 달려요!</span>
         </Link>
       )}
 

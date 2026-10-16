@@ -311,7 +311,6 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
         <summary className="race-sum">
           {/* 1줄: 참가 인원(코스별) · 2줄: 응원 · 단사·카풀·뒷풀이 시간 */}
           <span className="race-sum-text grid gap-0.5">
-            {checkMode && <b className="mode-tag inline-flex items-center gap-1 text-[13px]"><ModeCheckIcon on size={15} />단사 확인 모드</b>}
             <span className="truncate"><b>👥 참가 {r.participants.length}</b>
               {groups.length > 0 && <span className="text-muted"> ({groups.map((g) => `${g.label} ${g.list.length}`).join(" · ")})</span>}</span>
             {/* 응원·단사·카풀·뒷풀이는 있을 때만 (0명이면 안 적는다) */}

@@ -1560,3 +1560,8 @@ button.came-chip { cursor: pointer; }
 .mode-check { display: inline-flex; align-items: center; transition: transform .12s; }
 .mode-check:active { transform: scale(.88); }
 .mode-tag { margin-right: 6px; }
+/* 대회 정보: 접어 둔 줄 */
+.race-fold-sum { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; list-style: none; font-size: 13px; font-weight: 600; color: var(--lane); }
+.race-fold-sum::-webkit-details-marker { display: none; }
+.race-fold-sum::after { content: "▾"; font-size: 11px; }
+.race-fold[open] > .race-fold-sum::after { content: "▴"; }

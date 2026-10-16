@@ -87,7 +87,7 @@ const crew = ["달리기왕", "번개", "꾸준이", "바람돌이", "새벽러�
 H("r2u:members", Object.fromEntries([{ nick: "운영진", role: "admin" }, ...crew.map((nick, i) => ({ nick, name: ["김하나", "이둘", "박셋", "최넷", "정다섯", "한여섯"][i], role: (nick === "번개" || nick === "새벽러너") ? "admin" : "member" }))].map((m) => [m.nick, { ...m, pw: hashPw(PW) }])));
 const photo = JSON.stringify({ type: "image/png", data: readFileSync(new URL("../public/apple-touch-icon.png", import.meta.url)).toString("base64") });
 const races = [
-  { id: "today1", name: "[테스트] 오늘 열리는 대회", date: kst(0), place: "경주 예술의전당", note: "", time: "08:00" },
+  { id: "today1", name: "[테스트] 오늘 열리는 대회", date: kst(0), place: "경주 예술의전당", address: "경북 경주시 알천북로 1", note: "풀,하프,10km · gyeongjumarathon.com/home", regUrl: "https://example.com/reg", time: "08:00" },
   { id: "tomorrow1", name: "[테스트] 내일 열리는 대회", date: kst(1), place: "울산 태화강", note: "", time: "08:30" },
 ];
 H("r2u:races", Object.fromEntries(races.map((r) => [r.id, r])));

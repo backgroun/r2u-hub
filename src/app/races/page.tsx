@@ -258,14 +258,16 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
           ) : <span className="chip count-badge" aria-label={`크루 참가 ${r.participants.length}명`}>👥 {r.participants.length}명</span>}
         </div>
         {/* 주소 · (코스·링크 메모 + 대회 정보 버튼)을 이름·시간 줄과 같은 왼쪽 선에서 시작해 오른쪽 끝까지 */}
-        {(r.address || r.note || r.regUrl || r.src) && <div className="race-detail grid gap-1 min-w-0">
-          {r.address && <p className="text-xs text-muted">{r.address}</p>}
-          {(r.note || r.regUrl || r.src) && <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        {/* 하단 대회 정보(주소·코스 메모·접수/대회 정보 링크)는 기본으로 접어 둔다 */}
+        {(r.address || r.note || r.regUrl || r.src) && <details className="race-detail race-fold min-w-0">
+          <summary className="race-fold-sum">대회 정보</summary>
+          {r.address && <p className="text-xs text-muted mt-1.5">{r.address}</p>}
+          {(r.note || r.regUrl || r.src) && <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-1.5">
             {r.note && <p className="text-sm break-all min-w-0"><Linkify text={r.note} /></p>}
             {r.regUrl && <a href={r.regUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary text-xs py-1.5 px-2.5">주최 측 접수 페이지 ↗</a>}
             {r.src && <a href={viewUrl(r.src)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost text-xs py-1.5 px-2.5">대회 정보 ↗</a>}
           </div>}
-        </div>}
+        </details>}
       </div>
 
       {/* 참가 표시 입력(코스 선택)은 늘 보이고, 참가자·응원·단사/카풀/뒷풀이는 요약 줄을 눌러 펼친다 */}

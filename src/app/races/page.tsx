@@ -161,11 +161,12 @@ function groupByCourse(ps: RaceFull["participants"]) {
   return [...map.values()].sort((a, b) => rank(a.key) - rank(b.key));
 }
 
-/** 알림 종 아이콘: 선만 있는 단순한 모양 */
+/** 알림 종 아이콘: 채워진 단순한 모양 */
 function BellIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg className="bell-ico" viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M6 17V11a6 6 0 0 1 12 0v6l1.6 2H4.4L6 17z" /><path d="M10 21.5h4" />
+    <svg className="bell-ico" viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
+      <path d="M12 3a6 6 0 0 0-6 6v4.2L4.3 16.5c-.3.6.1 1.3.8 1.3h13.8c.7 0 1.1-.7.8-1.3L18 13.2V9a6 6 0 0 0-6-6z" />
+      <path d="M10 19.4a2 2 0 0 0 4 0z" />
     </svg>
   );
 }
@@ -567,7 +568,7 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
           </div>
           {kind !== "photo" && (
             <div className="shrink-0 grid justify-items-end gap-1.5">
-              <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />
+              <div className="rsvp-fixed"><RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} /></div>
             </div>
           )}
         </div>

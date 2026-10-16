@@ -1575,3 +1575,7 @@ button.came-chip { cursor: pointer; }
 .bell-ico { flex: none; margin-right: 4px; vertical-align: -2px; }
 .notify-abs .btn { display: inline-flex; align-items: center; justify-content: center; }
 .notify-abs, .notify-abs form { display: flex; line-height: 1; }
+/* 알림·참석 버튼: 같은 가로 너비, 글자 가로·세로 가운데 */
+.notify-abs { right: 12px; }
+.notify-abs .btn, .rsvp-fixed .btn { min-width: 88px; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+.bell-ico { margin-right: 2px; }

@@ -547,7 +547,17 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
             {a.address && <span className="text-xs text-muted">{a.address}</span>}
             {kind === "carpool" && <span className="text-sm" title="운전자"><WheelIcon /> <Nick n={driverOf(a)} admins={admins} managers={managers} names={names} levels={levels} /></span>}
           </div>
-          {kind !== "photo" && <div className="shrink-0"><RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} /></div>}
+          {(canNotify || kind !== "photo") && (
+            <div className="shrink-0 grid justify-items-end gap-1.5">
+              {canNotify && (
+                <ActionForm action={sendItemNotice} keep alertError>
+                  <input type="hidden" name="id" value={raceId} /><input type="hidden" name="item" value={a.id} />
+                  <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?`}>🔔 알림</Submit>
+                </ActionForm>
+              )}
+              {kind !== "photo" && <RsvpButtons raceId={raceId} afterId={a.id} kind={kind} mine={mine} yes={a.yes.length} seats={a.seats} full={full} driver={driverOf(a) === u.nick} />}
+            </div>
+          )}
         </div>
         {(a.memo || photoAlive) && <div className="grid gap-0.5 min-w-0">
           {a.memo && <span className="text-sm">{a.memo}</span>}
@@ -579,14 +589,6 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
                 );
               })}
             </div>
-          </div>
-        )}
-        {canNotify && (
-          <div className="flex justify-end">
-            <ActionForm action={sendItemNotice} keep alertError>
-              <input type="hidden" name="id" value={raceId} /><input type="hidden" name="item" value={a.id} />
-              <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?`}>🔔 알림</Submit>
-            </ActionForm>
           </div>
         )}
       </div>

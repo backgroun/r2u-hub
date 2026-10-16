@@ -799,7 +799,7 @@ export async function updateAfter(_: Result, fd: FormData): Promise<Result> {
   const a = (typeof raw === "string" ? JSON.parse(raw) : raw) as AfterParty;
   // 올린 사람, 카풀 운전자, 운영진이 고칠 수 있다
   if (!u.admin && a.by !== u.nick && (a.driver || a.by) !== u.nick) return fail("올린 사람만 고칠 수 있어요.");
-  const next: AfterParty = { ...a, editedAt: Date.now(), place: str(fd, "place", 60), address: str(fd, "address", 150), placeUrl: str(fd, "placeUrl", 200), time: str(fd, "time", 30), memo: str(fd, "memo", 200) };
+  const next: AfterParty = { ...a, editedAt: Date.now(), editedBy: u.nick, place: str(fd, "place", 60), address: str(fd, "address", 150), placeUrl: str(fd, "placeUrl", 200), time: str(fd, "time", 30), memo: str(fd, "memo", 200) };
   if (!/^https?:\/\/place\.map\.kakao\.com\/\d+\/?$/.test(next.placeUrl ?? "")) { next.address = ""; next.placeUrl = ""; }
   if (a.kind === "carpool") {
     const seats = Math.round(Number(fd.get("seats")) || 0);

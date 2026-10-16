@@ -66,7 +66,7 @@ export type Race = {
 };
 /** 대회 아래 함께하기 글: 단체사진(photo) · 카풀(carpool) · 뒷풀이(after, 예전 글은 kind 없음) */
 export type AfterKind = "photo" | "carpool" | "after";
-export type AfterParty = { id: string; kind?: AfterKind; place: string; address?: string; placeUrl?: string; time: string; memo: string; seats?: number; driver?: string; photo?: boolean; by: string; at: number; editedAt?: number }; // photo: 단사 사진 있음 · by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
+export type AfterParty = { id: string; kind?: AfterKind; place: string; address?: string; placeUrl?: string; time: string; memo: string; seats?: number; driver?: string; photo?: boolean; by: string; at: number; editedAt?: number; editedBy?: string }; // photo: 단사 사진 있음 · by: 올린 사람, driver: 카풀 운전자(없으면 올린 사람)
 export const driverOf = (a: { driver?: string; by: string }) => a.driver || a.by;
 export type AfterFull = AfterParty & { yes: string[]; no: string[]; came: string[] };
 export type RaceFull = Race & { participants: { nick: string; course: string }[]; cheers: string[]; checkers: string[]; checkMode?: "on" | "off"; afters: AfterFull[] };

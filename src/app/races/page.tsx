@@ -621,7 +621,10 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, pushOn, c
       {/* 올린 사람·올린 시각·수정 시각: 박스 바깥 오른쪽 */}
       <div className="after-by flex flex-wrap items-center justify-end gap-x-2.5 gap-y-1 text-xs text-muted">
         {actions}
-        <span><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림 · {fmtStamp(a.at)}{a.editedAt ? ` · 수정 ${fmtStamp(a.editedAt)}` : ""}</span>
+        {/* 수정한 글은 올린 사람·올린 시각 대신 수정한 사람과 수정 시각만 남긴다 */}
+        {a.editedAt
+          ? <span><Nick n={a.editedBy ?? a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 수정 · {fmtStamp(a.editedAt)}</span>
+          : <span><Nick n={a.by} admins={admins} managers={managers} names={names} levels={levels} /> 님이 올림 · {fmtStamp(a.at)}</span>}
       </div>
     </div>
   );

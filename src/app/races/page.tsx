@@ -4,7 +4,7 @@ import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, attendanceMode, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
-import { addAfter, addChecker, setCheckMode, sendScheduleNotices, deleteAfter, removeChecker, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
+import { addAfter, addChecker, setCheckMode, sendItemNotice, sendScheduleNotices, deleteAfter, removeChecker, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
 import { Nick, WheelIcon } from "@/components/crown";
 import { cache } from "react";
@@ -241,6 +241,17 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
               </>
             )}
           </p>
+          {/* 주소 · (코스·링크 메모 + 대회 정보 버튼)을 이름·시간 줄과 같은 왼쪽 선에서 시작해 오른쪽 끝까지 */}
+          {/* 하단 대회 정보(주소·코스 메모·접수/대회 정보 링크)는 기본으로 접어 둔다 */}
+          {(r.address || r.note || r.regUrl || r.src) && <details className="race-fold min-w-0">
+            <summary className="race-fold-sum">대회 정보</summary>
+            {r.address && <p className="text-xs text-muted mt-1.5">{r.address}</p>}
+            {(r.note || r.regUrl || r.src) && <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-1.5">
+              {r.note && <p className="text-sm break-all min-w-0"><Linkify text={r.note} /></p>}
+              {r.regUrl && <a href={r.regUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary text-xs py-1.5 px-2.5">주최 측 접수 페이지 ↗</a>}
+              {r.src && <a href={viewUrl(r.src)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost text-xs py-1.5 px-2.5">대회 정보 ↗</a>}
+            </div>}
+          </details>}
         </div>
         {/* 오른쪽: 참가할게요(코스 변경) · 응원 갈게요 버튼 (같은 크기) */}
         <div className="shrink-0 grid justify-items-end gap-1.5">
@@ -257,17 +268,6 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
           </form>
           ) : <span className="chip count-badge" aria-label={`크루 참가 ${r.participants.length}명`}>👥 {r.participants.length}명</span>}
         </div>
-        {/* 주소 · (코스·링크 메모 + 대회 정보 버튼)을 이름·시간 줄과 같은 왼쪽 선에서 시작해 오른쪽 끝까지 */}
-        {/* 하단 대회 정보(주소·코스 메모·접수/대회 정보 링크)는 기본으로 접어 둔다 */}
-        {(r.address || r.note || r.regUrl || r.src) && <details className="race-detail race-fold min-w-0">
-          <summary className="race-fold-sum">대회 정보</summary>
-          {r.address && <p className="text-xs text-muted mt-1.5">{r.address}</p>}
-          {(r.note || r.regUrl || r.src) && <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-1.5">
-            {r.note && <p className="text-sm break-all min-w-0"><Linkify text={r.note} /></p>}
-            {r.regUrl && <a href={r.regUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary text-xs py-1.5 px-2.5">주최 측 접수 페이지 ↗</a>}
-            {r.src && <a href={viewUrl(r.src)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost text-xs py-1.5 px-2.5">대회 정보 ↗</a>}
-          </div>}
-        </details>}
       </div>
 
       {/* 참가 표시 입력(코스 선택)은 늘 보이고, 참가자·응원·단사/카풀/뒷풀이는 요약 줄을 눌러 펼친다 */}
@@ -344,10 +344,10 @@ function RaceCard({ r, u, admins, managers, names, levels, past, showReg = false
       </div>}
 
       <AfterParties r={r} u={u} admins={admins} managers={managers} names={names} levels={levels}
-        top={(u.admin || raceAttendee || r.checkers.includes(u.nick)) && noticeKinds.length > 0 ? (
+        top={(u.admin || raceAttendee || r.checkers.includes(u.nick)) && noticeKinds.some((k) => k.key === "race" || k.key === "carpool") ? (
           // 알림은 종류별로 따로 보낸다 (단사·뒷풀이·카풀·대회 각각 버튼)
           <div className="flex flex-wrap justify-end gap-1.5">
-            {noticeKinds.map((k) => (
+            {noticeKinds.filter((k) => k.key === "race" || k.key === "carpool").map((k) => (
               <ActionForm key={k.key} action={sendScheduleNotices} keep alertError>
                 <input type="hidden" name="id" value={r.id} /><input type="hidden" name="k" value={k.key} />
                 <Submit className="btn text-sm py-1.5 px-3" pendingText="보내는 중…" confirm={`${k.label.replace(/^\S+\s/, "")} 알림을 보낼까요?`}>🔔 {k.label.replace(/^\S+\s/, "")} 알림{k.count > 1 ? ` ${k.count}` : ""}</Submit>
@@ -509,6 +509,8 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
   // 사진은 대회 다음 날 밤에 저장소에서 자동 삭제되므로, 그 뒤에는 깨진 그림이 보이지 않게 숨긴다
   const photoAlive = !!a.photo && today <= new Date(Date.parse(`${raceDate}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const canCheck = u.admin || checkers.includes(u.nick); // 운영진, 또는 운영진이 출석 체크를 맡긴 크루원
+  // 이 일정에 알림 보내기: 운영진·위임받은 사람·대회 참석자, 아직 안 지난 시간이 있을 때
+  const canNotify = (kind === "photo" || kind === "after") && (canCheck || cand.includes(u.nick)) && /^([01]\d|2[0-3]):[0-5]\d$/.test(a.time ?? "") && Date.parse(`${raceDate}T${a.time}:00+09:00`) > Date.now();
   // 확인 모드가 켜지면 단사·뒷풀이를 펼치고, 아니면 접어 둔다
   const openNow = (kind === "photo" || kind === "after") && inMode;
   const canAbsent = (nick: string) => cand.includes(nick) && raceDate >= today;
@@ -577,6 +579,14 @@ function AfterItem({ a, raceId, u, today, raceDate, dayBefore, inMode, cand, che
                 );
               })}
             </div>
+          </div>
+        )}
+        {canNotify && (
+          <div className="flex justify-end">
+            <ActionForm action={sendItemNotice} keep alertError>
+              <input type="hidden" name="id" value={raceId} /><input type="hidden" name="item" value={a.id} />
+              <Submit className="btn text-xs py-1 px-2.5" pendingText="보내는 중…" confirm={`${tag} 알림을 보낼까요?`}>🔔 알림</Submit>
+            </ActionForm>
           </div>
         )}
       </div>

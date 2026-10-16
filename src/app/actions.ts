@@ -592,6 +592,13 @@ export async function sendScheduleNotices(_: Result, fd: FormData): Promise<Resu
   return ok(`${done.length}개 일정에 알림을 보냈어요.${failed.length ? ` (${failed.length}개는 못 보냈어요: ${[...new Set(failed)].join(" / ")})` : ""}`);
 }
 
+/** 단사·뒷풀이 박스 안의 알림 버튼: 그 일정 하나에만 보낸다 */
+export async function sendItemNotice(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  const r = await sendNoticeOne(u, str(fd, "id", 30), str(fd, "item", 30));
+  return r?.ok ? ok("알림을 보냈어요.") : (r ?? fail("알림을 보내지 못했어요."));
+}
+
 async function sendNoticeOne(u: { nick: string; admin: boolean }, raceId: string, itemId: string): Promise<Result> {
   const [raceRaw, itemRaw, participants, cheers, rsvps] = await Promise.all([
     redis.hget(K.races, raceId), itemId ? redis.hget(K.after(raceId), itemId) : Promise.resolve(null),

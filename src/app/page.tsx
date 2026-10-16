@@ -77,19 +77,30 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
       </header>
 
 
-      {todayPlans.length > 0 && (
-        <Link href="/races" className="panel panel-alert p-3.5 grid gap-1.5">
-          <b className="text-sm">🏃 오늘 대회 일정</b>
-          {todayPlans.map(({ r, a }) => (
-            <span key={a.id} className="flex items-center gap-2 text-sm min-w-0">
-              <span aria-hidden>{a.kind === "photo" ? "📷" : "🍻"}</span>
-              <b className="num shrink-0">{a.time || "--:--"}</b>
-              <span className="chip shrink-0">{a.kind === "photo" ? "단사" : "뒷풀이"}</span>
-              <span className="min-w-0 truncate">{a.place || r.name}</span>
-            </span>
-          ))}
-        </Link>
-      )}
+      {todayPlans.length > 0 && (() => {
+        const names = [...new Set(todayPlans.map(({ r }) => r.name))];
+        return (
+          <Link href="/races" className="cheer-card p-4 grid gap-2.5">
+            <span className="cheer-pom" aria-hidden>🎉</span>
+            <span className="cheer-pom cheer-pom-r" aria-hidden>🎊</span>
+            <div className="grid gap-0.5 min-w-0">
+              <b className="cheer-title">🏁 오늘은 대회 날! R2U 파이팅 <span className="cheer-bounce" aria-hidden>🔥</span></b>
+              <span className="text-xs cheer-sub truncate">{names.join(" · ")} · 다 같이 힘내요 📣</span>
+            </div>
+            <div className="grid gap-1.5">
+              {todayPlans.map(({ r, a }) => (
+                <span key={a.id} className="cheer-row flex items-center gap-2 text-sm min-w-0">
+                  <span aria-hidden>{a.kind === "photo" ? "📸" : "🍻"}</span>
+                  <b className="num shrink-0">{a.time || "--:--"}</b>
+                  <span className="cheer-tag shrink-0">{a.kind === "photo" ? "단체사진" : "뒷풀이"}</span>
+                  <span className="min-w-0 truncate">{a.place || r.name}</span>
+                </span>
+              ))}
+            </div>
+            <span className="text-xs cheer-foot">✨ 완주도 응원도 모두 멋져요, 오늘도 즐겁게 달려요!</span>
+          </Link>
+        );
+      })()}
 
       {recordDue.map((r) => (
         <Link key={r.id} href={`/me?rec=${r.id}#race-record`} className="panel panel-alert p-3.5 flex items-center gap-3">

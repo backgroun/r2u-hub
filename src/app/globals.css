@@ -1646,3 +1646,5 @@ button.came-chip { cursor: pointer; }
 .cheer-flag { position: absolute; top: 14px; right: 14px; color: #ffb26b; opacity: .9; animation: cheer-float 2.8s ease-in-out infinite; }
 .cheer-flame { display: inline-flex; vertical-align: -2px; color: #ff8a3d; }
 .cheer-foot svg { flex: none; color: #ffd166; -webkit-text-fill-color: initial; }
+
+.maint-banner { padding: 8px 14px; text-align: center; font-size: 13px; font-weight: 600; background: #fff3cd; color: #7a5b00; border-bottom: 1px solid #f0d98a; }

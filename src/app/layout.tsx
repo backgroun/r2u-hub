@@ -65,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PressFeel />
         <BadgeClear />
         <AppBar />
+        {process.env.MAINTENANCE === "1" && <div className="maint-banner" role="status">🛠 지금은 점검 중이에요. 보기만 가능하고 저장은 잠시 후에 돼요.</div>}
         <Toaster />
         <HubNav />
         {children}

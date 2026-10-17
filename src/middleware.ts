@@ -25,6 +25,12 @@ const nickOf = (raw: string | undefined) => { try { return atob((raw ?? "").spli
 const sameNick = (a: string | undefined, b: string | undefined) => new TextDecoder().decode(Uint8Array.from(nickOf(a), (c) => c.charCodeAt(0))) === new TextDecoder().decode(Uint8Array.from(nickOf(b), (c) => c.charCodeAt(0)));
 
 export async function middleware(req: NextRequest) {
+  // 점검 모드(MAINTENANCE=1): 읽기는 그대로 두고, 쓰기 요청(POST 등)만 막는다. 로그인은 허용.
+  if (process.env.MAINTENANCE === "1" && !["GET", "HEAD", "OPTIONS"].includes(req.method) && req.nextUrl.pathname !== "/login") {
+    return new NextResponse("점검 중이라 지금은 저장할 수 없어요. 잠시 후 다시 해 주세요.", { status: 503, headers: { "Retry-After": "600", "Cache-Control": "no-store" } });
+  }
+  // 점검 모드가 아닐 때 API 는 예전처럼 미들웨어를 거치지 않는다 (쓰기 차단만 위에서 처리).
+  if (req.nextUrl.pathname.startsWith("/api/")) return NextResponse.next();
   if (await valid(req.cookies.get("r2u_s")?.value)) {
     // 이벤트 오픈일 전이거나 운영진이 숨긴 동안에는 빙고 화면 대신 안내 페이지로 (운영진 미리보기 쿠키가 있으면 허용)
     const p = req.nextUrl.pathname;
@@ -43,5 +49,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // 로그인 화면, API, 정적 파일(빙고 css/js/이미지 포함)은 제외. 빙고 화면(/bingo, /bingo/index.html)은 보호.
-  matcher: ["/((?!login|join|api|_next|favicon\\.ico|logo\\.png|apple-touch-icon\\.png|og\\.png|sw\\.js|icon-.+\\.png|icons/.+\\.png|gear/.+\\.webp|manifest\\.webmanifest|bingo/.+\\.(?:js|css|png|webmanifest|woff2)).*)"],
+  matcher: ["/api/:path*", "/((?!login|join|api|_next|favicon\\.ico|logo\\.png|apple-touch-icon\\.png|og\\.png|sw\\.js|icon-.+\\.png|icons/.+\\.png|gear/.+\\.webp|manifest\\.webmanifest|bingo/.+\\.(?:js|css|png|webmanifest|woff2)).*)"],
 };

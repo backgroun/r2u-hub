@@ -11,3 +11,6 @@ node_modules
 # 개인 가민 활동 기록 원본 (올리지 않는다)
 /Activities.csv
 .next-prod
+
+# 운영 데이터 백업 (개인정보 포함, 절대 커밋하지 않는다)
+backups/

@@ -1,12 +1,7 @@
 import "server-only";
-import { Redis } from "@upstash/redis";
+import { redis } from "./kv/client";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { makeTitle, type Order, type PublicOrder, type PublicSummary, type Round, type StoredOrder, type StoredRound } from "./types";
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
 
 const K = {
   round: (id: string) => `gb:round:${id}`,

@@ -1,5 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { eventVisible } from "@/lib/event";
+
+/** 이벤트 공개 여부: 미들웨어(엣지)는 DB 에 직접 접속하지 못해서 서버의 작은 API 로 묻는다. 못 읽으면 이벤트 전 화면(안내)으로 보낸다. */
+async function eventVisibleViaApi(req: NextRequest): Promise<boolean> {
+  try {
+    const res = await fetch(new URL("/api/event/visible", req.url), { cache: "no-store" });
+    if (!res.ok) return false;
+    return Boolean((await res.json() as { visible?: boolean }).visible);
+  } catch { return false; }
+}
 
 // 로그인한 크루원만 페이지를 볼 수 있다. 쿠키 서명만 확인하고, 역할 확인은 각 페이지가 DB로 한다.
 async function valid(raw: string | undefined) {
@@ -20,7 +28,7 @@ export async function middleware(req: NextRequest) {
   if (await valid(req.cookies.get("r2u_s")?.value)) {
     // 이벤트 오픈일 전이거나 운영진이 숨긴 동안에는 빙고 화면 대신 안내 페이지로 (운영진 미리보기 쿠키가 있으면 허용)
     const p = req.nextUrl.pathname;
-    if ((p === "/bingo" || p === "/bingo/index.html") && req.nextUrl.searchParams.get("preview") !== "1" && !((await valid(req.cookies.get("r2u_ev")?.value)) && sameNick(req.cookies.get("r2u_ev")?.value, req.cookies.get("r2u_s")?.value)) && !(await eventVisible())) {
+    if ((p === "/bingo" || p === "/bingo/index.html") && req.nextUrl.searchParams.get("preview") !== "1" && !((await valid(req.cookies.get("r2u_ev")?.value)) && sameNick(req.cookies.get("r2u_ev")?.value, req.cookies.get("r2u_s")?.value)) && !(await eventVisibleViaApi(req))) {
       const url = req.nextUrl.clone();
       url.pathname = "/event"; url.search = "";
       return NextResponse.redirect(url);

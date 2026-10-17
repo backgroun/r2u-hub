@@ -209,3 +209,44 @@ index on (key), index on (expires_at) where expires_at is not null
 - 회사 프로젝트의 `service_role` 키 사용, Data API 공개.
 - 전환 직후 Upstash 삭제.
 - 점검표 없이 "되는 것 같다"로 마무리.
+
+---
+
+## 14. 진행 기록
+
+### 2026-10-18 · P1 개발 + P2 리허설 (운영에는 아무 영향 없음, 배포 안 함)
+
+**만든 것**
+- `src/lib/kv/pg-requester.ts`: Postgres 어댑터. Upstash 클라이언트(`new Redis(요청기)`)에 꽂는 방식이라 값 변환·파이프라인 동작은 지금과 완전히 같다. 앱이 쓰는 명령 전부 + 이전 도구용 `scan/type/pttl/dbsize` 지원.
+- `src/lib/kv/client.ts`: `DATA_BACKEND=postgres` 이면 Postgres, 아니면 Upstash(기본, 지금과 같음). `hub.ts`·`db.ts`·`event.ts` 의 클라이언트 3곳을 여기로 통일.
+- `scripts/kv/backup.mjs` (백업) · `import.mjs` (가져오기) · `verify.mjs` (원본·대상 전부 비교) · `lib.mjs`.
+- `tests/pg/adapter.test.mjs`: 어댑터 점검 14개 (`npm run test:pg`, 로컬 Postgres 필요).
+- `npm run test-day:pg`: 로컬 Postgres 위에서 앱을 띄우는 테스트 모드.
+
+**결과**
+- 어댑터 점검 14/14 통과 (특수문자, 만료, NX, 파이프라인 800개 58ms, 멀티 롤백, 동시 incr 50번 정확히 50, 같은 순간 명령 묶기와 오류 격리).
+- **운영 데이터 읽기 전용 복사 → 로컬 Postgres 가져오기 → 비교: 196개 키 전부 일치** (해시 182, 문자열 14).
+- 실제 데이터 복사본 위에서 앱 주요 화면 18곳 모두 200, 서버 오류 0.
+- 쓰기 흐름(출석 체크, 코스 변경, 포인트)이 Postgres 에 제대로 저장됨.
+
+**발견한 것 → 계획 반영**
+1. **미들웨어는 엣지에서 돌아 DB 에 직접 접속할 수 없다.** 빙고 공개 확인(`/bingo`)을 `/api/event/visible` 호출로 바꿨다. 기본(Redis) 상태에서도 이 경로가 쓰이므로, **배포 후 `/bingo` 접근을 점검표에 추가**한다. (8장)
+2. **왕복 횟수가 속도를 좌우한다.** 같은 순간에 나가는 명령을 한 번에 묶도록 해서 화면당 왕복을 14~24번 → 4~9번으로 줄였다. 그래도 서버가 멀면 느리다:
+   - Vercel 함수 지역(기본 미국 동부)과 Supabase(서울)가 멀면 왕복 1번에 약 0.15~0.2초 → 화면 하나에 1~2초.
+   - **전환 전 필수: Vercel 함수 지역을 서울(`icn1`) 또는 도쿄(`hnd1`)로 바꾸고 응답 시간을 잰다.** (Hobby 에서 지역 변경이 되는지는 확인 필요. 회사 Pro 팀으로 옮기면 가능.)
+3. 대회 목록 캐시 키에 저장소 이름을 넣어, 전환 직후 옛 저장소 데이터를 보여 주지 않게 했다.
+4. `/races` 화면 HTML 이 **약 1.6MB**(대회 37개 전부 그림). 전환과 별개로, 지난 대회를 접어 두는 식의 경량화를 나중에 검토(데이터 전송량과 속도).
+5. 운영 DB 는 현재 **문자열 14 + 해시 182**, 정렬집합·리스트 0 (뉴스 수집 기록 등은 만료되어 비어 있음). 이전 절차가 단순하다.
+
+**다음에 할 것**
+- Supabase `DATABASE_URL` 이 `.env.local` 에 들어오면: 같은 도구로 **원격 리허설**(백업→가져오기→비교)과 서울 지역 속도 측정.
+- 점검 모드(`MAINTENANCE=1`, 쓰기 차단)와 전환 당일 스크립트 정리.
+- 역복사(롤백용) 스크립트.
+
+**이전 도구 사용법**
+```
+node scripts/kv/backup.mjs [파일]                         # 원본(Upstash) → backups/파일.json (읽기 전용)
+DATABASE_URL=... node scripts/kv/import.mjs 파일 --truncate # 파일 → Postgres
+DATABASE_URL=... node scripts/kv/verify.mjs                 # 원본과 대상이 같은지 전부 비교
+```
+`backups/` 폴더는 개인정보가 들어 있어 git 에 올라가지 않는다.

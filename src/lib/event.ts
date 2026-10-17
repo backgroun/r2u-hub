@@ -1,13 +1,9 @@
-import { Redis } from "@upstash/redis";
-// 11월 이벤트(빙고) 오픈일. 빙고 운영진 화면에서 바꾼 시작일을 그대로 따라간다. (서버·미들웨어 어디서든 쓸 수 있게 가볍게)
+import { redis as kv } from "./kv/client";
+// 11월 이벤트(빙고) 오픈일. 빙고 운영진 화면에서 바꾼 시작일을 그대로 따라간다. (서버에서 쓴다. 미들웨어는 /api/event/visible 로 묻는다)
 const DEFAULT_START = "2026-11-01";
 const DEFAULT_END = "2026-11-30";
 export const EVENT_PERIOD_KEY = "r2u:eventPeriod";
 
-const kv = new Redis({
-  url: process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
 const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** 운영진이 허브에서 정한 이벤트 기간. 없으면 null (비밀 문장 없이 저장하는 값) */

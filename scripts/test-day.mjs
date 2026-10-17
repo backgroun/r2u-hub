@@ -5,6 +5,11 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { randomBytes, scryptSync } from "node:crypto";
+import { createPgRequester, KV_TABLE } from "../src/lib/kv/pg-requester.ts";
+
+// --pg: 가짜 Redis 대신 로컬 Postgres(어댑터)에 시드를 넣고 앱을 DATA_BACKEND=postgres 로 띄운다
+const PG = process.argv.includes("--pg");
+const PG_URL = process.env.TEST_DATABASE_URL ?? "postgres://postgres@localhost:5544/r2utest";
 
 const PORT = 4567, WEB = 3100, PW = "test1234", TOKEN = "test-token";
 const kst = (offsetDays = 0) => new Date(Date.now() + 9 * 3600e3 + offsetDays * 86400e3).toISOString().slice(0, 10);
@@ -17,7 +22,7 @@ const mk = (k, t, init) => { let e = alive(k); if (!e) { e = { t, v: init() }; d
 const str = (v) => (typeof v === "string" ? v : String(v));
 const glob = (p) => new RegExp("^" + p.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$");
 
-function run([cmd, ...a]) {
+function runLocal([cmd, ...a]) {
   switch (cmd.toLowerCase()) {
     case "get": return get(a[0], "s") ?? null;
     case "set": {
@@ -60,10 +65,10 @@ function run([cmd, ...a]) {
   }
 }
 const b64 = (v) => (typeof v === "string" ? Buffer.from(v).toString("base64") : Array.isArray(v) ? v.map(b64) : v);
-const exec = (c, enc) => { try { const r = run(c); return { result: enc ? b64(r) : r }; } catch (e) { return { error: String(e.message) }; } };
+const exec = (c, enc) => { try { const r = runLocal(c); return { result: enc ? b64(r) : r }; } catch (e) { return { error: String(e.message) }; } };
 
 const cmdStats = {}; let cmdCount = 0; // 명령 수 측정용 (GET /__count 로 읽고, POST /__reset 으로 0으로)
-const srv = http.createServer((req, res) => {
+const srv = PG ? null : http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
@@ -79,14 +84,18 @@ const srv = http.createServer((req, res) => {
     res.end(JSON.stringify(out));
   });
 });
+if (srv) {
 srv.on("error", (e) => {
   if (e.code !== "EADDRINUSE") throw e;
   console.error(`[test-day] 이미 실행 중이에요 (포트 ${PORT}). http://localhost:${WEB}/login 으로 들어가거나, 끄려면: pkill -f test-day.mjs; pkill -f "next dev -p ${WEB}"`);
   process.exit(1);
 });
 srv.listen(PORT, () => console.log(`[test-day] 가짜 Redis :${PORT}`));
+}
 
 /* ---------- 시드 ---------- */
+const seedQ = [];
+const run = (c) => (PG ? (seedQ.push(c), 1) : runLocal(c));
 const hashPw = (pw) => { const salt = randomBytes(16).toString("base64url"); return `${salt}:${scryptSync(pw, salt, 32).toString("base64url")}`; };
 const H = (key, obj) => Object.entries(obj).forEach(([f, v]) => run(["hset", key, f, typeof v === "string" ? v : JSON.stringify(v)]));
 const crew = ["달리기왕", "번개", "꾸준이", "바람돌이", "새벽러너", "한강러너"];
@@ -117,8 +126,20 @@ run(["hset", "r2u:after:carpool002", "꾸준이", "yes"]); run(["hset", "r2u:aft
 run(["hset", "r2u:after:after001", "번개", "yes"]); run(["hset", "r2u:after:after001", "바람돌이", "yes"]); run(["hset", "r2u:after:after001", "꾸준이", "yes"]); // 뒷풀이 참석 신청자
 console.log(`[test-day] 시드 완료 · 오늘=${kst(0)} 대회(단사·뒷풀이·카풀), 내일=${kst(1)} 대회(단사 사진+장소)`);
 
+if (PG) {
+  const rq = createPgRequester(PG_URL, { max: 2 });
+  await rq.request({ body: ["ping"] });
+  await rq.pool.query(`TRUNCATE ${KV_TABLE}`);
+  const out = await rq.request({ path: ["pipeline"], body: seedQ });
+  const bad = out.filter((x) => x.error);
+  if (bad.length) { console.error("[test-day] 시드 오류", bad[0].error); process.exit(1); }
+  await rq.close();
+  console.log(`[test-day] Postgres 시드 ${seedQ.length}건 완료 (${PG_URL.replace(/\/\/[^@]*@/, "//***@")})`);
+}
+
 /* ---------- next dev ---------- */
-const env = { ...process.env, KV_REST_API_URL: `http://localhost:${PORT}`, KV_REST_API_TOKEN: TOKEN, UPSTASH_REDIS_REST_URL: `http://localhost:${PORT}`, UPSTASH_REDIS_REST_TOKEN: TOKEN, SESSION_SECRET: "test-day-secret", NODE_ENV: "development", NEXT_DIST_DIR: ".next-test" };
+const backendEnv = PG ? { DATA_BACKEND: "postgres", DATABASE_URL: PG_URL, KV_REST_API_URL: "http://127.0.0.1:1", KV_REST_API_TOKEN: "unused" } : { KV_REST_API_URL: `http://localhost:${PORT}`, KV_REST_API_TOKEN: TOKEN, UPSTASH_REDIS_REST_URL: `http://localhost:${PORT}`, UPSTASH_REDIS_REST_TOKEN: TOKEN };
+const env = { ...process.env, ...backendEnv, SESSION_SECRET: "test-day-secret", NODE_ENV: "development", NEXT_DIST_DIR: ".next-test" };
 const child = spawn("npx", ["next", "dev", "-p", String(WEB)], { env, stdio: "inherit" });
 console.log(`[test-day] http://localhost:${WEB}/login  ·  운영진 또는 ${crew.join("/")}  ·  비밀번호 ${PW}`);
 child.on("exit", (c) => process.exit(c ?? 0));

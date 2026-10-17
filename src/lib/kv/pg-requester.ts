@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS ${KV_TABLE} (
 );
 CREATE INDEX IF NOT EXISTS ${KV_TABLE}_key_idx ON ${KV_TABLE} (key);
 CREATE INDEX IF NOT EXISTS ${KV_TABLE}_exp_idx ON ${KV_TABLE} (expires_at) WHERE expires_at IS NOT NULL;
+-- 공개 API(Data API)를 나중에 켜더라도 바깥에서 읽을 수 없게 행 수준 보안을 켠다 (서버의 postgres 계정은 그대로 접근)
+ALTER TABLE ${KV_TABLE} ENABLE ROW LEVEL SECURITY;
 `;
 
 type Row = Record<string, unknown>;

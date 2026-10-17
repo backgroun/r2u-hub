@@ -250,3 +250,14 @@ DATABASE_URL=... node scripts/kv/import.mjs 파일 --truncate # 파일 → Postg
 DATABASE_URL=... node scripts/kv/verify.mjs                 # 원본과 대상이 같은지 전부 비교
 ```
 `backups/` 폴더는 개인정보가 들어 있어 git 에 올라가지 않는다.
+
+### 2026-10-18 · P2 원격 리허설 (Supabase `test` 프로젝트, 서울)
+
+- 접속 확인: Supabase 서울 풀러(PostgreSQL 17), 이 컴퓨터(한국)에서 **왕복 약 11ms**.
+- 운영 데이터 읽기 전용 복사 → Supabase 가져오기 → 비교: **196개 키 전부 일치** (해시 182, 문자열 14).
+- 표 `r2u_kv`에 행 수준 보안(RLS)을 켜서, Data API 를 나중에 켜도 바깥에서 읽을 수 없게 했다.
+- Supabase 위에서 앱을 띄워 6개 주요 화면 측정(개발 모드): 홈 0.32초, 대회 1.5초(HTML 1.6MB), 월간 0.20초, 내 정보 0.21초, 운영진 0.24초, 공구 0.09초. 서버 오류 0.
+
+**Vercel 함수 지역이 미국 동부(`iad1`)임을 확인했다.** 지금도 Upstash(도쿄)까지 왕복이 약 0.15초라 화면 하나에 DB 왕복 4~9번이면 1초 안팎이 걸린다. `vercel.json` 에 `"regions": ["icn1"]`(서울)을 추가해 두었다 (배포하면 적용).
+- 서울 함수 ↔ Upstash(도쿄) 약 30ms, ↔ Supabase(서울) 약 10ms 로 둘 다 빨라진다. **전환과 별개로 지금도 이득.**
+- 위험: Hobby 에서 지역 지정이 거절되면 배포가 실패한다(운영은 그대로 유지). 실패 시 프로젝트 Settings → Functions → Function Region 에서 직접 바꾼다.

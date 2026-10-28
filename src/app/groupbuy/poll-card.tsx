@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActionForm, Submit } from "@/components/action-form";
 import { voteGbPoll } from "@/app/actions";
 
@@ -17,6 +17,7 @@ export type PollView = {
 /** 공구 페이지 투표 카드: 단일/복수 선택, 변경 가능 여부는 투표마다 다르다 */
 export default function PollCard({ poll: p, canVote }: { poll: PollView; canVote: boolean }) {
   const [picked, setPicked] = useState<number[]>(p.mine ?? []);
+  const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null);
   const multi = p.maxPick > 1;
   const done = !!p.mine && !p.changeable; // 변경 불가 투표를 이미 한 경우
   const locked = !p.open || !canVote || done;
@@ -53,12 +54,12 @@ export default function PollCard({ poll: p, canVote }: { poll: PollView; canVote
           const src = p.optionImages[i] ? `/api/gb-poll-image/${p.id}/${i}?v=${p.ver}` : null;
           return (
             <div key={i} className="flex items-stretch gap-2">
-              {/* 사진은 누르면 크게 열린다 (선택 버튼 안에 링크를 넣을 수 없어서 옆에 따로 둔다) */}
+              {/* 사진은 누르면 화면 안에서 크게 보인다 (선택 버튼 안에 넣을 수 없어서 옆에 따로 둔다) */}
               {src && (
-                <a href={src} target="_blank" rel="noopener noreferrer" aria-label={`${o} 사진 크게 보기`} className="shrink-0">
+                <button type="button" onClick={() => setZoom({ src, alt: o })} aria-label={`${o} 사진 크게 보기`} className="shrink-0 rounded-xl">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={src} alt={`${o} 사진`} loading="lazy" className="rounded-xl w-14 h-14 object-cover" />
-                </a>
+                </button>
               )}
               <button
                 type="button" onClick={() => toggle(i)} aria-disabled={locked}
@@ -81,6 +82,38 @@ export default function PollCard({ poll: p, canVote }: { poll: PollView; canVote
         {p.open && canVote && !done && <Submit className="btn btn-primary text-sm">{p.mine ? "투표 바꾸기" : "투표하기"}</Submit>}
         {p.open && done && <span className="chip">투표 완료</span>}
       </div>
+      {zoom && <PhotoZoom {...zoom} onClose={() => setZoom(null)} />}
     </ActionForm>
+  );
+}
+
+/** 사진 크게 보기: 화면 안 팝업. 닫기 버튼·바깥 터치·Esc·휴대폰 뒤로가기로 닫힌다 */
+function PhotoZoom({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    // 뒤로가기가 페이지를 떠나지 않고 팝업만 닫도록 기록을 하나 쌓아 둔다
+    history.pushState({ gbZoom: true }, "");
+    const onPop = () => onClose();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") history.back(); };
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 닫기 버튼·바깥 터치는 쌓아 둔 기록을 되돌려서 닫는다 (popstate에서 onClose 호출)
+  const close = () => history.back();
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={`${alt} 사진 크게 보기`} onClick={close} className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
+      <button type="button" onClick={close} aria-label="닫기" className="absolute top-3 right-3 w-11 h-11 rounded-full bg-black/60 text-white text-xl" autoFocus>✕</button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} onClick={(e) => e.stopPropagation()} className="max-w-full max-h-full object-contain rounded-lg" />
+    </div>
   );
 }

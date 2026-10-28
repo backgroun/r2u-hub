@@ -27,6 +27,7 @@ import { pts, POINTS_START, RUNNER_PER_WEEK, runnerCaught, awardOnce, setPoints,
 import { adjustPoints, DEFAULT_PT, getPointConfig, savePointConfig, VS_SETTLE, type PointRules, type VsSettle } from "@/lib/points";
 import { applyExternal, sameRace } from "@/lib/race-link";
 import { getVsHistory, getVsRequests, recordVsPair, removeVsPair, saveVsRequest, settleVsPair, vsReqKey, vsVoteKey } from "@/lib/versus";
+import { createPoll, deletePoll, getMyPick, getPoll, isPollOpen, POLL_LIMITS, savePick, setPollClosed, updatePoll, pollResult, type PollImage } from "@/lib/groupbuy-poll";
 import { approveNickChange, cancelNickChangeRequest, getNickChangeRequest, nickAvailable, saveNickChangeRequest, validNick } from "@/lib/nickname";
 
 export type Result = { ok: boolean; msg?: string } | null;
@@ -1538,4 +1539,110 @@ export async function settleVersusByAdmin(_: Result, fd: FormData): Promise<Resu
   const r = await settleVsPair(ym, a, b);
   revalidatePath("/admin"); revalidatePath("/crew");
   return ok(r.winner ? `${r.winner}님 승리로 정산했어요. (${r.ka}km : ${r.kb}km)` : `무승부예요. (${r.ka}km : ${r.kb}km)`);
+}
+
+/* ---------- 공구 페이지 투표 ---------- */
+/** 운영진이 투표를 만든다. 규칙(복수 선택·변경 가능·결과 공개·마감)은 투표마다 정한다 */
+export async function createGbPoll(_: Result, fd: FormData): Promise<Result> {
+  const u = await admin();
+  const question = str(fd, "question", POLL_LIMITS.question);
+  // 항목은 입력 칸 순서대로 받고, 칸 번호(i)가 같은 optImg{i} 파일이 그 항목의 이미지다 (빈 칸·중복은 건너뜀)
+  const options: string[] = [];
+  const images: (PollImage | null)[] = [];
+  for (const [i, raw] of fd.getAll("option").entries()) {
+    const text = String(raw).trim().slice(0, POLL_LIMITS.option);
+    if (!text || options.includes(text)) continue;
+    const f = fd.get(`optImg${i}`);
+    let img: PollImage | null = null;
+    if (f instanceof File && f.size > 0) {
+      if (!["image/jpeg", "image/webp", "image/png"].includes(f.type) || f.size > POLL_LIMITS.imageBytes) return fail(`'${text}' 이미지를 읽지 못했어요. 다른 사진으로 해 주세요.`);
+      img = { type: f.type, data: Buffer.from(await f.arrayBuffer()).toString("base64") };
+    }
+    options.push(text); images.push(img);
+  }
+  if (!question) return fail("투표 질문을 적어 주세요.");
+  if (options.length < POLL_LIMITS.minOptions || options.length > POLL_LIMITS.maxOptions) return fail(`선택지는 ${POLL_LIMITS.minOptions}~${POLL_LIMITS.maxOptions}개로 적어 주세요. (한 줄에 하나)`);
+  const multi = fd.get("multi") === "1";
+  const maxPick = multi ? Math.min(options.length, Math.max(2, Number(fd.get("maxPick")) || options.length)) : 1;
+  const rawDeadline = str(fd, "deadline", 16);
+  let deadline = 0;
+  if (rawDeadline) {
+    deadline = Date.parse(`${rawDeadline}:00+09:00`);
+    if (!Number.isFinite(deadline) || deadline <= Date.now()) return fail("마감 시각은 지금보다 뒤로 정해 주세요.");
+  }
+  await createPoll({ question, options, maxPick, changeable: fd.get("changeable") === "1", showLive: fd.get("showLive") === "1", deadline, by: u.nick }, images);
+  revalidatePath("/groupbuy");
+  // 공지와 같은 방식: 체크했을 때만 전체 알림 (누르면 공구 페이지의 투표로 이동)
+  if (fd.get("push") !== "on") return ok("투표를 만들었어요! (알림은 보내지 않았어요)");
+  const r = await sendPushAll("🗳️ 새 투표가 열렸어요", question, "/groupbuy");
+  if (r.skipped) return ok("투표를 만들었어요. 알림용 키가 설정돼 있지 않아 알림은 보내지 못했어요.");
+  return ok(`투표를 만들고 알림을 보냈어요. (성공 ${r.sent}명${r.failed ? `, 실패 ${r.failed}명` : ""})`);
+}
+/** 크루원 투표: 1인 1건. 복수 선택은 maxPick까지, 변경 불가 투표는 한 번만 */
+export async function voteGbPoll(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  if (isStaffNick(u.nick)) return fail("크루원 계정으로 투표해 주세요.");
+  const poll = await getPoll(str(fd, "id", 20));
+  if (!poll) return fail("없어졌거나 삭제된 투표예요.");
+  if (!isPollOpen(poll)) return fail("마감된 투표예요.");
+  const picks = [...new Set(fd.getAll("pick").map(Number))].filter((i) => Number.isInteger(i) && i >= 0 && i < poll.options.length);
+  if (picks.length === 0) return fail("선택지를 골라 주세요.");
+  if (picks.length > poll.maxPick) return fail(`최대 ${poll.maxPick}개까지 고를 수 있어요.`);
+  const before = await getMyPick(poll.id, u.nick);
+  if (before && !poll.changeable) return fail("이 투표는 한 번 하면 바꿀 수 없어요.");
+  await savePick(poll.id, u.nick, picks.sort((a, b) => a - b));
+  revalidatePath("/groupbuy");
+  return ok(before ? "투표를 바꿨어요!" : "투표했어요!");
+}
+export async function closeGbPoll(fd: FormData) {
+  await admin();
+  await setPollClosed(str(fd, "id", 20), fd.get("closed") === "1");
+  revalidatePath("/groupbuy");
+}
+/**
+ * 운영진이 투표 내용을 고친다. 질문·규칙·마감·항목 글자와 사진을 바꿀 수 있고, 새 항목은 뒤에 붙인다.
+ * 투표 기록이 항목 번호로 저장돼 있어서, 기존 항목은 지우거나 순서를 바꿀 수 없다.
+ */
+export async function editGbPoll(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const old = await getPoll(str(fd, "id", 20));
+  if (!old) return fail("없어졌거나 삭제된 투표예요.");
+  const question = str(fd, "question", POLL_LIMITS.question);
+  if (!question) return fail("투표 질문을 적어 주세요.");
+  const options: string[] = [];
+  const images: (PollImage | "keep" | null)[] = [];
+  for (const [i, raw] of fd.getAll("option").entries()) {
+    const text = String(raw).trim().slice(0, POLL_LIMITS.option);
+    const existing = i < old.options.length;
+    if (!text) { if (existing) return fail(`항목 ${i + 1}의 글자를 비울 수 없어요.`); continue; }
+    if (options.includes(text)) return fail(`'${text}' 항목이 겹쳐요. 다른 이름으로 해 주세요.`);
+    const f = fd.get(`optImg${i}`);
+    if (f instanceof File && f.size > 0) {
+      if (!["image/jpeg", "image/webp", "image/png"].includes(f.type) || f.size > POLL_LIMITS.imageBytes) return fail(`'${text}' 이미지를 읽지 못했어요. 다른 사진으로 해 주세요.`);
+      images.push({ type: f.type, data: Buffer.from(await f.arrayBuffer()).toString("base64") });
+    } else if (existing && old.optionImages?.[i] && fd.get(`optDel${i}`) !== "1") images.push("keep");
+    else images.push(null);
+    options.push(text);
+  }
+  if (options.length < old.options.length || options.length > POLL_LIMITS.maxOptions) return fail(`항목은 기존 ${old.options.length}개 이상, ${POLL_LIMITS.maxOptions}개 이하로 해 주세요.`);
+  const multi = fd.get("multi") === "1";
+  const maxPick = multi ? Math.min(options.length, Math.max(2, Number(fd.get("maxPick")) || options.length)) : 1;
+  const r = await pollResult(old);
+  // 이미 투표한 사람이 있으면, 선택 가능 개수를 줄여서 기존 투표가 규칙을 어기게 되는 일은 막는다
+  if (r.voters > 0 && maxPick < old.maxPick) return fail(`이미 ${r.voters}명이 투표해서 선택 가능 개수를 ${old.maxPick}개 아래로 줄일 수 없어요.`);
+  const rawDeadline = str(fd, "deadline", 16);
+  let deadline = 0;
+  if (rawDeadline) {
+    deadline = Date.parse(`${rawDeadline}:00+09:00`);
+    if (!Number.isFinite(deadline)) return fail("마감 시각을 다시 골라 주세요.");
+    if (deadline !== old.deadline && deadline <= Date.now()) return fail("마감 시각은 지금보다 뒤로 정해 주세요.");
+  }
+  await updatePoll(old, { question, options, maxPick, changeable: fd.get("changeable") === "1", showLive: fd.get("showLive") === "1", deadline }, images);
+  revalidatePath("/groupbuy");
+  return ok("투표를 수정했어요!");
+}
+export async function deleteGbPoll(fd: FormData) {
+  await admin();
+  await deletePoll(str(fd, "id", 20));
+  revalidatePath("/groupbuy");
 }

@@ -3,6 +3,7 @@ import { listRounds } from "@/lib/db";
 import { fmtDeadline, isPastRound, roundStatus, type PublicSummary, type Round } from "@/lib/types";
 import { Countdown, PayBadges, StatusChip } from "@/components/ui";
 import MyRounds from "./my-rounds";
+import Polls from "./polls";
 import { getMembers } from "@/lib/hub";
 import { knownMemberLabel } from "@/lib/member-label";
 
@@ -22,6 +23,8 @@ export default async function Home() {
       </header>
 
       <MyRounds />
+
+      <Polls />
 
       <section className="grid gap-3">
         <h2 className="label">진행 중인 공구</h2>

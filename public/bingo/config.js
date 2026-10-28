@@ -2,7 +2,7 @@
 let START = '2026-11-01';   // 서버(운영진 화면)에서 바꾸면 자동으로 덮어써져요
 let END = '2026-11-30';
 const KEY = 'r2u-bingo-2026-11';
-const MAX_PER_DAY = 3;   // 하루 최대 미션 수
+let MAX_PER_DAY = 3;     // 하루 최대 미션 수 (서버 운영진 화면에서 바꾸면 자동으로 덮어써져요)
 const CENTER = 12;       // 가운데 칸(13번)
 const MIN_PW = 4;        // 비밀번호 최소 글자 수
 const PHOTO_REQUIRED = true;  // 인증 사진 필수 (false 로 바꾸면 사진 없이도 인증돼요. Supabase 의 settings 표 photo_required 와 같게!)

@@ -2,13 +2,16 @@ import Link from "next/link";
 import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, isManagerUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, removeNotice, decideJoin, bingoInfo, bingoMember, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
+import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, bingoMember, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { bingoView } from "@/lib/bingo-admin";
 import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
 import { listJoins, pendingJoinCount } from "@/lib/join";
 import { listNickChangeRequests } from "@/lib/nickname";
-import { adminAbsentNoticeOn, getNotices, getPushEnabledNicks, noticeState, pushReady, subCount } from "@/lib/notice";
+import NoticeMedia from "@/components/notice-media";
+import { forcedSeason, iconSchedule, seasonIcon, type Season } from "@/lib/season-icon";
+import { upcomingIconNotices } from "@/lib/icon-notice";
+import { MAX_HOME_NOTICES, homeNoticeCount, adminAbsentNoticeOn, getNotices, getPushEnabledNicks, noticeEnd, noticeState, pushReady, subCount } from "@/lib/notice";
 import MemberSheetSync from "@/components/member-sheet-sync";
 import LogoutButton from "@/components/logout-button";
 import RaceForm from "@/components/race-form";
@@ -62,7 +65,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === "members" && <Members self={u.nick} />}
       {tab === "content" && <Content sec={sec} ym={m} />}
       {tab === "notice" && <Notices />}
-      {tab === "menu" && <section className="grid gap-4"><Menu /><Links /></section>}
+      {tab === "menu" && <section className="grid gap-4"><Menu /><Links /><IconSchedule /></section>}
       {tab === "races" && <Races past={past === "1"} edit={edit} />}
       {tab === "points" && <PointsAdmin />}
       {tab === "gear" && <GearCatalog mgr={await isManagerUser(u)} />}
@@ -75,9 +78,22 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 }
 
 async function Notices() {
-  const [list, subs] = await Promise.all([getNotices(), subCount()]);
+  const [list, subs, homeCount, scheduled] = await Promise.all([getNotices(), subCount(), homeNoticeCount(), upcomingIconNotices(kstToday())]);
+  const recentFrom = Date.now() - 15 * 86400e3;
+  const today0 = kstToday();
+  const recent = list.filter((n) => n.at >= recentFrom || noticeState(n, today0) !== "ended"); // 최근 15일에 올린 공지 + 아직 노출 중이거나 예정인 공지
+  const pending = scheduled.filter((x) => !x.posted).slice(0, 3); // 가까운 예약 3개만 목록 맨 위에 보여 준다
+  const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
   return (
     <section className="grid gap-3">
+      <ActionForm action={setHomeNoticeCountAction} keep className="panel p-4 grid gap-2">
+        <h2 className="font-bold">홈 화면 공지 개수</h2>
+        <p className="text-sm text-muted">노출 중인 공지가 여러 개일 때 홈에 한꺼번에 보여 줄 개수예요. 최근에 올린 순서로 보여요.</p>
+        <div className="flex items-end gap-2">
+          <label className="field"><span className="label">최대 개수 (1~{MAX_HOME_NOTICES})</span><input name="count" type="number" min={1} max={MAX_HOME_NOTICES} defaultValue={homeCount} className="input" required /></label>
+          <Submit className="btn btn-primary">저장</Submit>
+        </div>
+      </ActionForm>
       <ActionForm action={postNotice} className="panel p-4 grid gap-3">
         <h2 className="font-bold">공지 올리기</h2>
         <p className="text-sm text-muted">올리면 홈 화면 맨 위에 보여요. 알림을 켠 크루원 {subs}명에게는 휴대폰 알림도 가요.{pushReady() ? "" : " (알림용 키가 아직 설정되지 않아 알림은 가지 않아요)"}</p>
@@ -88,33 +104,98 @@ async function Notices() {
           <label className="field"><span className="label">노출 시작일 (선택)</span><input name="from" type="date" className="input" /></label>
           <label className="field"><span className="label">노출 종료일 (선택)</span><input name="to" type="date" className="input" /></label>
         </div>
-        <p className="text-xs text-muted">비워 두면 바로, 계속 보여요. 시작일이 오늘보다 뒤면 그날부터 보이고 알림은 보내지 않아요. 여러 공지가 보일 때는 가장 최근 것이 홈에 떠요.</p>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="forever" /> 종료일 없이 계속 보여주기</label>
+        <p className="text-xs text-muted">종료일을 비우면 시작일(비우면 오늘)부터 3일간 보여요. 시작일이 오늘보다 뒤면 그날부터 보이고 알림은 보내지 않아요. 여러 공지가 보일 때는 가장 최근 것이 홈에 떠요.</p>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="push" defaultChecked /> 알림도 보내기</label>
         <div className="flex justify-end"><Submit>공지 올리기</Submit></div>
       </ActionForm>
       <div className="panel p-4 grid gap-3">
-        <h2 className="font-bold">올린 공지 ({list.length})</h2>
-        {list.length === 0 && <p className="text-sm text-muted">아직 올린 공지가 없어요.</p>}
-        {list.map((n) => (
+        <h2 className="font-bold">공지 목록 · 최근 15일 (올린 {recent.length}{pending.length ? ` · 예약 ${pending.length}` : ""})</h2>
+        {recent.length === 0 && pending.length === 0 && <p className="text-sm text-muted">최근 15일 동안 올린 공지가 없어요.</p>}
+        {list.length > recent.length && <p className="text-xs text-muted">15일이 지난 공지 {list.length - recent.length}개는 홈의 &lsquo;공지 전체 보기&rsquo;에서 볼 수 있어요.</p>}
+        {pending.map((p) => (
+          <div key={`sched-${p.date}`} className="grid gap-1 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/icons/${p.season}-180.png`} alt="" width={32} height={32} className="rounded-lg" />
+              <b>{p.title}<span className="text-xs text-muted font-normal"> · 시스템 자동</span></b>
+            </div>
+            <p className="text-sm text-muted whitespace-pre-wrap">{p.body}</p>
+            <details className="mt-1">
+              <summary className="btn btn-ghost text-xs py-1 px-2 inline-block cursor-pointer">수정</summary>
+              <ActionForm action={editScheduledNotice} keep collapse className="grid gap-3 pt-3">
+                <input type="hidden" name="date" value={p.date} />
+                <label className="field"><span className="label">제목</span><input name="title" className="input" required maxLength={60} defaultValue={p.title} /></label>
+                <label className="field"><span className="label">내용</span><textarea name="body" className="input" rows={4} maxLength={500} defaultValue={p.body} /></label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="reset" /> 원래 문구로 되돌리기</label>
+                <div className="flex justify-end"><Submit>수정 저장</Submit></div>
+              </ActionForm>
+            </details>
+            <p className="text-xs text-muted"><b>예약됨{p.edited ? " · 수정됨" : ""}</b> · {md(p.date)} 0:05에 자동으로 올라가요{p.extra ? " (한 번만)" : ""}. 올라간 뒤에도 여기서 수정·삭제할 수 있어요.</p>
+          </div>
+        ))}
+        {recent.map((n) => (
           <div key={n.id} className="grid gap-1 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
             <div className="flex items-start justify-between gap-2">
-              <b>{n.title}</b>
+              <b>{n.title}{n.auto && <span className="text-xs text-muted font-normal"> · 시스템 자동</span>}</b>
               <form action={removeNotice}><input type="hidden" name="id" value={n.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
             </div>
             {n.body && <p className="text-sm text-muted whitespace-pre-wrap">{n.body}</p>}
-            {n.image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={`/api/notices/${n.id}/image`} alt={`${n.title} 공지 이미지`} className="w-full max-h-72 object-contain rounded-lg" />
-            )}
+            <NoticeMedia notice={n} className="max-h-72 object-contain" />
+            <details className="mt-1">
+              <summary className="btn btn-ghost text-xs py-1 px-2 inline-block cursor-pointer">수정</summary>
+              <ActionForm action={editNotice} keep collapse className="grid gap-3 pt-3">
+                <input type="hidden" name="id" value={n.id} />
+                <label className="field"><span className="label">제목</span><input name="title" className="input" required maxLength={60} defaultValue={n.title} /></label>
+                <label className="field"><span className="label">내용</span><textarea name="body" className="input" rows={4} maxLength={500} defaultValue={n.body} /></label>
+                <label className="field"><span className="label">이미지 바꾸기 (선택 · 3MB 이하)</span><input name="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="input" /></label>
+                {n.image && <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="removeImage" /> 현재 이미지 삭제</label>}
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="field"><span className="label">노출 시작일</span><input name="from" type="date" className="input" defaultValue={n.from ?? ""} /></label>
+                  <label className="field"><span className="label">노출 종료일</span><input name="to" type="date" className="input" defaultValue={n.to ?? ""} /></label>
+                </div>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="forever" defaultChecked={!!n.forever} /> 종료일 없이 계속 보여주기</label>
+                <p className="text-xs text-muted">종료일을 비우면 시작일(비우면 올린 날)부터 3일간 보여요. 종료일을 오늘 이후로 바꾸면 다시 노출돼요.</p>
+                <div className="flex justify-end"><Submit>수정 저장</Submit></div>
+              </ActionForm>
+            </details>
             <p className="text-xs text-muted">
               {new Date(n.at + 9 * 3600e3).toISOString().slice(0, 16).replace("T", " ")} · {n.by}
-              {" · "}{n.from || n.to ? `노출 ${n.from ?? "처음"} ~ ${n.to ?? "계속"}` : "기간 제한 없음"}
+              {" · "}노출 {n.from ?? new Date(n.at + 9 * 3600e3).toISOString().slice(0, 10)} ~ {noticeEnd(n) ?? "계속"}{!n.to && !n.forever ? " (기본 3일)" : ""}
+              {n.editedAt ? " · 수정됨" : ""}
               {" · "}<b>{{ live: "노출 중", scheduled: "노출 예정", ended: "노출 종료" }[noticeState(n, kstToday())]}</b>
             </p>
           </div>
         ))}
       </div>
     </section>
+  );
+}
+
+const SEASON_LABEL: Record<Season, string> = { basic: "기본", newyear: "새해", spring: "봄", summer: "여름", fall: "가을", halloween: "할로윈", thanksgiving: "추수감사절", christmas: "크리스마스", winter: "겨울" };
+function IconSchedule() {
+  const today = kstToday();
+  const list = iconSchedule(today);
+  const forced = forcedSeason();
+  const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
+  return (
+    <div className="panel p-4 grid gap-3">
+      <h2 className="font-bold">앱 아이콘 일정</h2>
+      <p className="text-sm text-muted">날짜(한국 시간)에 따라 앱 아이콘이 자동으로 바뀌어요. 웹앱이라 이미 홈 화면에 추가한 아이콘은 자동으로 안 바뀌고, 다시 추가해야 바뀌어요.</p>
+      {forced && <p className="text-sm"><b>⚠️ 지금은 {SEASON_LABEL[forced]} 아이콘으로 고정돼 있어요.</b> (ICON_SEASON 설정) 아래 일정은 고정을 풀면 적용돼요.</p>}
+      <ul className="grid gap-2">
+        {list.map((r, i) => (
+          <li key={r.from} className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={seasonIcon(r.season, 180)} alt="" width={44} height={44} className="rounded-xl" />
+            <div className="grid">
+              <b>{SEASON_LABEL[r.season]}{i === 0 && !forced ? " · 지금" : ""}</b>
+              <span className="text-xs text-muted">{i === 0 ? "오늘" : md(r.from)}{r.from === r.to ? "" : ` ~ ${md(r.to)}`}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -748,9 +829,10 @@ async function Events() {
 
       {/* 빙고 운영: 예전에는 빙고 화면 안의 ‘운영진 모드’에서만 가능했던 설정을 허브에서 바로 */}
       <details className="panel p-4">
-        <summary className="font-bold cursor-pointer">이벤트 안내/기간</summary>
+        <summary className="font-bold cursor-pointer">이벤트 안내/기간/인증 횟수</summary>
         <ActionForm action={bingoInfo} keep className="event-info-form grid gap-2 pt-2">
           <label className="field"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
+          <label className="field"><span className="label">하루 최대 인증 횟수 (1~25)</span><input name="maxPerDay" type="number" min={1} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>
           <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
             <label className="field"><span className="label">오픈일</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
             <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>

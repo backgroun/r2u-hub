@@ -8,10 +8,10 @@ import { EVENT_NICKS_KEY } from "@/lib/sheet";
    예전에는 별도 서버(Supabase)에 이름·비밀번호·운영진 비밀 문장으로 묶여 있었다.
    이제 신원은 허브 로그인이고, 기록·미션·안내·사진 모두 허브 Redis 에 있다. */
 export type BingoRow = { n: string; no: number; d: string };
-export type BingoInfo = { title: string; items: string[]; start: string; end: string };
+export type BingoInfo = { title: string; items: string[]; start: string; end: string; maxPerDay: number };
 export type { BingoMission };
 
-export const MAX_PER_DAY = 3;
+export const DEFAULT_MAX_PER_DAY = 3;
 const ROWS = "r2u:bingo:rows"; // 필드 `${nick}|${no}` → BingoRow
 const MISSIONS = "r2u:bingo:missions"; // 필드 no → 운영진이 고친 {e,t,d}
 const INFO = "r2u:bingo:info";
@@ -47,7 +47,7 @@ export async function getInfo(): Promise<BingoInfo> {
   const raw = await redis.get<BingoInfo | string>(INFO);
   const saved = raw ? parse<Partial<BingoInfo>>(raw) : {};
   const period = await hubPeriod();
-  return { title: saved.title ?? "", items: saved.items ?? [], start: period?.start ?? saved.start ?? "2026-11-01", end: period?.end ?? saved.end ?? "2026-11-30" };
+  return { title: saved.title ?? "", items: saved.items ?? [], start: period?.start ?? saved.start ?? "2026-11-01", end: period?.end ?? saved.end ?? "2026-11-30", maxPerDay: Number.isInteger(saved.maxPerDay) && saved.maxPerDay! >= 1 ? saved.maxPerDay! : DEFAULT_MAX_PER_DAY };
 }
 export async function saveInfo(info: BingoInfo) { await redis.set(INFO, JSON.stringify(info)); }
 
@@ -69,7 +69,7 @@ export async function setRow(nick: string, no: number, date: string, photoPath: 
   if (kstToday() < info.start) return `이벤트가 시작되면(${Number(info.start.slice(5, 7))}월 ${Number(info.start.slice(8))}일) 인증할 수 있어요.`;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < info.start || date > info.end) return "이벤트 기간 안의 날짜를 골라 주세요.";
   const rows = (await allRows()).filter((r) => norm(r.n) === norm(nick) && r.no !== no);
-  if (rows.filter((r) => r.d === date).length >= MAX_PER_DAY) return `하루 최대 ${MAX_PER_DAY}개 미션까지만 인정돼요.`;
+  if (rows.filter((r) => r.d === date).length >= info.maxPerDay) return `하루 최대 ${info.maxPerDay}개 미션까지만 인정돼요.`;
   await redis.hset(ROWS, { [rowId(nick, no)]: JSON.stringify({ n: nick, no, d: date }) });
   if (photoPath) await redis.hset(PHOTOS, { [rowId(nick, no)]: photoPath });
   return null;

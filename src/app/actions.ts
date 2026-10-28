@@ -11,7 +11,8 @@ const revalidatePath = (...a: Parameters<typeof nextRevalidatePath>) => { bustRa
 import { syncMembers } from "@/lib/sheet";
 import type { SyncResult } from "@/lib/member-sync-types";
 import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoinId, queueMemberNameForSheet, renameMemberInSheet, saveJoin, updateMemberNameInSheet } from "@/lib/join";
-import { addNotice, adminAbsentNoticeOn, deleteNotice, getPushEnabledNicks, setAdminAbsentNotice, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
+import { saveIconOverride } from "@/lib/icon-notice";
+import { MAX_HOME_NOTICES, setHomeNoticeCount, addNotice, adminAbsentNoticeOn, deleteNotice, updateNotice, getPushEnabledNicks, setAdminAbsentNotice, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
 import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
 import { clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
 import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive } from "@/lib/event-blocks";
@@ -922,7 +923,9 @@ export async function bingoInfo(_: Result, fd: FormData): Promise<Result> {
   const re = /^\d{4}-\d{2}-\d{2}$/;
   if (!re.test(start) || !re.test(end)) return fail("시작일·종료일을 골라 주세요.");
   if (end < start) return fail("종료일이 시작일보다 빠를 수 없어요.");
-  await saveBingoInfo({ title, items: [], start, end }); // 설명 문구는 쓰지 않는다 (기간·제목만)
+  const maxPerDay = Number(str(fd, "maxPerDay", 3));
+  if (!Number.isInteger(maxPerDay) || maxPerDay < 1 || maxPerDay > 25) return fail("하루 최대 인증 횟수는 1~25 사이로 입력해 주세요.");
+  await saveBingoInfo({ title, items: [], start, end, maxPerDay }); // 설명 문구는 쓰지 않는다 (기간·제목만)
   // 허브의 오픈 판단(이벤트 탭·메뉴)도 같은 기간을 쓰도록 함께 저장한다
   await redis.set(EVENT_PERIOD_KEY, JSON.stringify({ start, end }));
   resetEventCache();
@@ -1041,7 +1044,7 @@ export async function postNotice(_: Result, fd: FormData): Promise<Result> {
     if (file.size > 3_000_000) return fail("이미지는 3MB 이하로 올려 주세요.");
     image = { type: file.type, data: Buffer.from(await file.arrayBuffer()).toString("base64") };
   }
-  await addNotice({ title, body, by: u.nick, ...(from ? { from } : {}), ...(to ? { to } : {}) }, image);
+  await addNotice({ title, body, by: u.nick, ...(from ? { from } : {}), ...(to ? { to } : {}), ...(fd.get("forever") === "on" && !to ? { forever: true } : {}) }, image);
   revalidatePath("/", "layout");
   revalidatePath("/notices");
   if (from && from > kstToday()) return ok(`공지를 올렸어요. ${from}부터 홈에 보여요. (알림은 보내지 않았어요)`);
@@ -1049,6 +1052,47 @@ export async function postNotice(_: Result, fd: FormData): Promise<Result> {
   const r = await sendPushAll(`📢 ${title}`, body.slice(0, 120) || "새 공지가 올라왔어요.", "/");
   if (r.skipped) return ok("공지를 올렸어요. 알림용 키가 설정돼 있지 않아 알림은 보내지 못했어요.");
   return ok(`공지를 올리고 알림을 보냈어요. (성공 ${r.sent}명${r.failed ? `, 실패 ${r.failed}명` : ""})`);
+}
+export async function editNotice(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const title = str(fd, "title", 60), body = str(fd, "body", 500);
+  if (!title) return fail("공지 제목을 입력해 주세요.");
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  const from = str(fd, "from", 10), to = str(fd, "to", 10);
+  if ((from && !re.test(from)) || (to && !re.test(to))) return fail("날짜를 다시 골라 주세요.");
+  if (from && to && to < from) return fail("노출 종료일이 시작일보다 빠를 수 없어요.");
+  const file = fd.get("image");
+  let image: { type: string; data: string } | "remove" | undefined;
+  if (file instanceof File && file.size > 0) {
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) return fail("JPG, PNG, WebP, GIF 이미지만 올릴 수 있어요.");
+    if (file.size > 3_000_000) return fail("이미지는 3MB 이하로 올려 주세요.");
+    image = { type: file.type, data: Buffer.from(await file.arrayBuffer()).toString("base64") };
+  } else if (fd.get("removeImage") === "on") image = "remove";
+  const ok2 = await updateNotice(str(fd, "id", 40), { title, body, ...(from ? { from } : {}), ...(to ? { to } : {}), ...(fd.get("forever") === "on" ? { forever: true } : {}) }, image);
+  if (!ok2) return fail("공지를 찾을 수 없어요. 이미 삭제됐을 수 있어요.");
+  revalidatePath("/", "layout");
+  revalidatePath("/notices");
+  return ok("공지를 수정했어요.");
+}
+export async function setHomeNoticeCountAction(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const n = Number(str(fd, "count", 2));
+  if (!Number.isInteger(n) || n < 1 || n > MAX_HOME_NOTICES) return fail(`홈 공지 개수는 1~${MAX_HOME_NOTICES}개로 정해 주세요.`);
+  await setHomeNoticeCount(n);
+  revalidatePath("/", "layout");
+  return ok(`홈에 공지를 최대 ${n}개까지 보여 줘요.`);
+}
+/** 아직 안 올라간 시스템 예약 공지의 제목·내용 고치기 (올라갈 때 이 문구로 올라간다) */
+export async function editScheduledNotice(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const date = str(fd, "date", 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < kstToday()) return fail("이미 올라갔거나 지난 예약이에요.");
+  if (fd.get("reset") === "on") { await saveIconOverride(date, null); revalidatePath("/admin"); return ok("원래 문구로 되돌렸어요."); }
+  const title = str(fd, "title", 60), body = str(fd, "body", 500);
+  if (!title) return fail("공지 제목을 입력해 주세요.");
+  await saveIconOverride(date, { title, body });
+  revalidatePath("/admin");
+  return ok("예약 공지를 수정했어요. 올라갈 때 이 문구로 올라가요.");
 }
 export async function removeNotice(fd: FormData) {
   await admin();

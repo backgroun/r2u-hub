@@ -115,9 +115,17 @@ function render() {
 // ===== 미션 시트 =====
 function openSheet(i) {
   if (preview) {
-    // 오픈 전에는 칸을 눌러도 인증되지 않는다. 언제부터 되는지만 알려 준다
+    // 오픈 전에는 미션 내용만 볼 수 있고, 인증(기록 등록)은 할 수 없다
     const d = `${Number(START.slice(5, 7))}/${Number(START.slice(8))}`;
-    alert(previewJoined ? `${d}(시작일)부터 인증할 수 있습니다.` : `참가 신청하면 ${d}(시작일)부터 인증할 수 있습니다.`);
+    const m = MISSIONS[i];
+    $('sIcon').textContent = m.e;
+    $('sNum').textContent = `MISSION ${i + 1}`;
+    $('sTitle').textContent = m.t;
+    $('sDesc').textContent = m.d;
+    $('sState').textContent = previewJoined ? `${d}(시작일)부터 인증할 수 있어요.` : `참가 신청하면 ${d}(시작일)부터 인증할 수 있어요.`;
+    cur = -1;
+    $('dim').classList.add('on');
+    $('sheet').classList.add('on');
     return;
   }
   if (!loggedIn()) {
@@ -212,6 +220,7 @@ function applyInfo(i) {
   if (!i) return;
   if (hubPeriod) { START = hubPeriod.start; END = hubPeriod.end; }
   else if (i.start && i.end) { START = i.start; END = i.end; }
+  if (Number.isInteger(i.maxPerDay) && i.maxPerDay >= 1) MAX_PER_DAY = i.maxPerDay;
   showPeriod();
   // 아래 안내 카드는 운영진이 안내 제목을 적어 둔 경우에만 보인다 (기간은 위쪽 제목 아래에만 있다)
   $('infoCard').hidden = !i.title;

@@ -4,13 +4,35 @@ import webpush from "web-push";
 import { redis, newId } from "@/lib/hub";
 
 /* ---------- 공지사항 (운영진이 올리고 홈에 보인다) ---------- */
-export type Notice = { id: string; title: string; body: string; at: number; by: string; from?: string; to?: string; image?: boolean }; // from·to: 노출 기간 YYYY-MM-DD(한국 날짜), 비우면 제한 없음
+export type Notice = { id: string; title: string; body: string; at: number; by: string; from?: string; to?: string; image?: boolean; forever?: boolean; editedAt?: number; icon?: string; guide?: boolean; auto?: "icon" }; // icon: 공지에 크게 보여 줄 앱 아이콘 시즌, guide: 홈 화면에 추가 방법 안내 이미지 // from·to: 노출 기간 YYYY-MM-DD(한국 날짜). to를 비우면 시작일부터 3일, forever면 계속
+export const NOTICE_DEFAULT_DAYS = 3;
+const kstDate = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10);
+/** 노출 마지막 날(한국 날짜). 계속 노출이면 null */
+export const noticeEnd = (n: Notice): string | null => {
+  if (n.to) return n.to;
+  if (n.forever) return null;
+  const start = n.from ?? kstDate(n.at);
+  return kstDate(Date.parse(`${start}T00:00:00Z`) + (NOTICE_DEFAULT_DAYS - 1) * 86400e3 - 9 * 3600e3);
+};
 /** 오늘(한국 날짜)에 홈에 보여야 하는 공지인가 */
-export const noticeState = (n: Notice, today: string): "scheduled" | "live" | "ended" =>
-  n.from && today < n.from ? "scheduled" : n.to && today > n.to ? "ended" : "live";
+export const noticeState = (n: Notice, today: string): "scheduled" | "live" | "ended" => {
+  const end = noticeEnd(n);
+  return n.from && today < n.from ? "scheduled" : end && today > end ? "ended" : "live";
+};
 const NOTICES = "r2u:notices";
 const noticeImageKey = (id: string) => `r2u:noticeImage:${id}`;
 const PUSH = "r2u:push";
+
+/* 홈에 한꺼번에 보여 줄 공지 개수 (운영진이 정한다, 기본 1개) */
+const HOME_COUNT_KEY = "r2u:cfg:homeNoticeCount";
+export const MAX_HOME_NOTICES = 5;
+export async function homeNoticeCount(): Promise<number> {
+  try {
+    const n = Number(await redis.get(HOME_COUNT_KEY));
+    return Number.isInteger(n) && n >= 1 && n <= MAX_HOME_NOTICES ? n : 1;
+  } catch { return 1; }
+}
+export async function setHomeNoticeCount(n: number) { await redis.set(HOME_COUNT_KEY, String(n)); }
 
 export async function getNotices(): Promise<Notice[]> {
   const raw = await redis.get<Notice[] | string>(NOTICES);
@@ -26,6 +48,28 @@ export async function addNotice(n: Omit<Notice, "id" | "at">, image?: { type: st
   tx.set(NOTICES, JSON.stringify(list));
   await tx.exec();
   return next;
+}
+export async function updateNotice(
+  id: string,
+  patch: Pick<Notice, "title" | "body" | "from" | "to" | "forever">,
+  image?: { type: string; data: string } | "remove",
+): Promise<boolean> {
+  const list = await getNotices();
+  const i = list.findIndex((n) => n.id === id);
+  if (i < 0) return false;
+  const { from, to, forever, ...rest } = patch;
+  const next: Notice = { ...list[i], ...rest, editedAt: Date.now() };
+  delete next.from; delete next.to; delete next.forever;
+  if (from) next.from = from;
+  if (to) next.to = to;
+  if (forever && !to) next.forever = true;
+  const tx = redis.multi();
+  if (image === "remove") { delete next.image; tx.del(noticeImageKey(id)); }
+  else if (image) { next.image = true; tx.set(noticeImageKey(id), image); }
+  list[i] = next;
+  tx.set(NOTICES, JSON.stringify(list));
+  await tx.exec();
+  return true;
 }
 export async function deleteNotice(id: string) {
   const tx = redis.multi();

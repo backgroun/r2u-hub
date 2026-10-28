@@ -236,6 +236,8 @@
   #fxToggle { display: none !important; }
   /* 참가 신청 전 미리보기(?preview=1): 빙고판과 안내만 보여 준다 */
   body.preview #meCard, body.preview .actions, body.preview #board, body.preview .reset { display: none !important; }
+  /* 미리보기에서 미션 내용은 볼 수 있지만 인증(기록 등록)은 못 한다 */
+  body.preview #sheet .field, body.preview #sOk, body.preview #sUndo { display: none !important; }
   /* 운영진 수정 모드: 칸을 눌러 이모지·제목·설명을 고친다 */
   .edit-banner { margin: 0 0 10px; padding: 9px 14px; border-radius: 12px; background: var(--panel2); color: var(--gold); border: 1px dashed var(--gold-line); font-size: 12.5px; font-weight: 600; text-align: center; letter-spacing: .01em; }
   body.editing .cell { border-style: dashed; border-color: var(--gold-line); }

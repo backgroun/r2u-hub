@@ -3,11 +3,13 @@ import { LevelBadge, CrownIcon, GearIcon } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, getMember, getMembers, getRaceRecs, isStaffAccount, fmtRaceDate, getLinks, getMonth, getRaces, fmtDtKo, kstNow, kstToday, memberLabel, regInfo } from "@/lib/hub";
 import { knownMemberLabel } from "@/lib/member-label";
+import NoticeMedia from "@/components/notice-media";
+import HomeNotices from "@/components/home-notice";
 import PushToggle from "@/components/push-toggle";
 import { InfoTip } from "@/components/run-charts";
 import PushPrompt from "@/components/push-prompt";
 import MatchBoard from "@/components/match-board";
-import { getNotices, getPushEnabledNicks, noticeState } from "@/lib/notice";
+import { getNotices, getPushEnabledNicks, homeNoticeCount, noticeState } from "@/lib/notice";
 import { rankMonth, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
 import { listNews, timeAgo } from "@/lib/news";
@@ -56,7 +58,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   const names = Object.fromEntries(members.map((entry) => [entry.nick, entry.name || "없음"]));
   const news = await listNews({ limit: 3 }).catch(() => []);
   const pushOn = isStaffAccount(u) ? new Set<string>() : await getPushEnabledNicks().catch(() => new Set<string>());
-  const notice = (await getNotices()).find((n) => noticeState(n, today) === "live");
+  const allNotices = (await getNotices()).filter((n) => noticeState(n, today) !== "scheduled");
+  const liveNotices = allNotices.filter((n) => noticeState(n, today) === "live").slice(0, await homeNoticeCount());
+  const notice = liveNotices[0];
   // 대회 당일: 그날 대회에 올라온 단사·뒷풀이를 홈 맨 위에 띄운다
   // 오늘 열리는 대회는 단사·뒷풀이가 없어도 모두 보여 준다 (출발 시각 순), 그 아래에 대회별 단사·뒷풀이
   const todayRaces = races.filter((r) => r.date === today).sort((x, y) => (x.time || "99:99").localeCompare(y.time || "99:99"));
@@ -155,25 +159,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
       <BragTicker items={brags.map((b) => ({ key: b.key, who: knownMemberLabel(b.nick, names), race: b.race, record: `${b.course} ${b.time}`, ago: timeAgo(b.at), canOff: b.nick === u.nick || !!u.admin }))} />
 
       {/* 공지: 올라온 공지가 없으면 홈에서 아예 보이지 않는다 */}
-      {notice && (
-      <section className="panel panel-alert p-4">
-        {/* 새 공지가 있으면 펼친 채로, 없으면 접어서 보여 준다 */}
-        <details open={!!notice} className="notice-fold">
-          <summary className="sec-head"><h2 className="label">📢 공지</h2><Link href="/notices">공지 전체 보기 →</Link></summary>
-          <div className="grid gap-1.5 pt-2.5">
-            {notice ? <>
-              <h2 className="font-bold">{notice.title}</h2>
-              {notice.body && <p className="text-sm whitespace-pre-wrap">{notice.body}</p>}
-              {notice.image && (
-                // Uploaded notices have different aspect ratios; keep the original ratio.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={`/api/notices/${notice.id}/image`} alt={`${notice.title} 공지 이미지`} className="w-full h-auto rounded-lg" />
-              )}
-              <p className="text-xs text-muted">{new Date(notice.at + 9 * 3600e3).toISOString().slice(5, 10).replace("-", "/")} · {knownMemberLabel(notice.by, names)}</p>
-            </> : null}
-          </div>
-        </details>
-      </section>
+      {liveNotices.length > 0 && (
+        <HomeNotices items={liveNotices.map((n) => ({
+          key: `${n.id}:${n.editedAt ?? 0}`,
+          title: n.title,
+          meta: `${new Date(n.at + 9 * 3600e3).toISOString().slice(5, 10).replace("-", "/")} · ${knownMemberLabel(n.by, names)}`,
+          body: <>{n.body && <p className="text-sm whitespace-pre-wrap">{n.body}</p>}<NoticeMedia notice={n} open /></>,
+        }))} />
+      )}
+      {!notice && allNotices.length > 0 && (
+        <Link href="/notices" className="panel p-3 flex items-center justify-between text-sm">
+          <span>📢 지난 공지 보기</span><span className="text-muted">{allNotices.length}개 →</span>
+        </Link>
       )}
 
       {!isStaffAccount(u) && <section className="grid gap-2">

@@ -1035,8 +1035,18 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 .logo-mark.hub-logo { width: 38px; }
 
 /* 공지 박스: 제목 줄을 눌러 접고 펼친다 */
-.notice-fold > summary { list-style: none; cursor: pointer; }
-.notice-fold > summary::-webkit-details-marker { display: none; }
+/* 홈 공지 박스: 한 박스 안에 공지를 촘촘히 쌓는다 */
+.notice-box { padding: 12px 14px; display: grid; gap: 2px; }
+.notice-item { border-top: 1px solid color-mix(in srgb, var(--bib) 28%, transparent); }
+.notice-box .sec-head + .notice-item { border-top: 0; }
+.notice-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 7px 0; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; }
+/* 버튼 안쪽 글자를 눌러도 항상 버튼이 눌린 것으로 처리한다 (브라우저마다 자식 요소 클릭 처리가 달라서) */
+.notice-toggle > * { pointer-events: none; }
+.notice-title { font-weight: 700; font-size: 14.5px; line-height: 1.35; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notice-chev { font-size: 11px; color: var(--muted, #888); white-space: nowrap; margin-left: auto; }
+.notice-body { display: grid; gap: 6px; padding-bottom: 8px; }
+.notice-body img:not(.notice-icon) { max-height: 280px; width: auto; max-width: 100%; margin-inline: auto; object-fit: contain; }
+.notice-body .notice-icon { margin-inline: 0; }
 
 /* 이벤트 참가 신청 버튼 영역 */
 .event-form { margin-top: 14px; display: flex; justify-content: center; }
@@ -1637,12 +1647,12 @@ button.came-chip { cursor: pointer; }
 .cheer-live i { width: 7px; height: 7px; border-radius: 50%; background: #ff4d4d; animation: cheer-pulse 1.6s ease-out infinite; }
 @keyframes cheer-pulse { 0% { box-shadow: 0 0 0 0 rgba(255,77,77,.7); } 100% { box-shadow: 0 0 0 9px rgba(255,77,77,0); } }
 .cheer-title { font-size: 19px; line-height: 1.25; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
-.cheer-grad { background: linear-gradient(90deg, #ffd166, #ff8a3d 55%, #ff5c8a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cheer-grad { color: #ffb26b; }
 .cheer-race-card { display: grid; gap: 8px; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); }
 .cheer-time { font-size: 12.5px; font-weight: 800; padding: 3px 9px; border-radius: 8px; color: #fff; background: linear-gradient(135deg, #ff8a3d, #ff5c8a); box-shadow: 0 4px 12px -4px rgba(255,92,138,.6); }
-.cheer-plans { display: grid; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 2px solid rgba(255,138,61,.5); }
+.cheer-plans { display: grid; gap: 6px; margin-left: 6px; padding-left: 12px; }
 .cheer-plans .cheer-row { background: none; padding: 0; border-radius: 0; }
-.cheer-foot { font-weight: 700; background: linear-gradient(90deg, #ffd166, #ff8a3d); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cheer-foot { font-weight: 700; color: #ffb26b; }
 .cheer-flag { position: absolute; top: 14px; right: 14px; color: #ffb26b; opacity: .9; animation: cheer-float 2.8s ease-in-out infinite; }
 .cheer-flame { display: inline-flex; vertical-align: -2px; color: #ff8a3d; }
 .cheer-foot svg { flex: none; color: #ffd166; -webkit-text-fill-color: initial; }

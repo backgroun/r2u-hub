@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser, kstToday } from "@/lib/hub";
+import NoticeMedia from "@/components/notice-media";
 import { getNotices, noticeState, type Notice } from "@/lib/notice";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,8 @@ const postedDate = (at: number) => new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric",
 }).format(at);
 
-export default async function NoticesPage() {
+export default async function NoticesPage({ searchParams }: { searchParams: Promise<{ n?: string }> }) {
+  const { n: openId } = await searchParams;
   const u = await currentUser();
   if (!u) redirect("/login?next=/notices");
   const today = kstToday();
@@ -28,20 +30,20 @@ export default async function NoticesPage() {
 
       <section className="grid gap-2">
         <h2 className="label">홈에 표시 중인 공지</h2>
-        {featured ? <NoticeCard notice={featured} /> : <p className="text-sm text-muted">현재 안내 중인 공지가 없어요.</p>}
+        {featured ? <NoticeCard notice={featured} open={featured.id === openId} /> : <p className="text-sm text-muted">현재 안내 중인 공지가 없어요.</p>}
       </section>
 
       <section className="grid gap-2">
         <h2 className="label">이전 공지 {previous.length}</h2>
-        {previous.length ? previous.map((n) => <NoticeCard key={n.id} notice={n} />) : <p className="text-sm text-muted">이전 공지가 없어요.</p>}
+        {previous.length ? previous.map((n) => <NoticeCard key={n.id} notice={n} open={n.id === openId} />) : <p className="text-sm text-muted">이전 공지가 없어요.</p>}
       </section>
     </main>
   );
 }
 
-function NoticeCard({ notice: n }: { notice: Notice }) {
+function NoticeCard({ notice: n, open }: { notice: Notice; open?: boolean }) {
   return (
-    <details className="panel p-4">
+    <details id={`n-${n.id}`} open={open} className="panel p-4 scroll-mt-16">
       <summary className="font-bold cursor-pointer">
         <span className="grid gap-1 min-w-0">
           <span>{n.title}</span>
@@ -50,10 +52,7 @@ function NoticeCard({ notice: n }: { notice: Notice }) {
       </summary>
       <div className="grid gap-3 mt-3">
         {n.body && <p className="text-sm whitespace-pre-wrap">{n.body}</p>}
-        {n.image && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/notices/${n.id}/image`} alt={`${n.title} 공지 이미지`} loading="lazy" className="w-full h-auto rounded-lg" />
-        )}
+        <NoticeMedia notice={n} />
       </div>
     </details>
   );

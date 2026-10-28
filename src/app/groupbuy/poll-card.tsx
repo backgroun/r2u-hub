@@ -12,6 +12,8 @@ export type PollView = {
   ver: number;
   /** 선택지별 득표 수. 결과 비공개면 null */
   counts: number[] | null; voters: number; mine: number[] | null;
+  /** 운영진 전용: 항목별 투표자 (닉네임/이름). 크루원에게는 null */
+  voterNames: string[][] | null;
 };
 
 /** 공구 페이지 투표 카드: 단일/복수 선택, 변경 가능 여부는 투표마다 다르다 */
@@ -75,6 +77,19 @@ export default function PollCard({ poll: p, canVote }: { poll: PollView; canVote
           );
         })}
       </div>
+      {p.voterNames && (
+        <details className="rounded-xl border px-3 py-2" style={{ borderColor: "var(--line)" }}>
+          <summary className="text-sm font-bold cursor-pointer min-h-[44px] flex items-center">누가 투표했나요? (운영진 전용 · {p.voters}명)</summary>
+          <ul className="grid gap-2 pb-1">
+            {p.options.map((o, i) => (
+              <li key={i} className="text-sm">
+                <span className="font-bold">{o}</span> <span className="num text-muted">{p.voterNames![i].length}명</span>
+                <p className="text-muted break-words">{p.voterNames![i].length ? p.voterNames![i].join(", ") : "아직 없어요"}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted">
           {p.counts || !p.open ? `${p.voters}명 참여` : "결과는 마감 후 공개돼요"}

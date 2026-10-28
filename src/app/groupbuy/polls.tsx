@@ -1,4 +1,5 @@
-import { currentUser, isStaffNick } from "@/lib/hub";
+import { currentUser, getMembers, isStaffNick } from "@/lib/hub";
+import { knownMemberLabel } from "@/lib/member-label";
 import { listPolls, isPollOpen, pollResult, POLL_LIMITS, type GbPoll } from "@/lib/groupbuy-poll";
 import { fmtDeadline } from "@/lib/types";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
@@ -8,7 +9,8 @@ import PollCard, { type PollView } from "./poll-card";
 
 /** 공구 페이지 투표 영역: 진행 중 투표 · 지난 투표 · (운영진) 만들기/수정/마감/삭제 */
 export default async function Polls() {
-  const [polls, user] = await Promise.all([listPolls(), currentUser()]);
+  const [polls, user, members] = await Promise.all([listPolls(), currentUser(), getMembers()]);
+  const names = Object.fromEntries(members.map((m) => [m.nick, m.name || "없음"]));
   const isAdmin = !!user?.admin;
   const canVote = !!user && !isStaffNick(user.nick);
   const now = Date.now();
@@ -22,6 +24,8 @@ export default async function Polls() {
       optionImages: p.options.map((_, i) => !!p.optionImages?.[i]), ver: p.ver ?? p.at,
       deadlineLabel: p.deadline ? fmtDeadline(new Date(p.deadline).toISOString()) : null, open,
       counts: showCounts ? r.counts : null, voters: r.voters, mine: r.mine,
+      // 누가 어디에 투표했는지는 운영진에게만 내려보낸다 (다른 크루원 화면에는 닉네임이 전달되지 않는다)
+      voterNames: isAdmin ? r.nicks.map((list) => list.map((n) => knownMemberLabel(n, names))) : null,
     };
     return { view, poll: p };
   }));

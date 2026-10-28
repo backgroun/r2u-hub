@@ -107,11 +107,18 @@ export async function savePick(id: string, nick: string, picks: number[]) {
   await redis.hset(votesKey(id), { [nick]: JSON.stringify(picks) });
 }
 
-/** 선택지별 득표 수 · 투표 인원 · 내 선택 (결과 비공개 투표는 호출하는 쪽에서 counts를 가린다) */
+/**
+ * 선택지별 득표 수 · 투표 인원 · 내 선택 · 선택지별 투표자 닉네임
+ * (결과 비공개 투표는 호출하는 쪽에서 counts를 가리고, nicks는 운영진 화면에만 넘긴다)
+ */
 export async function pollResult(p: GbPoll, nick?: string | null) {
   const all = (await redis.hgetall<Record<string, unknown>>(votesKey(p.id))) ?? {};
   const counts = p.options.map(() => 0);
-  for (const v of Object.values(all)) for (const i of new Set(parsePick(v))) if (counts[i] !== undefined) counts[i]++;
+  const nicks: string[][] = p.options.map(() => []);
+  for (const [who, v] of Object.entries(all)) {
+    for (const i of new Set(parsePick(v))) if (counts[i] !== undefined) { counts[i]++; nicks[i].push(who); }
+  }
+  for (const list of nicks) list.sort((a, b) => a.localeCompare(b, "ko"));
   const mine = nick && nick in all ? parsePick(all[nick]) : null;
-  return { counts, voters: Object.keys(all).length, mine };
+  return { counts, voters: Object.keys(all).length, mine, nicks };
 }

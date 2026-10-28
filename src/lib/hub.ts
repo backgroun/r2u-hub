@@ -138,7 +138,7 @@ export async function getLinks(): Promise<Link[]> {
 }
 
 /* ---------- 상단 메뉴 이름 (운영진이 바꿀 수 있다) ---------- */
-export const MENU_DEFAULTS = { races: "대회", monthly: "월간기록", groupbuy: "공구", bingo: "이벤트" };
+export const MENU_DEFAULTS = { races: "대회", monthly: "월간기록", groupbuy: "공구/투표", bingo: "이벤트" };
 export type MenuKey = keyof typeof MENU_DEFAULTS;
 export async function getMenu(): Promise<typeof MENU_DEFAULTS> {
   return { ...MENU_DEFAULTS, ...(parse<Partial<typeof MENU_DEFAULTS> | null>(await redis.get("r2u:menu")) ?? {}) };

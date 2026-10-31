@@ -17,7 +17,7 @@ import LogoutButton from "@/components/logout-button";
 import RaceForm from "@/components/race-form";
 import GroupbuyStaff from "@/components/groupbuy-staff";
 import PasswordInput from "@/components/password-input";
-import ReviewPopup from "@/components/review-popup";
+import PhotoZoom from "@/components/photo-zoom";
 import AdminMemberRow from "@/components/admin-member-row";
 import AdminMemberSearch from "@/components/admin-member-search";
 import { GEARS, GearArt } from "@/components/gear-art";
@@ -39,10 +39,10 @@ const TABS = { members: "회원", content: "게시물", notice: "공지", menu: 
 type Tab = keyof typeof TABS;
 const TAGS = ["커뮤니티", "기록", "공지", "이벤트", "공구", "기타"];
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; sec?: string; m?: string; past?: string; edit?: string; verify?: string }> }) {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; sec?: string; m?: string; past?: string; edit?: string }> }) {
   const u = await currentUser();
   if (!u) redirect("/login?next=/admin");
-  const { tab: t, sec, m, past, edit, verify } = await searchParams;
+  const { tab: t, sec, m, past, edit } = await searchParams;
   if (t === "nicknames") redirect("/admin?tab=members");
   if (t === "links") redirect("/admin?tab=menu"); // 링크는 메뉴와 합쳐졌다
   const tab: Tab = t && t in TABS ? (t as Tab) : u.admin ? "members" : "me";
@@ -72,7 +72,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === "gear" && <GearCatalog mgr={await isManagerUser(u)} />}
       {tab === "versus" && <VersusAdmin />}
       {tab === "groupbuy" && <Groupbuy />}
-      {tab === "bingo" && <Events openVerify={verify === "1"} />}
+      {tab === "bingo" && <Events />}
       {tab === "me" && <Me />}
     </main>
   );
@@ -751,7 +751,7 @@ function Groupbuy() {
   );
 }
 
-async function Events({ openVerify = false }: { openVerify?: boolean }) {
+async function Events() {
   const members = await getMembers();
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
@@ -796,16 +796,11 @@ async function Events({ openVerify = false }: { openVerify?: boolean }) {
       ))}
 
       {/* 인증 확인: 크루원이 올린 인증(사진)을 날짜별로 보고, 잘못된 건 댓글로 알려 준다 (댓글을 달면 그 사람에게 푸시 알림) */}
-      <div id="verify" className="panel p-4 grid gap-2">
-        <div className="flex items-center gap-3">
-          <div className="grid gap-0.5 min-w-0">
-            <h2 className="font-bold">인증 확인</h2>
-            <p className="text-sm text-muted">크루원이 올린 인증을 팝업으로 확인하고, 잘못된 인증에는 댓글을 남기세요. 댓글을 달면 그 크루원에게 알림이 가요.</p>
-          </div>
-          <div className="ml-auto shrink-0"><ReviewPopup label={`인증 확인 (${review.total}건)`} title="인증 확인" defaultOpen={openVerify}>
-        <p className="text-sm text-muted pb-3">잘못된 인증에는 댓글을 남기세요. 댓글을 달면 그 크루원에게 알림이 가고, 빙고 화면의 ‘내 리포트’에서도 볼 수 있어요.</p>
-        {review.days.length === 0 && <p className="text-sm text-muted">아직 인증한 기록이 없어요.</p>}
-        <div className="grid gap-2">
+      <details id="verify" className="panel p-4" open>
+        <summary className="font-bold cursor-pointer">인증 확인 ({review.total}건)</summary>
+        <p className="text-sm text-muted pt-2">크루원이 올린 인증을 확인하고, 잘못된 인증에는 댓글을 남기세요. 댓글을 달면 그 크루원에게 알림이 가고, 빙고 화면의 ‘내 리포트’에서도 볼 수 있어요.</p>
+        {review.days.length === 0 && <p className="text-sm text-muted pt-3">아직 인증한 기록이 없어요.</p>}
+        <div className="grid gap-2 pt-3">
           {review.days.map(({ d, list }, i) => (
             <details key={d} open={i === 0} className="border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
               <summary className="font-bold cursor-pointer">{Number(d.slice(5, 7))}월 {Number(d.slice(8))}일 <span className="text-sm text-muted font-normal">· {list.length}건{list.some((r) => r.comments.length) ? ` · 댓글 ${list.filter((r) => r.comments.length).length}건` : ""}</span></summary>
@@ -820,10 +815,7 @@ async function Events({ openVerify = false }: { openVerify?: boolean }) {
                         <small className="text-muted ml-auto shrink-0">{r.no}번</small>
                       </div>
                       {r.photo ? (
-                        <a href={photoUrl(r.photo)} target="_blank" rel="noreferrer">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={photoUrl(r.photo)} alt={`${r.n} 인증 사진`} loading="lazy" style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 10, background: "var(--paper)" }} />
-                        </a>
+                        <PhotoZoom src={photoUrl(r.photo)} alt={`${r.n} 인증 사진`} />
                       ) : <p className="text-sm text-muted">사진 없음</p>}
                       {r.comments.map((c) => (
                         <div key={c.at} className="flex items-start gap-2 text-sm">
@@ -846,9 +838,7 @@ async function Events({ openVerify = false }: { openVerify?: boolean }) {
             </details>
           ))}
         </div>
-          </ReviewPopup></div>
-        </div>
-      </div>
+      </details>
 
       <details className="panel p-4" open>
         <summary className="font-bold cursor-pointer">이벤트 명단 ({view.members.length}명)</summary>

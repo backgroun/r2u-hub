@@ -77,7 +77,7 @@ async function AdminBar({ block, nick, hidden }: { block: EventBlock | null; nic
           </ActionForm>
         )}
         {block?.type === "bingo" && <EventEditToggle />}
-        {block?.type === "bingo" && <a href="/admin?tab=bingo&verify=1" className="btn btn-ghost">인증 확인</a>}
+        {block?.type === "bingo" && <a href="/admin?tab=bingo#verify" className="btn btn-ghost">인증 확인</a>}
         <a href="/admin?tab=bingo" className="btn btn-ghost">관리</a>
       </div>
     </div>

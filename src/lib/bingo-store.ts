@@ -10,6 +10,8 @@ import { EVENT_NICKS_KEY } from "@/lib/sheet";
 export type BingoRow = { n: string; no: number; d: string };
 export type BingoInfo = { title: string; items: string[]; start: string; end: string; maxPerDay: number };
 export type { BingoMission };
+/** 운영진이 인증 기록에 단 댓글 (잘못 인증했을 때 이유를 알려 준다) */
+export type BingoComment = { at: number; by: string; text: string };
 
 export const DEFAULT_MAX_PER_DAY = 3;
 const ROWS = "r2u:bingo:rows"; // 필드 `${nick}|${no}` → BingoRow
@@ -17,6 +19,7 @@ const MISSIONS = "r2u:bingo:missions"; // 필드 no → 운영진이 고친 {e,t
 const INFO = "r2u:bingo:info";
 const photoKey = (path: string) => `r2u:bingo:photo:${path}`;
 const PHOTOS = "r2u:bingo:photos"; // 필드 `${nick}|${no}` → 사진 경로
+const COMMENTS = "r2u:bingo:comments"; // 필드 `${nick}|${no}` → 운영진이 단 댓글 목록 BingoComment[]
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
 const norm = (s: string) => s.trim().toLowerCase();
 const rowId = (nick: string, no: number) => `${nick}|${no}`;
@@ -58,8 +61,32 @@ export async function snapshot() {
 }
 
 export async function myRecords(nick: string) {
-  const [rows, photos] = await Promise.all([allRows(), redis.hgetall<Record<string, string>>(PHOTOS)]);
-  return rows.filter((r) => norm(r.n) === norm(nick)).map((r) => ({ no: r.no, d: r.d, photo: photos?.[rowId(r.n, r.no)] ?? "" }));
+  const [rows, photos, comments] = await Promise.all([allRows(), redis.hgetall<Record<string, string>>(PHOTOS), allComments()]);
+  return rows.filter((r) => norm(r.n) === norm(nick)).map((r) => ({ no: r.no, d: r.d, photo: photos?.[rowId(r.n, r.no)] ?? "", comments: comments[rowId(r.n, r.no)] ?? [] }));
+}
+
+/* ---------- 운영진 댓글 ---------- */
+async function allComments(): Promise<Record<string, BingoComment[]>> {
+  const all = (await redis.hgetall<Record<string, unknown>>(COMMENTS)) ?? {};
+  return Object.fromEntries(Object.entries(all).map(([k, v]) => [k, parse<BingoComment[]>(v)]));
+}
+/** 운영진 확인 화면용: 모든 인증 기록을 사진·댓글과 함께 (최근 날짜 먼저) */
+export async function reviewRecords() {
+  const [rows, photos, comments] = await Promise.all([allRows(), redis.hgetall<Record<string, string>>(PHOTOS), allComments()]);
+  return rows.map((r) => ({ n: r.n, no: r.no, d: r.d, photo: photos?.[rowId(r.n, r.no)] ?? "", comments: comments[rowId(r.n, r.no)] ?? [] }))
+    .sort((a, b) => b.d.localeCompare(a.d) || a.n.localeCompare(b.n) || a.no - b.no);
+}
+export async function addComment(nick: string, no: number, by: string, text: string) {
+  const id = rowId(nick, no);
+  const cur = parse<BingoComment[] | null>((await redis.hget(COMMENTS, id)) ?? null) ?? [];
+  await redis.hset(COMMENTS, { [id]: JSON.stringify([...cur, { at: Date.now(), by, text }]) });
+}
+export async function removeComment(nick: string, no: number, at: number) {
+  const id = rowId(nick, no);
+  const cur = parse<BingoComment[] | null>((await redis.hget(COMMENTS, id)) ?? null) ?? [];
+  const next = cur.filter((c) => c.at !== at);
+  if (next.length) await redis.hset(COMMENTS, { [id]: JSON.stringify(next) });
+  else await redis.hdel(COMMENTS, id);
 }
 
 /** 칸 인증: 날짜·하루 최대 개수를 확인하고 저장한다. 실패하면 이유를 돌려준다. */
@@ -79,6 +106,7 @@ export async function removeRow(nick: string, no: number): Promise<string | null
   if (kstToday() < info.start) return `이벤트가 시작되면(${Number(info.start.slice(5, 7))}월 ${Number(info.start.slice(8))}일) 고칠 수 있어요.`;
   await redis.hdel(ROWS, rowId(nick, no));
   await redis.hdel(PHOTOS, rowId(nick, no));
+  await redis.hdel(COMMENTS, rowId(nick, no));
   return null;
 }
 
@@ -89,13 +117,17 @@ export async function clearRecords(nick: string) {
   const ids = rows.map((r) => rowId(r.n, r.no));
   await redis.hdel(ROWS, ...ids);
   await redis.hdel(PHOTOS, ...ids);
+  await redis.hdel(COMMENTS, ...ids);
   return rows.length;
 }
 /** 칸 인증 기록·사진만 새 닉네임으로 옮긴다 (참가 명단은 호출하는 쪽에서 따로 바꾼다) */
 export async function renameBingoRecords(oldNick: string, newNick: string) {
   const rows = (await allRows()).filter((r) => norm(r.n) === norm(oldNick));
   const photos = (await redis.hgetall<Record<string, string>>(PHOTOS)) ?? {};
+  const comments = await allComments();
   for (const r of rows) {
+    const c = comments[rowId(r.n, r.no)];
+    if (c) { await redis.hdel(COMMENTS, rowId(r.n, r.no)); await redis.hset(COMMENTS, { [rowId(newNick, r.no)]: JSON.stringify(c) }); }
     await redis.hdel(ROWS, rowId(r.n, r.no));
     await redis.hset(ROWS, { [rowId(newNick, r.no)]: JSON.stringify({ ...r, n: newNick }) });
     const p = photos[rowId(r.n, r.no)];

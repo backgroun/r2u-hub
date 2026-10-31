@@ -2,9 +2,9 @@ import Link from "next/link";
 import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, isManagerUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, bingoMember, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
+import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, bingoMember, bingoComment, bingoCommentRemove, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
-import { bingoView } from "@/lib/bingo-admin";
+import { bingoReview, bingoView } from "@/lib/bingo-admin";
 import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
 import { listJoins, pendingJoinCount } from "@/lib/join";
 import { listNickChangeRequests } from "@/lib/nickname";
@@ -754,7 +754,10 @@ async function Events() {
   const members = await getMembers();
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
-  const view = await bingoView();
+  const [view, review] = await Promise.all([bingoView(), bingoReview()]);
+  const missionOf = new Map(review.missions.map((m) => [m.no, m]));
+  const photoUrl = (p: string) => `/api/bingo-srv/storage/v1/object/public/proofs/${p.split("/").map(encodeURIComponent).join("/")}`;
+  const when = (at: number) => new Date(at + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ");
   const start = view.info.start, end = view.info.end;
   const nowYm = kstToday().slice(0, 7);
   const months = [...new Set([...blocks.map((b) => b.ym), ...Object.keys(active)])].sort().reverse();
@@ -790,6 +793,54 @@ async function Events() {
           })}
         </div>
       ))}
+
+      {/* 인증 확인: 크루원이 올린 인증(사진)을 날짜별로 보고, 잘못된 건 댓글로 알려 준다 (댓글을 달면 그 사람에게 푸시 알림) */}
+      <details id="verify" className="panel p-4" open>
+        <summary className="font-bold cursor-pointer">인증 확인 ({review.total}건)</summary>
+        <p className="text-sm text-muted pt-2">크루원이 올린 인증을 확인하고, 잘못된 인증에는 댓글을 남기세요. 댓글을 달면 그 크루원에게 알림이 가고, 빙고 화면의 ‘내 리포트’에서도 볼 수 있어요.</p>
+        {review.days.length === 0 && <p className="text-sm text-muted pt-3">아직 인증한 기록이 없어요.</p>}
+        <div className="grid gap-2 pt-3">
+          {review.days.map(({ d, list }, i) => (
+            <details key={d} open={i === 0} className="border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
+              <summary className="font-bold cursor-pointer">{Number(d.slice(5, 7))}월 {Number(d.slice(8))}일 <span className="text-sm text-muted font-normal">· {list.length}건{list.some((r) => r.comments.length) ? ` · 댓글 ${list.filter((r) => r.comments.length).length}건` : ""}</span></summary>
+              <div className="grid gap-3 pt-3">
+                {list.map((r) => {
+                  const m = missionOf.get(r.no);
+                  return (
+                    <div key={`${r.n}|${r.no}`} className="grid gap-2 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
+                      <div className="flex items-baseline gap-2 min-w-0">
+                        <b className="truncate">{r.n}/{names[r.n] || "없음"}</b>
+                        <span className="text-sm truncate">{m ? `${m.e} ${m.t.replace(/\n/g, " ")}` : `${r.no}번 미션`}</span>
+                        <small className="text-muted ml-auto shrink-0">{r.no}번</small>
+                      </div>
+                      {r.photo ? (
+                        <a href={photoUrl(r.photo)} target="_blank" rel="noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={photoUrl(r.photo)} alt={`${r.n} 인증 사진`} loading="lazy" style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 10, background: "var(--paper)" }} />
+                        </a>
+                      ) : <p className="text-sm text-muted">사진 없음</p>}
+                      {r.comments.map((c) => (
+                        <div key={c.at} className="flex items-start gap-2 text-sm">
+                          <span className="min-w-0">💬 {c.text} <small className="text-muted">· {c.by} · {when(c.at)}</small></span>
+                          <ActionForm action={bingoCommentRemove} keep hideInline className="ml-auto shrink-0">
+                            <input type="hidden" name="nick" value={r.n} /><input type="hidden" name="no" value={r.no} /><input type="hidden" name="at" value={c.at} />
+                            <ConfirmButton message="이 댓글을 지울까요?" className="btn btn-ghost btn-danger text-xs py-0.5 px-2">지우기</ConfirmButton>
+                          </ActionForm>
+                        </div>
+                      ))}
+                      <ActionForm action={bingoComment} hideInline className="flex gap-2">
+                        <input type="hidden" name="nick" value={r.n} /><input type="hidden" name="no" value={r.no} />
+                        <input name="text" className="input min-w-0 flex-1" maxLength={300} required placeholder="잘못된 이유를 댓글로 남겨요" aria-label={`${r.n} 님 인증에 댓글`} />
+                        <Submit className="btn btn-primary text-xs shrink-0" pendingText="보내는 중…">댓글 달기</Submit>
+                      </ActionForm>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          ))}
+        </div>
+      </details>
 
       <details className="panel p-4" open>
         <summary className="font-bold cursor-pointer">이벤트 명단 ({view.members.length}명)</summary>

@@ -13,12 +13,32 @@
     el('reportShots').hidden = true; el('reportShots').textContent = '';
     try {
       const j = await api({ action: 'report', name: state.name, pw: state.pw });
-      records = j.records; draw(j.records); updateSave();
+      const seen = getSeen();
+      records = j.records; draw(j.records, seen); updateSave();
+      setSeen(Math.max(seen, maxAt(j.records))); badge(j.records);
     } catch (e) {
       if (e.auth) { close(); logout(e.message); return; }
       el('reportList').textContent = (e.message || '리포트를 불러오지 못했어요') + (e.detail ? ` (${e.detail})` : '');
     }
   }
+
+  // 운영진 댓글: 아직 안 본 댓글 수를 ‘내 리포트’ 버튼에 알려 줘요 (본 시각은 이 기기에만 기억)
+  const seenKey = () => 'r2u-bingo-seen-' + state.name;
+  const getSeen = () => { try { return Number(localStorage.getItem(seenKey())) || 0; } catch (e) { return 0; } };
+  const setSeen = t => { try { localStorage.setItem(seenKey(), String(t)); } catch (e) {} };
+  const maxAt = recs => recs.reduce((m, r) => (r.comments || []).reduce((a, c) => Math.max(a, c.at), m), 0);
+  function badge(recs) {
+    const seen = getSeen();
+    const n = recs.reduce((a, r) => a + (r.comments || []).filter(c => c.at > seen).length, 0);
+    el('reportOpen').textContent = n ? `📋 내 리포트 · 💬 새 댓글 ${n}` : '📋 내 리포트';
+    el('reportOpen').classList.toggle('has-new', n > 0);
+  }
+  let lastCheck = 0;
+  window.checkReportComments = async () => {
+    if (!loggedIn() || Date.now() - lastCheck < 60000) return;
+    lastCheck = Date.now();
+    try { badge((await api({ action: 'report', name: state.name, pw: state.pw })).records || []); } catch (e) {}
+  };
 
   function updateSave() {
     const ok = canSave() && records.length > 0;
@@ -27,10 +47,11 @@
       : !records.length ? '저장할 기록이 없어요.' : `사진 ${PER_PAGE}칸씩 여러 장의 이미지로 만들어요.`;
   }
 
-  function draw(records) {
+  function draw(records, seen) {
     const box = el('reportList'); box.textContent = '';
     const withPhoto = records.filter(r => r.photo).length;
-    el('reportSum').textContent = `인증 ${records.length}칸 · 빙고 ${doneLines().length}줄 · 사진 ${withPhoto}장`;
+    const cmts = records.reduce((a, r) => a + (r.comments || []).length, 0);
+    el('reportSum').textContent = `인증 ${records.length}칸 · 빙고 ${doneLines().length}줄 · 사진 ${withPhoto}장` + (cmts ? ` · 운영진 댓글 ${cmts}개` : '');
     if (!records.length) {
       const d = document.createElement('div'); d.className = 'empty'; d.textContent = '아직 인증한 기록이 없어요. 첫 미션에 도전해 보세요!'; box.appendChild(d);
       return;
@@ -51,6 +72,13 @@
         const im = document.createElement('img'); im.loading = 'lazy'; im.alt = `${m.t} 인증 사진`; im.src = photoUrl(r.photo); it.appendChild(im);
       } else {
         const p = document.createElement('div'); p.className = 'none'; p.textContent = '사진 없음'; it.appendChild(p);
+      }
+      for (const c of r.comments || []) {
+        const cm = document.createElement('div'); cm.className = 'cmt' + (c.at > seen ? ' new' : '');
+        const b = document.createElement('b'); b.textContent = '💬 운영진';
+        const tx = document.createElement('span'); tx.textContent = ' ' + c.text;
+        const dt = document.createElement('small'); const d = new Date(c.at); dt.textContent = ` ${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+        cm.append(b, tx, dt); it.appendChild(cm);
       }
       box.appendChild(it);
     }

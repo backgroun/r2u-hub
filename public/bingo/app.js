@@ -273,6 +273,7 @@ function renderAuth() {
   $('me').hidden = !loggedIn();
   $('meName').textContent = state.name;
   $('reportOpen').hidden = !(SYNC && loggedIn());
+  if (SYNC && loggedIn() && window.checkReportComments) window.checkReportComments(); // 운영진 댓글이 새로 달렸는지 (1분에 한 번만 확인)
   renderLoginMode();
 }
 function renderAll() { refreshFresh(); renderAuth(); fillSelect(); renderLoginMode(); render(); renderBoard(); }

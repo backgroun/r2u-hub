@@ -14,7 +14,7 @@ import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoin
 import { saveIconOverride } from "@/lib/icon-notice";
 import { MAX_HOME_NOTICES, setHomeNoticeCount, addNotice, adminAbsentNoticeOn, deleteNotice, updateNotice, getPushEnabledNicks, setAdminAbsentNotice, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
 import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
-import { clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
+import { addComment as addBingoComment, allRows as allBingoRows, getMissions as getBingoMissions, removeComment as removeBingoComment, clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
 import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive } from "@/lib/event-blocks";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
@@ -907,6 +907,26 @@ export async function bingoMember(_: Result, fd: FormData): Promise<Result> {
   await clearBingoRecords(name);
   await setBingoRoster(roster.filter((n) => n.toLowerCase() !== name.toLowerCase()));
   return ok(`'${name}' 님을 명단에서 뺐어요. (인증 기록도 함께 지웠어요)`);
+}
+/** 운영진이 빙고 인증 기록에 댓글을 단다 (잘못된 인증이면 이유를 알려 준다). 해당 크루원에게 푸시 알림이 가고, 빙고 화면의 ‘내 리포트’에도 보인다. */
+export async function bingoComment(_: Result, fd: FormData): Promise<Result> {
+  const u = await admin();
+  const nick = str(fd, "nick", 30), no = Number(fd.get("no")), text = str(fd, "text", 300);
+  if (!text) return fail("댓글 내용을 입력해 주세요.");
+  const row = (await allBingoRows()).find((r) => r.n === nick && r.no === no);
+  if (!row) return fail("해당 인증 기록을 찾지 못했어요. 이미 지워졌을 수 있어요.");
+  await addBingoComment(row.n, row.no, u.nick, text);
+  revalidatePath("/admin"); revalidatePath("/event");
+  const m = (await getBingoMissions()).find((x) => x.no === no);
+  let pushed = false;
+  if (pushReady()) pushed = (await sendPushToNicks(new Set([row.n]), "💬 인증에 운영진 댓글이 달렸어요", `${m ? `${m.e} ${m.t}` : `${no}번 미션`} · ${text}`.slice(0, 120), "/event")).sent > 0;
+  return ok(pushed ? `${row.n} 님에게 댓글을 남기고 알림을 보냈어요.` : `댓글을 남겼어요. ${row.n} 님은 푸시 알림을 켜지 않아서, 빙고 화면의 ‘내 리포트’에서 보게 돼요.`);
+}
+export async function bingoCommentRemove(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  await removeBingoComment(str(fd, "nick", 30), Number(fd.get("no")), Number(fd.get("at")));
+  revalidatePath("/admin"); revalidatePath("/event");
+  return ok("댓글을 지웠어요.");
 }
 export async function bingoMission(_: Result, fd: FormData): Promise<Result> {
   await admin();

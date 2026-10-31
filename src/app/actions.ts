@@ -908,6 +908,25 @@ export async function bingoMember(_: Result, fd: FormData): Promise<Result> {
   await setBingoRoster(roster.filter((n) => n.toLowerCase() !== name.toLowerCase()));
   return ok(`'${name}' 님을 명단에서 뺐어요. (인증 기록도 함께 지웠어요)`);
 }
+/** 이벤트 명단에서 고른 여러 명에게 한 번에 적용: 인증 기록 초기화(reset_data) · 명단에서 빼기(delete, 인증 기록도 함께 지움) */
+export async function bingoBulk(_: Result, fd: FormData): Promise<Result> {
+  await admin();
+  const act = str(fd, "act", 12);
+  if (!["reset_data", "delete"].includes(act)) return fail("알 수 없는 동작이에요.");
+  const roster = await getBingoRoster();
+  const picked = [...new Set(fd.getAll("nick").map((v) => String(v).trim()).filter(Boolean))]
+    .map((n) => roster.find((r) => r.toLowerCase() === n.toLowerCase()))
+    .filter((n): n is string => !!n);
+  if (!picked.length) return fail("선택한 사람이 명단에 없어요.");
+  let cleared = 0;
+  for (const nick of picked) cleared += await clearBingoRecords(nick);
+  if (act === "delete") {
+    const out = new Set(picked.map((n) => n.toLowerCase()));
+    await setBingoRoster(roster.filter((n) => !out.has(n.toLowerCase())));
+  }
+  revalidatePath("/admin"); revalidatePath("/event");
+  return ok(act === "delete" ? `${picked.length}명을 명단에서 뺐어요. (인증 ${cleared}칸도 함께 지웠어요)` : `${picked.length}명의 인증 ${cleared}칸을 초기화했어요.`);
+}
 /** 운영진이 빙고 인증 기록에 댓글을 단다 (잘못된 인증이면 이유를 알려 준다). 해당 크루원에게 푸시 알림이 가고, 빙고 화면의 ‘내 리포트’에도 보인다. */
 export async function bingoComment(_: Result, fd: FormData): Promise<Result> {
   const u = await admin();

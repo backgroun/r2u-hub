@@ -170,6 +170,7 @@ const RPC = {
   set: p => ['app_set', { p_name: p.name, p_pw: p.pw, p_no: p.no, p_title: p.title, p_date: p.date, p_link: '', p_photo: p.photo || null }],
   remove: p => ['app_remove', { p_name: p.name, p_pw: p.pw, p_no: p.no }],
   report: p => ['app_my_report', { p_name: p.name, p_pw: p.pw }],
+  photos: () => ['app_all_photos', {}],
   adminLogin: p => ['admin_login', { p_secret: p.secret }],
   adminMember: p => ['admin_member', { p_secret: p.secret, p_action: p.act, p_name: p.name, p_new_name: p.newName || null }],
   adminMission: p => ['admin_mission_save', { p_secret: p.secret, p_no: p.no, p_emoji: p.e, p_title: p.t, p_descr: p.d }],

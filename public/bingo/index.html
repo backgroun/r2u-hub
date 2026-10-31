@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="photo.css">
 <link rel="stylesheet" href="admin.css">
 <link rel="stylesheet" href="report.css">
+<link rel="stylesheet" href="mosaic.css">
 <link rel="stylesheet" href="fx.css">
 </head>
 <body>
@@ -68,7 +69,7 @@
 
   <section class="card board" id="board" hidden>
     <div class="head">
-      <h2>크루 전체 현황</h2>
+      <h2>크루 전체 현황 <button class="btn ghost mini" id="mosaicOpen" type="button">🖼 이미지로 보기</button></h2>
       <button class="btn ghost mini" id="refresh" type="button">새로고침</button>
     </div>
     <p class="sum" id="boardSum"></p>
@@ -181,6 +182,16 @@
     <div id="reportList"></div>
   </div>
 </div>
+<div class="mosaic" id="mosaic" role="dialog" aria-modal="true" aria-label="크루 인증 이미지" hidden>
+  <div class="mosaic-in">
+    <div class="mosaic-top">
+      <b>크루 인증 이미지</b>
+      <button class="btn ghost mini" id="mosaicClose" type="button">닫기</button>
+    </div>
+    <p class="mosaic-sum" id="mosaicSum"></p>
+    <div class="mosaic-grid" id="mosaicGrid"></div>
+  </div>
+</div>
 <div class="toast" id="toast" role="status"></div>
 
 <script src="config.js"></script>
@@ -190,6 +201,7 @@
 <script>Photo.init();</script>
 <script src="admin.js"></script>
 <script src="report.js"></script>
+<script src="mosaic.js"></script>
 <script src="fx.js"></script>
 
 <!-- R2U 허브로 가는 위쪽 메뉴 (허브와 같은 메뉴) -->

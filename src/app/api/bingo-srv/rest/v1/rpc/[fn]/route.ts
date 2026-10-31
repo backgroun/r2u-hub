@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { currentUser, isStaffNick } from "@/lib/hub";
 import { getRoster, isJoined } from "@/lib/event-blocks";
-import { getInfo, myRecords, removeRow, saveMission, setRow, snapshot } from "@/lib/bingo-store";
+import { allPhotoList, getInfo, myRecords, removeRow, saveMission, setRow, snapshot } from "@/lib/bingo-store";
 import { pts, setPoints } from "@/lib/points";
 
 // 빙고 화면이 예전 서버(Supabase)에 보내던 요청을 허브가 그대로 받아 처리한다.
@@ -17,6 +17,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ fn: string }> 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
   if (fn === "get_snapshot") return NextResponse.json(await snapshot(), { headers });
+
+  // 크루 전체 현황의 ‘이미지로 보기’: 모두의 인증 사진 목록 (허브에 로그인한 사람이면 볼 수 있다. 사진 주소도 로그인한 사람에게만 열려 있다)
+  if (fn === "app_all_photos") return NextResponse.json({ ok: true, photos: await allPhotoList() }, { headers });
 
   // 운영진이 빙고판에서 바로 미션(이모지·제목·설명)을 고친다 (운영진 계정 포함, 크루 보기 중에는 불가)
   if (fn === "admin_mission_save") {

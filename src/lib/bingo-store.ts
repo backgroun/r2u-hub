@@ -76,6 +76,13 @@ export async function reviewRecords() {
   return rows.map((r) => ({ n: r.n, no: r.no, d: r.d, photo: photos?.[rowId(r.n, r.no)] ?? "", comments: comments[rowId(r.n, r.no)] ?? [] }))
     .sort((a, b) => b.d.localeCompare(a.d) || a.n.localeCompare(b.n) || a.no - b.no);
 }
+/** 크루 전체 현황의 ‘이미지로 보기’: 사진이 있는 인증을 최근 날짜 먼저 (닉네임·미션·날짜·사진 경로) */
+export async function allPhotoList() {
+  const [rows, photos] = await Promise.all([allRows(), redis.hgetall<Record<string, string>>(PHOTOS)]);
+  return rows.map((r) => ({ n: r.n, no: r.no, d: r.d, photo: photos?.[rowId(r.n, r.no)] ?? "" }))
+    .filter((r) => r.photo)
+    .sort((a, b) => b.d.localeCompare(a.d) || a.n.localeCompare(b.n) || a.no - b.no);
+}
 export async function addComment(nick: string, no: number, by: string, text: string) {
   const id = rowId(nick, no);
   const cur = parse<BingoComment[] | null>((await redis.hget(COMMENTS, id)) ?? null) ?? [];

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, isManagerUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, bingoMember, bingoComment, bingoCommentRemove, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
+import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { bingoReview, bingoView } from "@/lib/bingo-admin";
 import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
@@ -17,7 +17,8 @@ import LogoutButton from "@/components/logout-button";
 import RaceForm from "@/components/race-form";
 import GroupbuyStaff from "@/components/groupbuy-staff";
 import PasswordInput from "@/components/password-input";
-import PhotoZoom from "@/components/photo-zoom";
+import BingoReviewCard from "@/components/bingo-review-card";
+import RosterSelect from "@/components/roster-select";
 import AdminMemberRow from "@/components/admin-member-row";
 import AdminMemberSearch from "@/components/admin-member-search";
 import { GEARS, GearArt } from "@/components/gear-art";
@@ -757,8 +758,6 @@ async function Events() {
   const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
   const [view, review] = await Promise.all([bingoView(), bingoReview()]);
   const missionOf = new Map(review.missions.map((m) => [m.no, m]));
-  const photoUrl = (p: string) => `/api/bingo-srv/storage/v1/object/public/proofs/${p.split("/").map(encodeURIComponent).join("/")}`;
-  const when = (at: number) => new Date(at + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ");
   const start = view.info.start, end = view.info.end;
   const nowYm = kstToday().slice(0, 7);
   const months = [...new Set([...blocks.map((b) => b.ym), ...Object.keys(active)])].sort().reverse();
@@ -805,35 +804,7 @@ async function Events() {
             <details key={d} open={i === 0} className="border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
               <summary className="font-bold cursor-pointer">{Number(d.slice(5, 7))}월 {Number(d.slice(8))}일 <span className="text-sm text-muted font-normal">· {list.length}건{list.some((r) => r.comments.length) ? ` · 댓글 ${list.filter((r) => r.comments.length).length}건` : ""}</span></summary>
               <div className="grid gap-3 pt-3">
-                {list.map((r) => {
-                  const m = missionOf.get(r.no);
-                  return (
-                    <div key={`${r.n}|${r.no}`} className="grid gap-2 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
-                      <div className="flex items-baseline gap-2 min-w-0">
-                        <b className="truncate">{r.n}/{names[r.n] || "없음"}</b>
-                        <span className="text-sm truncate">{m ? `${m.e} ${m.t.replace(/\n/g, " ")}` : `${r.no}번 미션`}</span>
-                        <small className="text-muted ml-auto shrink-0">{r.no}번</small>
-                      </div>
-                      {r.photo ? (
-                        <PhotoZoom src={photoUrl(r.photo)} alt={`${r.n} 인증 사진`} />
-                      ) : <p className="text-sm text-muted">사진 없음</p>}
-                      {r.comments.map((c) => (
-                        <div key={c.at} className="flex items-start gap-2 text-sm">
-                          <span className="min-w-0">💬 {c.text} <small className="text-muted">· {c.by} · {when(c.at)}</small></span>
-                          <ActionForm action={bingoCommentRemove} keep hideInline className="ml-auto shrink-0">
-                            <input type="hidden" name="nick" value={r.n} /><input type="hidden" name="no" value={r.no} /><input type="hidden" name="at" value={c.at} />
-                            <ConfirmButton message="이 댓글을 지울까요?" className="btn btn-ghost btn-danger text-xs py-0.5 px-2">지우기</ConfirmButton>
-                          </ActionForm>
-                        </div>
-                      ))}
-                      <ActionForm action={bingoComment} hideInline className="flex gap-2">
-                        <input type="hidden" name="nick" value={r.n} /><input type="hidden" name="no" value={r.no} />
-                        <input name="text" className="input min-w-0 flex-1" maxLength={300} required placeholder="잘못된 이유를 댓글로 남겨요" aria-label={`${r.n} 님 인증에 댓글`} />
-                        <Submit className="btn btn-primary text-xs shrink-0" pendingText="보내는 중…">댓글 달기</Submit>
-                      </ActionForm>
-                    </div>
-                  );
-                })}
+                {list.map((r) => <BingoReviewCard key={`${r.n}|${r.no}`} r={r} mission={missionOf.get(r.no)} name={names[r.n]} />)}
               </div>
             </details>
           ))}
@@ -842,22 +813,7 @@ async function Events() {
 
       <details className="panel p-4" open>
         <summary className="font-bold cursor-pointer">이벤트 명단 ({view.members.length}명)</summary>
-        <div className="grid gap-3 pt-3">
-          {view.members.map((m, i) => (
-            <div key={m.name} className="flex items-center gap-2 border-t border-[var(--line)] pt-2">
-              <span className="num text-muted text-sm shrink-0 text-center" style={{ width: 22 }}>{i + 1}</span>
-              <div className="flex items-baseline gap-2 min-w-0"><b>{m.name}/{names[m.name] || "없음"}</b><small className="text-muted">인증 기록 {m.cnt}칸</small></div>
-              <div className="ml-auto flex flex-nowrap items-center gap-1.5 shrink-0">
-                {([["reset_data", "기록 초기화"], ["delete", "명단에서 빼기"]] as const).map(([act, label]) => (
-                  <ActionForm key={act} action={bingoMember} className="inline">
-                    <input type="hidden" name="act" value={act} /><input type="hidden" name="name" value={m.name} />
-                    <ConfirmButton className={`btn btn-ghost text-xs py-1 px-2 ${act === "delete" || act === "reset_data" ? "btn-danger" : ""}`}>{label}</ConfirmButton>
-                  </ActionForm>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <RosterSelect members={view.members.map((m) => ({ name: m.name, label: `${m.name}/${names[m.name] || "없음"}`, cnt: m.cnt }))} />
       </details>
 
       {/* 평소에는 접어 두고, 새 블록을 만들 때만 펼친다 (만들면 자동으로 다시 접힌다) */}

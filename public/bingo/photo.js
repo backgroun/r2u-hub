@@ -2,9 +2,13 @@
 // 폰 사진은 크기가 크니까 올리기 전에 브라우저에서 JPEG 1MB 이하로 줄여요.
 // 줄이는 과정에서 위치·촬영시각 같은 EXIF 정보는 자동으로 사라져요.
 const Photo = (() => {
-  const MAX_SIDE = 1280;        // 긴 변 최대 픽셀
+  const MAX_SIDE = 1080;        // 긴 변 최대 픽셀
   const MAX_BYTES = 1000 * 1024; // 서버 제한(1MB)보다 살짝 작게
+  const QUALITIES = [0.75, 0.65, 0.55, 0.46];
+  const THUMB_SIDE = 400;       // 모자이크·목록용 작은 사진 (긴 변)
+  const THUMB_BYTES = 90 * 1024;
   let blob = null;
+  let thumb = null;
   let url = '';
   const $p = id => document.getElementById(id);
 
@@ -25,11 +29,9 @@ const Photo = (() => {
   }
   const toBlob = (cv, q) => new Promise(ok => cv.toBlob(ok, 'image/jpeg', q));
 
-  async function shrink(file) {
-    const img = await loadImage(file);
-    const w0 = img.width || img.naturalWidth, h0 = img.height || img.naturalHeight;
-    if (!w0 || !h0) throw new Error('사진을 읽지 못했어요');
-    let scale = Math.min(1, MAX_SIDE / Math.max(w0, h0));
+  // 사진을 긴 변 maxSide 이하로 줄여서 JPEG 로 만든다 (용량이 maxBytes 를 넘으면 화질·크기를 더 낮춘다)
+  async function encode(img, w0, h0, maxSide, maxBytes, qualities) {
+    let scale = Math.min(1, maxSide / Math.max(w0, h0));
     for (let round = 0; round < 4; round++) {
       const cv = document.createElement('canvas');
       cv.width = Math.max(1, Math.round(w0 * scale));
@@ -37,13 +39,26 @@ const Photo = (() => {
       const g = cv.getContext('2d');
       g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); // 투명 PNG 대비
       g.drawImage(img, 0, 0, cv.width, cv.height);
-      for (const q of [0.82, 0.7, 0.58, 0.46]) {
+      for (const q of qualities) {
         const b = await toBlob(cv, q);
-        if (b && b.size <= MAX_BYTES) { if (img.close) img.close(); return b; }
+        if (b && b.size <= maxBytes) return b;
       }
       scale *= 0.75; // 그래도 크면 더 작게
     }
-    throw new Error('사진 용량을 줄이지 못했어요. 다른 사진을 골라주세요');
+    return null;
+  }
+
+  // 올릴 사진(원본을 줄인 것)과 작은 사진(모자이크·목록용)을 한 번에 만든다
+  async function shrink(file) {
+    const img = await loadImage(file);
+    try {
+      const w0 = img.width || img.naturalWidth, h0 = img.height || img.naturalHeight;
+      if (!w0 || !h0) throw new Error('사진을 읽지 못했어요');
+      const main = await encode(img, w0, h0, MAX_SIDE, MAX_BYTES, QUALITIES);
+      if (!main) throw new Error('사진 용량을 줄이지 못했어요. 다른 사진을 골라주세요');
+      const small = await encode(img, w0, h0, THUMB_SIDE, THUMB_BYTES, [0.7, 0.55, 0.4]);
+      return { main, small };
+    } finally { if (img.close) img.close(); }
   }
 
   function show() {
@@ -54,7 +69,7 @@ const Photo = (() => {
     if (url) { URL.revokeObjectURL(url); url = ''; }
     if (has) { url = URL.createObjectURL(blob); $p('sPrev').src = url; } else { $p('sPrev').removeAttribute('src'); }
   }
-  function reset() { blob = null; $p('sPhotoIn').value = ''; show(); }
+  function reset() { blob = null; thumb = null; $p('sPhotoIn').value = ''; show(); }
 
   async function onPick(e) {
     const f = e.target.files && e.target.files[0];
@@ -64,27 +79,31 @@ const Photo = (() => {
     }
     $p('sPhotoBtn').disabled = true;
     $p('sPhotoBtn').textContent = '사진을 줄이는 중…';
-    try { blob = await shrink(f); }
-    catch (err) { blob = null; toast(err.message || '사진을 불러오지 못했어요 (HEIC는 JPG로 바꿔 주세요)', 4000); }
+    try { const r = await shrink(f); blob = r.main; thumb = r.small; }
+    catch (err) { blob = null; thumb = null; toast(err.message || '사진을 불러오지 못했어요 (HEIC는 JPG로 바꿔 주세요)', 4000); }
     finally { $p('sPhotoBtn').disabled = false; e.target.value = ''; show(); }
   }
 
   // 서버가 준 일회용 경로(path)에 올려요
-  async function upload(path) {
-    if (!blob) return;
+  function post(path, body) {
     const headers = { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'image/jpeg', 'x-upsert': 'false', 'cache-control': 'max-age=31536000' };
     if (/^eyJ/.test(SUPABASE_ANON_KEY)) headers.Authorization = 'Bearer ' + SUPABASE_ANON_KEY;
+    return fetch(`${SUPABASE_URL}/storage/v1/object/proofs/${path.split('/').map(encodeURIComponent).join('/')}`,
+      { method: 'POST', headers, body });
+  }
+  async function upload(path) {
+    if (!blob) return;
     let res;
-    try {
-      res = await fetch(`${SUPABASE_URL}/storage/v1/object/proofs/${path.split('/').map(encodeURIComponent).join('/')}`,
-        { method: 'POST', headers, body: blob });
-    } catch (e) {
+    try { res = await post(path, blob); }
+    catch (e) {
       const err = new Error('사진을 올리지 못했어요. 연결을 확인해 주세요'); err.code = 'NET'; throw err;
     }
     if (!res.ok) {
       const err = new Error('사진을 올리지 못했어요. 잠시 후 다시 시도해 주세요');
       err.code = 'HTTP ' + res.status; throw err;
     }
+    // 작은 사진(모자이크·목록용)은 덤이라서, 못 올려도 인증은 그대로 진행해요. 없으면 화면에서 원본을 대신 써요.
+    if (thumb) { try { await post(path.replace(/\.jpg$/, '.t.jpg'), thumb); } catch (e) { /* 무시 */ } }
   }
 
   function init() {

@@ -14,7 +14,7 @@ import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoin
 import { saveIconOverride } from "@/lib/icon-notice";
 import { MAX_HOME_NOTICES, setHomeNoticeCount, addNotice, adminAbsentNoticeOn, deleteNotice, updateNotice, getPushEnabledNicks, setAdminAbsentNotice, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
 import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
-import { addComment as addBingoComment, allRows as allBingoRows, getMissions as getBingoMissions, removeComment as removeBingoComment, clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
+import { addComment as addBingoComment, allRows as allBingoRows, cleanupOrphanPhotos as cleanupBingoPhotos, getMissions as getBingoMissions, removeComment as removeBingoComment, clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
 import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive } from "@/lib/event-blocks";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
@@ -907,6 +907,14 @@ export async function bingoMember(_: Result, fd: FormData): Promise<Result> {
   await clearBingoRecords(name);
   await setBingoRoster(roster.filter((n) => n.toLowerCase() !== name.toLowerCase()));
   return ok(`'${name}' 님을 명단에서 뺐어요. (인증 기록도 함께 지웠어요)`);
+}
+/** 인증 기록과 연결이 끊겨 저장공간만 차지하는 사진 파일을 지운다 (연결된 사진·방금 올린 사진은 건드리지 않는다) */
+export async function bingoCleanupPhotos(): Promise<Result> {
+  await admin();
+  const r = await cleanupBingoPhotos();
+  revalidatePath("/admin");
+  if (!r.removed) return ok(r.kept ? `지울 사진이 없어요. (방금 올린 ${r.kept}장은 1시간 뒤에 다시 확인해 주세요)` : "지울 사진이 없어요. 이미 깨끗해요.");
+  return ok(`안 쓰는 사진 ${r.removed}장(약 ${(r.bytes / 1048576).toFixed(1)}MB)을 지웠어요.${r.kept ? ` (방금 올린 ${r.kept}장은 남겨 뒀어요)` : ""}`);
 }
 /** 이벤트 명단에서 고른 여러 명에게 한 번에 적용: 인증 기록 초기화(reset_data) · 명단에서 빼기(delete, 인증 기록도 함께 지움) */
 export async function bingoBulk(_: Result, fd: FormData): Promise<Result> {

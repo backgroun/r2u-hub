@@ -86,17 +86,19 @@ async function AdminBar({ block, nick, hidden }: { block: EventBlock | null; nic
 
 // 운영진 바(있으면)와 빙고 화면을 세로로 쌓고, 빙고는 남는 높이를 채운다
 async function Shell({ bar, children, me }: { bar: React.ReactNode; children: React.ReactNode; me?: string | null }) {
-  const roster = await getRoster();
+  // 참가 신청 명단은 이벤트가 시작되기 전에만 보여 준다 (시작하면 빙고판이 화면을 다 쓴다)
+  const started = await eventOpen();
+  const roster = started ? [] : await getRoster();
   return (
     <div className="event-shell">
       {bar}
       {children}
-      <section className="event-roster" aria-label="참가 신청한 사람들">
+      {!started && <section className="event-roster" aria-label="참가 신청한 사람들">
         <h2>참가 신청 <span className="num">{roster.length}</span>명</h2>
         {roster.length === 0 ? <p className="event-roster-empty">아직 신청한 사람이 없어요.</p> : (
           <ul>{roster.map((n) => <li key={n} className={isJoined([n], me) ? "me" : ""}>{n}</li>)}</ul>
         )}
-      </section>
+      </section>}
     </div>
   );
 }

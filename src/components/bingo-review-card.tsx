@@ -15,7 +15,7 @@ export default function BingoReviewCard({ r, mission, name }: { r: { n: string; 
         <span className="text-sm truncate">{mission ? `${mission.e} ${mission.t.replace(/\n/g, " ")}` : `${r.no}번 미션`}</span>
         <small className="text-muted ml-auto shrink-0">{r.no}번</small>
       </div>
-      {r.photo ? <PhotoZoom src={bingoPhotoUrl(r.photo)} alt={`${r.n} 인증 사진`} /> : <p className="text-sm text-muted">사진 없음</p>}
+      {r.photo ? <PhotoZoom src={bingoPhotoUrl(r.photo)} thumb={bingoPhotoUrl(r.photo.replace(/\.jpg$/, ".t.jpg"))} alt={`${r.n} 인증 사진`} /> : <p className="text-sm text-muted">사진 없음</p>}
       {r.comments.map((c) => (
         <div key={c.at} className="flex items-start gap-2 text-sm">
           <span className="min-w-0">💬 {c.text} <small className="text-muted">· {c.by} · {when(c.at)}</small></span>

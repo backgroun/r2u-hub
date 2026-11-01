@@ -18,6 +18,7 @@ const ROWS = "r2u:bingo:rows"; // 필드 `${nick}|${no}` → BingoRow
 const MISSIONS = "r2u:bingo:missions"; // 필드 no → 운영진이 고친 {e,t,d}
 const INFO = "r2u:bingo:info";
 const photoKey = (path: string) => `r2u:bingo:photo:${path}`;
+const thumbOf = (path: string) => path.replace(/\.jpg$/, ".t.jpg"); // 모자이크·목록용 작은 사진의 경로
 const PHOTOS = "r2u:bingo:photos"; // 필드 `${nick}|${no}` → 사진 경로
 const COMMENTS = "r2u:bingo:comments"; // 필드 `${nick}|${no}` → 운영진이 단 댓글 목록 BingoComment[]
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
@@ -105,15 +106,21 @@ export async function setRow(nick: string, no: number, date: string, photoPath: 
   const rows = (await allRows()).filter((r) => norm(r.n) === norm(nick) && r.no !== no);
   if (rows.filter((r) => r.d === date).length >= info.maxPerDay) return `하루 최대 ${info.maxPerDay}개 미션까지만 인정돼요.`;
   await redis.hset(ROWS, { [rowId(nick, no)]: JSON.stringify({ n: nick, no, d: date }) });
-  if (photoPath) await redis.hset(PHOTOS, { [rowId(nick, no)]: photoPath });
+  if (photoPath) {
+    const old = await redis.hget<string>(PHOTOS, rowId(nick, no));
+    await redis.hset(PHOTOS, { [rowId(nick, no)]: photoPath });
+    if (old && old !== photoPath) await dropPhotos([old]); // 사진을 바꿔 올렸으면 이전 사진 파일은 지운다
+  }
   return null;
 }
 export async function removeRow(nick: string, no: number): Promise<string | null> {
   const info = await getInfo();
   if (kstToday() < info.start) return `이벤트가 시작되면(${Number(info.start.slice(5, 7))}월 ${Number(info.start.slice(8))}일) 고칠 수 있어요.`;
+  const old = await redis.hget<string>(PHOTOS, rowId(nick, no));
   await redis.hdel(ROWS, rowId(nick, no));
   await redis.hdel(PHOTOS, rowId(nick, no));
   await redis.hdel(COMMENTS, rowId(nick, no));
+  if (old) await dropPhotos([old]); // 인증을 취소하면 사진 파일도 지운다
   return null;
 }
 
@@ -122,9 +129,12 @@ export async function clearRecords(nick: string) {
   const rows = (await allRows()).filter((r) => norm(r.n) === norm(nick));
   if (!rows.length) return 0;
   const ids = rows.map((r) => rowId(r.n, r.no));
+  const photos = (await redis.hgetall<Record<string, string>>(PHOTOS)) ?? {};
+  const paths = ids.map((id) => photos[id]).filter(Boolean);
   await redis.hdel(ROWS, ...ids);
   await redis.hdel(PHOTOS, ...ids);
   await redis.hdel(COMMENTS, ...ids);
+  await dropPhotos(paths); // 초기화·명단 빼기 때 사진 파일도 함께 지운다
   return rows.length;
 }
 /** 칸 인증 기록·사진만 새 닉네임으로 옮긴다 (참가 명단은 호출하는 쪽에서 따로 바꾼다) */
@@ -150,7 +160,40 @@ export async function renameMember(oldNick: string, newNick: string) {
 
 /* ---------- 인증 사진 (1MB 이하 JPEG, Redis 에 base64 로 보관) ---------- */
 export async function savePhoto(path: string, bytes: Buffer) {
-  await redis.set(photoKey(path), { type: "image/jpeg", data: bytes.toString("base64") });
+  await redis.set(photoKey(path), { type: "image/jpeg", data: bytes.toString("base64"), at: Date.now() });
+}
+
+/** 인증 기록과의 연결이 끊긴 사진 파일(원본·작은 사진)을 지운다. 다른 인증 기록이 같은 사진을 쓰고 있으면 남긴다. */
+async function dropPhotos(paths: string[]) {
+  if (!paths.length) return;
+  const still = new Set(Object.values((await redis.hgetall<Record<string, string>>(PHOTOS)) ?? {}));
+  const keys = paths.filter((p) => !still.has(p)).flatMap((p) => [photoKey(p), photoKey(thumbOf(p))]);
+  if (keys.length) await redis.del(...keys);
+}
+
+/** 사진 파일이 몇 개 저장돼 있고, 그중 인증 기록과 연결이 끊긴 것은 몇 개인지 (운영진 용량 정리 화면) */
+export async function photoUsage() {
+  const [keys, photos] = await Promise.all([redis.keys(`${photoKey("")}*`), redis.hgetall<Record<string, string>>(PHOTOS)]);
+  const used = new Set(Object.values(photos ?? {}).flatMap((p) => [photoKey(p), photoKey(thumbOf(p))]));
+  return { files: keys.length, orphans: keys.filter((k) => !used.has(k)).length };
+}
+
+const ORPHAN_GRACE_MS = 60 * 60 * 1000;
+/** 인증 기록과 연결이 끊긴 사진 파일을 한꺼번에 지운다. 방금(1시간 안에) 올려서 아직 인증과 이어지기 전일 수 있는 사진은 남긴다. */
+export async function cleanupOrphanPhotos() {
+  const [keys, photos] = await Promise.all([redis.keys(`${photoKey("")}*`), redis.hgetall<Record<string, string>>(PHOTOS)]);
+  const used = new Set(Object.values(photos ?? {}).flatMap((p) => [photoKey(p), photoKey(thumbOf(p))]));
+  let removed = 0, kept = 0, bytes = 0;
+  for (const k of keys) {
+    if (used.has(k)) continue;
+    const img = await redis.get<{ data?: string; at?: number }>(k);
+    if (!img) continue;
+    if (img.at && Date.now() - img.at < ORPHAN_GRACE_MS) { kept++; continue; }
+    bytes += Math.round((img.data?.length ?? 0) * 0.75);
+    await redis.del(k);
+    removed++;
+  }
+  return { removed, kept, bytes };
 }
 export async function getPhoto(path: string): Promise<{ type: string; data: string } | null> {
   return await redis.get<{ type: string; data: string }>(photoKey(path));

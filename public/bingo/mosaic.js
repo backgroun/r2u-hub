@@ -21,7 +21,10 @@
       const fig = document.createElement('figure');
       const cap = document.createElement('figcaption'); cap.textContent = r.n; // 누가 올렸는지 사진 위에
       const im = document.createElement('img');
-      im.loading = 'lazy'; im.decoding = 'async'; im.alt = `${r.n} 인증 사진`; im.src = photoUrl(r.photo);
+      im.loading = 'lazy'; im.decoding = 'async'; im.alt = `${r.n} 인증 사진`;
+      // 작은 사진(.t.jpg)을 먼저 쓰고, 없는 예전 사진은 원본으로 대신해요
+      im.onerror = () => { im.onerror = null; im.src = photoUrl(r.photo); };
+      im.src = photoUrl(r.photo.replace(/\.jpg$/, '.t.jpg'));
       fig.append(cap, im); grid.appendChild(fig);
     }
   }

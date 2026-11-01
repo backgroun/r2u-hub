@@ -2,9 +2,10 @@ import Link from "next/link";
 import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, isManagerUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
+import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, bingoCleanupPhotos, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { bingoReview, bingoView } from "@/lib/bingo-admin";
+import { photoUsage } from "@/lib/bingo-store";
 import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
 import { listJoins, pendingJoinCount } from "@/lib/join";
 import { listNickChangeRequests } from "@/lib/nickname";
@@ -756,7 +757,7 @@ async function Events() {
   const members = await getMembers();
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
-  const [view, review] = await Promise.all([bingoView(), bingoReview()]);
+  const [view, review, usage] = await Promise.all([bingoView(), bingoReview(), photoUsage()]);
   const missionOf = new Map(review.missions.map((m) => [m.no, m]));
   const start = view.info.start, end = view.info.end;
   const nowYm = kstToday().slice(0, 7);
@@ -814,6 +815,17 @@ async function Events() {
       <details className="panel p-4" open>
         <summary className="font-bold cursor-pointer">이벤트 명단 ({view.members.length}명)</summary>
         <RosterSelect members={view.members.map((m) => ({ name: m.name, label: `${m.name}/${names[m.name] || "없음"}`, cnt: m.cnt }))} />
+      </details>
+
+      {/* 사진 용량 정리: 인증을 취소·교체·초기화할 때는 사진 파일도 바로 지워지고, 예전부터 남은 것은 여기서 한 번에 지운다 */}
+      <details className="panel p-4">
+        <summary className="font-bold cursor-pointer">사진 용량 정리</summary>
+        <div className="grid gap-2 pt-3">
+          <p className="text-sm text-muted">저장된 사진 파일 {usage.files}개 중 인증 기록과 연결이 끊긴 파일은 <b>{usage.orphans}개</b>예요. 연결된 사진과 방금 올린 사진은 지워지지 않아요.</p>
+          <ActionForm action={bingoCleanupPhotos} keep>
+            <Submit className="btn btn-ghost btn-danger" confirm={`연결이 끊긴 사진 ${usage.orphans}개를 지울까요?\n인증 기록에 연결된 사진은 지워지지 않아요. 지운 사진은 되돌릴 수 없어요.`} pendingText="정리하는 중…" >안 쓰는 사진 정리</Submit>
+          </ActionForm>
+        </div>
       </details>
 
       {/* 평소에는 접어 두고, 새 블록을 만들 때만 펼친다 (만들면 자동으로 다시 접힌다) */}

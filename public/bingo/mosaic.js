@@ -18,9 +18,11 @@
     el('mosaicSum').textContent = list.length ? `인증 이미지 ${list.length}장` : '아직 올라온 인증 이미지가 없어요.';
     const grid = el('mosaicGrid'); grid.textContent = '';
     for (const r of list) {
+      const fig = document.createElement('figure');
+      const cap = document.createElement('figcaption'); cap.textContent = r.n; // 누가 올렸는지 사진 위에
       const im = document.createElement('img');
-      im.loading = 'lazy'; im.decoding = 'async'; im.alt = `${r.n} 인증 사진`; im.title = r.n; im.src = photoUrl(r.photo);
-      grid.appendChild(im);
+      im.loading = 'lazy'; im.decoding = 'async'; im.alt = `${r.n} 인증 사진`; im.src = photoUrl(r.photo);
+      fig.append(cap, im); grid.appendChild(fig);
     }
   }
 

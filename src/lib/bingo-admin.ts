@@ -10,7 +10,9 @@ export async function bingoView(): Promise<BingoView> {
   const [roster, rows, missions, info] = await Promise.all([getRoster(), allRows(), getMissions(), getInfo()]);
   const cnt = new Map<string, number>();
   for (const r of rows) cnt.set(r.n.toLowerCase(), (cnt.get(r.n.toLowerCase()) ?? 0) + 1);
-  return { members: roster.map((name) => ({ name, cnt: cnt.get(name.toLowerCase()) ?? 0 })), missions, info };
+  // 인증을 많이 한 사람이 위로 (칸 수가 같으면 참가 신청한 순서 그대로)
+  const members = roster.map((name) => ({ name, cnt: cnt.get(name.toLowerCase()) ?? 0 })).sort((a, b) => b.cnt - a.cnt);
+  return { members, missions, info };
 }
 
 const LINES = (() => {

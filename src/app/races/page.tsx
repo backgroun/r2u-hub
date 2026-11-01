@@ -4,6 +4,7 @@ import { getPushEnabledNicks } from "@/lib/notice";
 import { MemberCardSheet, MemberChip } from "@/components/member-card";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { redirect } from "next/navigation";
+import { canonCourse } from "@/lib/course";
 import { WEEK, currentUser, getAdminNicks, isStaffAccount, isStaffNick, fmtRaceDate, driverOf, getMembers, attendanceEnded, attendanceMode, getRaces, kstNow, kstToday, regInfo, type AfterFull, type AfterKind, type RaceFull, type User } from "@/lib/hub";
 import { addAfter, addChecker, setCheckMode, sendItemNotice, sendScheduleNotices, deleteAfter, removeChecker, toggleAbsent, toggleCame, updateAfter, joinRace, leaveRace, toggleCheer } from "@/app/actions";
 import { ActionForm, AlertConfirmButton, ConfirmButton, Submit } from "@/components/action-form";
@@ -155,12 +156,12 @@ function RaceCalendar({ races, u, admins, managers, names, levels, today, ym, da
 
 /** 참가자를 코스별로 묶는다 (5K → 10K → 하프 → 풀 → 그 밖 → 미정 순). 표기가 달라도(Half/하프, Full/풀) 같은 코스로 보고, 이름은 코스 선택 버튼과 같게 5K·10K·Half·Full로 쓴다 */
 function groupByCourse(ps: RaceFull["participants"]) {
-  const norm = (c: string) => { const t = c.trim().toLowerCase(); return t === "half" || t === "하프" ? "half" : t === "full" || t === "풀" ? "full" : t; };
   const ORDER = ["5k", "10k", "half", "full"];
   const map = new Map<string, { key: string; label: string; list: typeof ps }>();
   for (const p of ps) {
-    const key = norm(p.course ?? "") || "";
-    const label = key === "" ? "미정" : key === "half" ? "Half" : key === "full" ? "Full" : key === "5k" ? "5K" : key === "10k" ? "10K" : (p.course ?? "").trim();
+    const canon = canonCourse(p.course); // H·하프·half·21K 처럼 달리 적힌 표기도 같은 코스로 (예전 구글시트에서 옮겨 온 데이터)
+    const key = canon.toLowerCase();
+    const label = key === "" ? "미정" : canon;
     if (!map.has(key)) map.set(key, { key, label, list: [] });
     map.get(key)!.list.push(p);
   }
@@ -319,6 +320,8 @@ async function RaceCard({ r, u, admins, managers, names, levels, past, showReg =
         </summary>
         <div className="grid gap-3 pt-3">
       <div className="grid gap-1.5">
+        {/* 운영진·관리자: 참가자 추가·코스 수정·빼기는 관리자 페이지의 이 대회에서 한다 */}
+        {u.admin && !past && <Link href={`/admin?tab=content&sec=entries#${r.id}`} className="text-xs underline justify-self-start">참가자 추가·수정·빼기 (관리자 페이지) ›</Link>}
         {r.participants.length === 0 && <span className="text-sm text-muted">아직 없어요.</span>}
         {(checkMode || canToggleMode) && (
           <div className={`mode-banner ${checkMode ? "" : "mode-off"}`}>

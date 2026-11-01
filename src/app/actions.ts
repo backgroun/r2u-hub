@@ -16,6 +16,7 @@ import { MAX_HOME_NOTICES, setHomeNoticeCount, addNotice, adminAbsentNoticeOn, d
 import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
 import { addComment as addBingoComment, allRows as allBingoRows, cleanupOrphanPhotos as cleanupBingoPhotos, getMissions as getBingoMissions, removeComment as removeBingoComment, clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
 import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive } from "@/lib/event-blocks";
+import { canonCourse } from "@/lib/course";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
 import { detachGarminDay } from "@/lib/runs";
@@ -398,7 +399,7 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
   const id = str(fd, "id");
   const who = u.admin ? str(fd, "nick", 30) || u.nick : u.nick;
-  const course = str(fd, "courseEtc", 20) || str(fd, "course", 20);
+  const course = canonCourse(str(fd, "courseEtc", 20) || str(fd, "course", 20)); // H·하프 처럼 달리 적어도 Half 로 저장
   if (!course) return fail("코스를 선택해 주세요.");
   if (!(await redis.hexists(K.races, id))) return fail("없는 대회예요.");
   const isNew = !(await redis.hexists(K.raceP(id), who));
@@ -411,6 +412,23 @@ export async function joinRace(_: Result, fd: FormData): Promise<Result> {
   revalidatePath("/admin");
   revalidatePath("/");
   return ok(`${who} · ${course} 크루 참가로 표시했어요. 대회 접수는 주최 측 페이지에서 별도로 확인해 주세요.`);
+}
+
+/** 운영진: 예전 구글시트에서 옮겨 온 H·하프·half 같은 코스 표기를 5K·10K·Half·Full 로 한꺼번에 통일한다 (참가자의 코스 이름만 바꾸고, 참가 여부·포인트는 그대로) */
+export async function normalizeRaceCourses(): Promise<Result> {
+  await admin();
+  let changed = 0;
+  for (const id of await redis.hkeys(K.races)) {
+    const all = (await redis.hgetall<Record<string, unknown>>(K.raceP(id))) ?? {};
+    const fix: Record<string, string> = {};
+    for (const [nick, c] of Object.entries(all)) {
+      const old = String(c ?? ""), next = canonCourse(old);
+      if (next !== old) fix[nick] = next;
+    }
+    if (Object.keys(fix).length) { await redis.hset(K.raceP(id), fix); changed += Object.keys(fix).length; }
+  }
+  revalidatePath("/races"); revalidatePath("/admin");
+  return ok(changed ? `${changed}명의 코스 표기를 통일했어요.` : "통일할 표기가 없어요. 이미 깔끔해요.");
 }
 
 /** 운영진·위임받은 사람: 확인 모드(대회 2일 전~당일)에 단사·뒷풀이에 온 사람을 누를 때마다 출석 체크/해제 */

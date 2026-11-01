@@ -2,9 +2,10 @@ import Link from "next/link";
 import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, isManagerUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, bingoCleanupPhotos, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
+import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, bingoCleanupPhotos, normalizeRaceCourses, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { bingoReview, bingoView } from "@/lib/bingo-admin";
+import { canonCourse } from "@/lib/course";
 import { photoUsage } from "@/lib/bingo-store";
 import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
 import { listJoins, pendingJoinCount } from "@/lib/join";
@@ -404,17 +405,28 @@ async function Entries({ today }: { today: string }) {
   const label = (nick: string) => `${nick}/${names[nick] || "없음"}`;
   const races = all.filter((r) => r.date >= today);
   const crew = members.map((x) => x.nick).filter((n) => !isStaffNick(n));
+  // 예전 구글시트에서 옮겨 온 H·하프 같은 표기가 남은 참가자 수 (지난 대회 포함)
+  const fixCount = all.reduce((n, r) => n + r.participants.filter((p) => canonCourse(p.course) !== p.course).length, 0);
   if (!races.length) return <p className="text-sm text-muted">다가오는 대회가 없어요.</p>;
   return (
     <div className="grid gap-3">
       <p className="text-xs text-muted">다가오는 대회만 보여요. 크루원을 검색해서 참가자·응원으로 넣거나, 코스를 고치거나, 뺄 수 있어요.</p>
+      {fixCount > 0 && (
+        <div className="panel p-4 grid gap-2">
+          <b>코스 표기 통일</b>
+          <p className="text-sm text-muted">예전에 옮겨 온 참가자 {fixCount}명의 코스가 H·하프·21K 처럼 다르게 적혀 있어요. 5K·10K·Half·Full 로 한꺼번에 통일해요. (참가 여부와 포인트는 그대로예요)</p>
+          <ActionForm action={normalizeRaceCourses} keep>
+            <Submit className="btn btn-primary" confirm={`참가자 ${fixCount}명의 코스 표기를 5K·10K·Half·Full 로 통일할까요?`} pendingText="통일하는 중…">코스 표기 통일</Submit>
+          </ActionForm>
+        </div>
+      )}
       {races.map((r) => (
-        <div key={r.id} className="panel p-4 grid gap-2 entries-panel">
+        <div key={r.id} id={r.id} className="panel p-4 grid gap-2 entries-panel">
           <h3 className="font-bold">{raceLabel(r)}</h3>
           {r.participants.length > 0 && (
             <div className="entry-groups">
               {Array.from(r.participants.reduce((groups, person) => {
-                const course = person.course?.trim() || "코스 미정";
+                const course = canonCourse(person.course) || "코스 미정";
                 const people = groups.get(course) || [];
                 people.push(person);
                 groups.set(course, people);

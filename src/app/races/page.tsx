@@ -32,9 +32,13 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
   const [all, admins, members, levels] = await Promise.all([getRaces(), getAdminNicks(), getMembers(), getLevels()]);
   const managers = new Set(members.filter((member) => member.manager).map((member) => member.nick));
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
+  // 오늘부터 15일 안에 열리는데 참가자가 한 명도 없는 대회는 ‘다가오는 대회’ 목록에서 뺀다 (전체·접수 일정·달력에서는 그대로 보인다)
+  const soonEnd = new Date(Date.parse(`${today}T00:00:00Z`) + 15 * 86400000).toISOString().slice(0, 10);
+  const noOne = (r: RaceFull) => r.date <= soonEnd && r.participants.length === 0;
+  const hiddenCount = view === "upcoming" ? all.filter((r) => r.date >= today && noOne(r)).length : 0;
   const list = all.filter((r) =>
     view === "reg" ? (r.regStart || r.regEnd) && regInfo(r, kstNow()).status !== "closed"
-    : view === "upcoming" ? r.date >= today
+    : view === "upcoming" ? r.date >= today && !noOne(r)
     : view === "past" ? r.date < today
     : view === "mine" ? r.participants.some((p) => p.nick === u.nick)
     : view === "cal" ? false
@@ -83,6 +87,8 @@ export default async function RacesPage({ searchParams }: { searchParams: Promis
           </div>
         </section>
       ))}
+
+      {hiddenCount > 0 && <p className="text-sm text-muted">15일 안에 열리는 참가자 없는 대회 {hiddenCount}개는 이 목록에서 뺐어요. <Link href="/races?view=all" className="underline">전체</Link>에서 볼 수 있어요.</p>}
     </main>
   );
 }

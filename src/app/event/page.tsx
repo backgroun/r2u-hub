@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { eventHidden, eventOpen, eventStart } from "@/lib/event";
+import { eventHidden, eventOpen, eventStart, eventVisible } from "@/lib/event";
 import { currentUser, hasEventPreview } from "@/lib/hub";
 import { displayBlock, getRoster, isJoined, pollResult, type EventBlock } from "@/lib/event-blocks";
 import { ActionForm, Submit } from "@/components/action-form";
@@ -26,7 +26,8 @@ export default async function EventPage({ searchParams }: { searchParams: Promis
   if (await hasEventPreview()) return <Shell bar={bar} me={u?.nick}><Frame staff={staff} /></Shell>;
   // 운영진은 오픈 전이든 참가 신청 전이든 항상 볼 수 있다. 오픈 전이면 미리보기 허용 주소를 거쳐 다시 돌아온다.
   if (u?.admin) {
-    if (!(await eventOpen())) redirect("/api/event/preview");
+    // 오픈 전이거나 크루에게 숨겨 둔 동안에는 빙고 주소가 안내 화면으로 돌려보내지므로, 미리보기 허용을 거쳐야 한다
+    if (!(await eventVisible())) redirect("/api/event/preview");
     return <Shell bar={bar} me={u?.nick}><Frame staff={staff} /></Shell>;
   }
   const joined = isJoined(await getRoster(), u?.nick);

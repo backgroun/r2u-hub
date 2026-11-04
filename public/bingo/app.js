@@ -116,16 +116,90 @@ function drawLines(fresh) {
 }
 if (window.ResizeObserver) new ResizeObserver(() => drawLines(new Set())).observe($('grid'));
 
+// ===== 빙고 추천 가이드 =====
+// 마감일(END)까지 남은 날 × 하루 최대 개수(MAX_PER_DAY)로 인증할 수 있는 칸 수를 세고,
+// 그 안에서 빙고 줄을 가장 많이 만들 수 있는 칸 묶음을 골라 날짜별로 나눠 알려 준다
+const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const dayLabel = iso => { const [y, m, d] = iso.split('-').map(Number); return `${m}/${d}(${'일월화수목금토'[new Date(y, m - 1, d).getDay()]})`; };
+function guideData() {
+  if (!loggedIn() || preview) return null;
+  const now = new Date(), realToday = ymd(now);
+  const today = realToday < START ? START : realToday;
+  const [ey, em, ed] = END.split('-').map(Number), [ty, tm, td] = today.split('-').map(Number);
+  const days = [];
+  for (let t = new Date(ty, tm - 1, td); t <= new Date(ey, em - 1, ed) && days.length < 120; t.setDate(t.getDate() + 1)) days.push(ymd(t));
+  const usedOn = d => Object.values(state.done).filter(x => x === d).length;
+  const room = days.map(d => Math.max(0, MAX_PER_DAY - usedOn(d)));
+  const slots = room.reduce((a, b) => a + b, 0);
+  const open = LINES.map(l => ({ line: l, left: l.filter(i => !isDone(i)) })).filter(x => x.left.length > 0);
+  const base = { endDays: days.length, slots, openCount: open.length };
+  if (!open.length || !slots) return { ...base, plan: [], gain: 0, need: 0 };
+  // 줄 묶음(최대 12줄 → 4096가지)을 모두 따져서, 칸 수가 slots 이하이면서 완성되는 줄이 가장 많은 묶음을 고른다
+  let best = { gain: 0, cells: [], lines: [] };
+  for (let mask = 1; mask < (1 << open.length); mask++) {
+    const cells = new Set();
+    open.forEach((x, k) => { if (mask >> k & 1) x.left.forEach(i => cells.add(i)); });
+    if (cells.size > slots) continue;
+    const gain = open.filter(x => x.left.every(i => cells.has(i))).length;
+    if (gain > best.gain || (gain === best.gain && cells.size < best.cells.length)) best = { gain, cells: [...cells], lines: open.filter(x => x.left.every(i => cells.has(i))) };
+  }
+  // 칸 순서: 남은 칸이 적은 줄부터 끝내도록, 줄별로 이어 붙인다
+  const order = [];
+  [...best.lines].sort((a, b) => a.left.length - b.left.length).forEach(x => x.left.forEach(i => { if (!order.includes(i)) order.push(i); }));
+  const plan = []; let k = 0;
+  days.forEach((d, di) => { const cells = order.slice(k, k + room[di]); k += room[di]; if (cells.length) plan.push({ date: d, cells }); });
+  return { ...base, plan, gain: best.gain, need: order.length, todayCells: plan.length && plan[0].date === today ? plan[0].cells : [], today };
+}
+function renderGuide(g) {
+  const box = $('guide');
+  if (!box) return;
+  const list = $('guideList'), sum = $('guideSum');
+  list.textContent = ''; sum.textContent = '';
+  box.hidden = !g || editMode;
+  if (box.hidden) return;
+  const chip = (i, cls) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'g-chip' + (cls ? ' ' + cls : '');
+    b.textContent = `${i + 1}번 ${MISSIONS[i].e} ${MISSIONS[i].t}`;
+    b.addEventListener('click', () => openSheet(i));
+    return b;
+  };
+  const row = (title, note, cls) => {
+    const r = document.createElement('div'); r.className = 'g-row' + (cls ? ' ' + cls : '');
+    const head = document.createElement('div'); head.className = 'g-head';
+    const t = document.createElement('b'); t.textContent = title;
+    const c = document.createElement('span'); c.textContent = note;
+    head.append(t, c);
+    const chips = document.createElement('div'); chips.className = 'g-chips';
+    r.append(head, chips); list.appendChild(r);
+    return chips;
+  };
+  const cur = doneLines().length;
+  if (!g.endDays) { sum.textContent = '이벤트가 마감됐어요.'; return; }
+  sum.textContent = `마감 ${fmt(END)}까지 ${g.endDays}일 · 하루 최대 ${MAX_PER_DAY}칸`;
+  if (!g.openCount) { sum.textContent = '🎉 모든 줄을 완성했어요!'; return; }
+  if (!g.slots) { sum.textContent += ' · 오늘은 이미 다 채웠어요'; return; }
+  if (!g.gain) { sum.textContent += ' · 마감 안에 새 빙고는 어려워요. 칸을 최대한 채워 보세요!'; return; }
+  // 다음 할 칸(오늘 몫이 남았으면 오늘, 아니면 가장 가까운 날) + 목표 한 줄
+  const next = g.plan[0];
+  const chips = row((next.date === g.today ? '오늘 추천' : `${dayLabel(next.date)} 추천`), `${next.cells.length}칸`, 'best');
+  next.cells.forEach(i => chips.appendChild(chip(i)));
+  const goal = document.createElement('p'); goal.className = 'hint';
+  goal.textContent = `🏁 마감까지 ${g.need}칸이면 빙고 ${cur}줄 → ${cur + g.gain}줄`;
+  list.appendChild(goal);
+}
+
 // ===== 렌더 =====
 function render() {
   const lines = doneLines();
   const inLine = new Set(lines.flat());
+  const guide = guideData();
+  const rec = new Set(guide && guide.todayCells ? guide.todayCells : []); // 오늘 하면 좋은 칸을 점선으로 표시
   const grid = $('grid');
   grid.textContent = '';
   MISSIONS.forEach((m, i) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'cell' + (i === CENTER ? ' center' : '') + (isDone(i) ? ' done' : '') + (inLine.has(i) ? ' line' : '');
+    b.className = 'cell' + (i === CENTER ? ' center' : '') + (isDone(i) ? ' done' : '') + (inLine.has(i) ? ' line' : '') + (rec.has(i) ? ' rec' : '');
     b.setAttribute('aria-label', `${i + 1}번 ${m.t}${isDone(i) ? ', 인증완료' : ''}`);
     const no = document.createElement('span'); no.className = 'no'; no.textContent = i + 1;
     no.style.background = COLORS[i % COLORS.length];
@@ -142,6 +216,7 @@ function render() {
   seenLines = new Set(keys);
   drawnLines = lines;
   drawLines(fresh);
+  renderGuide(guide);
   const n = doneCount();
   $('cnt').textContent = n;
   $('bingo').textContent = lines.length;

@@ -272,3 +272,21 @@ body .btn:active:not([disabled]) { transform: scale(.98); filter: none; }
 .cell .dt:not(:empty) { background: linear-gradient(180deg, rgba(201,169,101,.28), rgba(201,169,101,.5)); color: #fff4d6; font-weight: 700; }
 /* 빙고가 된 줄의 칸은 박스·이모지·글자·날짜 띠까지 통째로 흑백으로 */
 .cell.line { filter: grayscale(1); border-color: #d9d9d9; box-shadow: inset 0 0 0 1px rgba(255,255,255,.4), 0 0 10px rgba(255,255,255,.14); }
+
+/* 빙고 추천 가이드 */
+.guide h2 { margin: 0 0 4px; font-size: 15px; }
+.g-row { padding: 9px 10px; margin-top: 8px; border: 1px solid var(--hair); border-radius: 12px; background: var(--panel2); }
+.g-row.best { border-color: var(--gold-line); background: var(--gold-soft); }
+.g-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; }
+.g-head span { color: var(--gold); font-size: 12px; font-weight: 600; }
+.g-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.g-chip { border: 1px solid var(--hair); background: var(--panel); color: var(--text); border-radius: 999px; padding: 5px 10px; font-size: 12px; line-height: 1.2; cursor: pointer; }
+.g-row.best .g-chip { border-color: var(--gold-line); }
+.cell.rec:not(.done) { border: 1px dashed var(--gold); background: rgba(201,169,101,.07); }
+body.preview #guide, body.editing #guide { display: none !important; }
+
+/* 추천 가이드는 접어 두고, 눌러서 펼친다 */
+.guide summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; color: var(--gold); font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+.guide summary::-webkit-details-marker { display: none; }
+.guide summary::after { content: "▾"; color: var(--dim); font-size: 13px; transition: transform .15s; }
+.guide details[open] summary::after { transform: rotate(180deg); }

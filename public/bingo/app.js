@@ -18,6 +18,7 @@ let hubLoaded = false; // 허브가 알려 주는 이벤트 참가자 명단을 
 let hubStaff = false; // 허브 운영진 모드 계정(개인 참가가 없는 계정)인가
 let hubNick = ''; // R2U 허브에 로그인한 닉네임 (입장 화면 자동 선택용)
 let fresh = new Set(); // 아직 비밀번호가 없는(처음 입장하는) 참가자
+let editMode = false; // 운영진 수정 모드 (처음 그릴 때부터 쓰이므로 맨 위에 둔다)
 let syncErr = null;    // 명단을 불러오지 못했을 때의 오류
 
 function load() {
@@ -615,7 +616,6 @@ function rememberPw() {} // 예전 비밀번호 기억 기능 (이제 필요 없
 $('hubRetry').addEventListener('click', () => autoEnter(true));
 
 // ===== 운영진 수정 모드 (허브 이벤트 탭의 ‘설정’ 버튼이 켜고 끈다) =====
-let editMode = false;
 function setEdit(on) {
   editMode = !!on;
   document.body.classList.toggle('editing', editMode);

@@ -189,7 +189,9 @@ body { background: var(--bg); background-image: radial-gradient(900px 420px at 5
 .cell.done .ic { background: none; box-shadow: none; }
 .cell.done::after { content: "✓"; top: 5px; right: 7px; width: auto; height: auto; background: none; box-shadow: none; color: var(--gold); font-size: 11px; font-weight: 700; display: block; }
 .cell.line { outline: 0; animation: none; box-shadow: inset 0 0 0 1px var(--gold), 0 0 0 1px var(--gold); }
-.cell.center { overflow: hidden; background: var(--panel2); border-color: var(--gold-line); box-shadow: inset 0 0 0 1px rgba(201,169,101,.12); }
+.cell.center { overflow: hidden; background: var(--panel2); }
+.cell.center:not(.done) { border-color: transparent; }
+.cell.center:not(.line) { box-shadow: none; }
 .cell.center::before { display: none; animation: none; }
 .cell.center .ic { background: none; box-shadow: none; }
 .cell.center .tt { color: var(--gold); }
@@ -255,3 +257,18 @@ body .btn:active:not([disabled]) { transform: scale(.98); filter: none; }
 
 /* 타이틀과 이벤트 기간 사이 간격 */
 .hero h1 { margin: 0 0 12px; }
+
+/* 빙고 완성 선 */
+.grid { position: relative; }
+.bingo-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.bingo-lines line { stroke: var(--gold); stroke-width: 3; stroke-linecap: round; stroke-opacity: .6; filter: drop-shadow(0 0 3px rgba(201,169,101,.6)); }
+
+/* 칸 아래 날짜: 칸 아래쪽 가장자리까지 은은한 음영 띠로 깔아 준다 */
+.cell .dt:not(:empty) { align-self: stretch; margin: 0 -3px -6px; padding: 3px 0 4px; border-radius: 0 0 11px 11px; background: linear-gradient(180deg, rgba(201,169,101,.06), rgba(201,169,101,.2)); }
+
+/* 인증 완료 칸: 금색 테두리와 안쪽 빛으로 한눈에 보이게 박스 처리 */
+.cell.done { background: linear-gradient(180deg, rgba(201,169,101,.3), rgba(201,169,101,.1)); border-color: var(--gold); box-shadow: inset 0 0 0 1px rgba(201,169,101,.45), 0 0 10px rgba(201,169,101,.18); }
+/* 날짜 띠를 더 진하게 */
+.cell .dt:not(:empty) { background: linear-gradient(180deg, rgba(201,169,101,.28), rgba(201,169,101,.5)); color: #fff4d6; font-weight: 700; }
+/* 빙고가 된 줄의 칸은 박스·이모지·글자·날짜 띠까지 통째로 흑백으로 */
+.cell.line { filter: grayscale(1); border-color: #d9d9d9; box-shadow: inset 0 0 0 1px rgba(255,255,255,.4), 0 0 10px rgba(255,255,255,.14); }

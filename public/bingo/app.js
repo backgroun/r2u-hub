@@ -85,6 +85,37 @@ function toast(msg, ms) {
   toastTimer = setTimeout(() => el.classList.remove('on'), ms || 2600);
 }
 
+// ===== 빙고 선 =====
+// 완성된 줄마다 첫 칸 중앙에서 끝 칸 중앙까지 선을 긋는다 (칸 위치를 재서 그리므로 화면 크기가 바뀌어도 맞는다)
+let seenLines = null, drawnLines = [];
+function drawLines(fresh) {
+  const grid = $('grid');
+  grid.querySelector('.bingo-lines')?.remove();
+  if (!drawnLines.length) return;
+  const cells = grid.querySelectorAll('.cell');
+  if (cells.length < 25) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'bingo-lines');
+  svg.setAttribute('viewBox', `0 0 ${grid.clientWidth} ${grid.clientHeight}`);
+  svg.setAttribute('aria-hidden', 'true');
+  const mid = c => [c.offsetLeft + c.offsetWidth / 2, c.offsetTop + c.offsetHeight / 2];
+  for (const l of drawnLines) {
+    const [x1, y1] = mid(cells[l[0]]), [x2, y2] = mid(cells[l[4]]);
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = (x2 - x1) / len * 10, ey = (y2 - y1) / len * 10; // 양 끝을 조금 더 뻗는다
+    const ln = document.createElementNS(NS, 'line');
+    ln.setAttribute('x1', x1 - ex); ln.setAttribute('y1', y1 - ey);
+    ln.setAttribute('x2', x2 + ex); ln.setAttribute('y2', y2 + ey);
+    if (fresh.has(l.join())) {
+      ln.style.strokeDasharray = len + 20; ln.style.strokeDashoffset = len + 20;
+      requestAnimationFrame(() => requestAnimationFrame(() => { ln.style.transition = 'stroke-dashoffset .7s ease-out'; ln.style.strokeDashoffset = 0; }));
+    }
+    svg.appendChild(ln);
+  }
+  grid.appendChild(svg);
+}
+if (window.ResizeObserver) new ResizeObserver(() => drawLines(new Set())).observe($('grid'));
+
 // ===== 렌더 =====
 function render() {
   const lines = doneLines();
@@ -106,6 +137,11 @@ function render() {
     b.addEventListener('click', () => (editMode ? openEdit(i) : openSheet(i)));
     grid.appendChild(b);
   });
+  const keys = lines.map(l => l.join());
+  const fresh = seenLines ? new Set(keys.filter(k => !seenLines.has(k))) : new Set(); // 방금 완성된 줄만 그어지는 애니메이션
+  seenLines = new Set(keys);
+  drawnLines = lines;
+  drawLines(fresh);
   const n = doneCount();
   $('cnt').textContent = n;
   $('bingo').textContent = lines.length;

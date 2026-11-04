@@ -151,14 +151,24 @@ export async function setMemberRole(_: Result, fd: FormData): Promise<Result> {
 }
 
 export async function resetMemberPassword(_: Result, fd: FormData): Promise<Result> {
-  await admin();
+  const u = await admin();
   const nick = str(fd, "nick", 30);
   if (!nick || isStaffNick(nick)) return fail("회원을 다시 선택해 주세요.");
+  // 운영진 본인 비밀번호를 한 번 더 확인한다 (틀리면 로그인과 같은 횟수 제한을 받는다)
+  if (await loginBlocked(u.nick)) return fail("비밀번호를 너무 많이 틀렸어요. 10분 뒤에 다시 시도해 주세요.");
+  const self = await getMember(u.nick);
+  if (!self?.pw || !checkPw(String(fd.get("adminPw") ?? ""), self.pw)) {
+    await recordFail(u.nick);
+    return fail("운영자 비밀번호가 맞지 않아요.");
+  }
   const member = await getMember(nick);
   if (!member) return fail("회원 목록에서 찾을 수 없어요.");
   await saveMember({ ...member, pw: null });
   revalidatePath("/admin");
-  return ok(`${nick}님의 비밀번호를 초기화했어요. 다음 로그인 때 새 비밀번호를 정합니다.`);
+  // 본인에게 알림: 알림을 켠 기기가 있으면 푸시가 간다
+  let pushed = false;
+  if (pushReady()) pushed = (await sendPushToNicks(new Set([nick]), "🔑 비밀번호가 초기화됐어요", "운영진이 비밀번호를 초기화했어요. 다음 로그인 때 새 비밀번호를 정해 주세요. 요청하지 않았다면 운영진에게 알려 주세요.", "/login")).sent > 0;
+  return ok(`${nick}님의 비밀번호를 초기화했어요. 다음 로그인 때 새 비밀번호를 정합니다.${pushed ? " (본인에게 알림을 보냈어요)" : " (알림을 켠 기기가 없어 알림은 가지 않았어요)"}`);
 }
 
 export async function editMemberByAdmin(_: Result, fd: FormData): Promise<Result> {

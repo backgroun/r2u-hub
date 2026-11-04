@@ -261,6 +261,7 @@ async function Members({ self }: { self: string }) {
                 <summary>비번 초기화</summary>
                 <ActionForm action={resetMemberPassword} className="dropdown-menu role-settings-menu grid gap-2" collapse>
                   <AdminMemberSearch members={members.filter((m) => m.pw).map((m) => ({ nick: m.nick, name: m.name?.trim() || "없음" }))} />
+                  <input name="adminPw" type="password" autoComplete="current-password" className="input" placeholder="내 운영자 비밀번호" aria-label="내 운영자 비밀번호" required />
                   <Submit className="btn btn-primary text-sm" confirm="선택한 크루원의 비밀번호를 초기화할까요?">초기화</Submit>
                 </ActionForm>
               </details>

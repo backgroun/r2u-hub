@@ -41,6 +41,7 @@ export default function AdminMemberSearch({ members, label = "회원", placehold
   };
 
   return <div className="field admin-member-search" style={style} onBlur={(e) => {
+    // 모바일은 목록 버튼을 눌러도 relatedTarget이 비어 목록이 먼저 닫히므로, 목록은 onMouseDown으로 blur를 막는다
     if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
   }}>
     {label !== null && <label className="label" htmlFor={id}>{label}</label>}
@@ -54,7 +55,8 @@ export default function AdminMemberSearch({ members, label = "회원", placehold
         if (e.key === "Escape") setOpen(false);
       }} />
     <input type="hidden" name={name} value={selected} />
-    {open && matches.length > 0 && <div id={`${id}-results`} className="admin-member-search-results" role="listbox" aria-label="회원 검색 결과">
+    {open && matches.length > 0 && <div id={`${id}-results`} className="admin-member-search-results" role="listbox" aria-label="회원 검색 결과"
+      onMouseDown={(e) => e.preventDefault()}>
       {matches.map((member, index) => <button key={member.nick} type="button" role="option" aria-selected={index === active}
         onMouseEnter={() => setActive(index)} onClick={() => choose(member)}>{member.nick}/{member.name}</button>)}
     </div>}

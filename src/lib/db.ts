@@ -159,6 +159,17 @@ export async function saveOrder(roundId: string, o: StoredOrder) {
   await redis.hset(K.orders(roundId), { [o.id]: o });
 }
 
+/** 주문번호를 지금 번호 순서 그대로 1번부터 빈틈없이 다시 매긴다. 바뀐 주문 수를 돌려준다. */
+export async function renumberOrders(roundId: string) {
+  const orders = await getOrders(roundId); // 번호 순
+  let changed = 0;
+  for (const [i, o] of orders.entries()) {
+    if (o.bib !== i + 1) { await saveOrder(roundId, { ...o, bib: i + 1 }); changed++; }
+  }
+  await redis.set(K.bib(roundId), orders.length); // 다음 주문은 마지막 번호 다음부터
+  return changed;
+}
+
 export async function deleteOrder(roundId: string, orderId: string) {
   await redis.hdel(K.orders(roundId), orderId);
   // 주문번호 되돌리기: 지운 뒤 남은 주문의 가장 큰 번호로 맞춘다. 테스트 주문을 지우면 다음 사람이 001, 마지막 번호를 지우면 그 번호를 다시 쓴다.

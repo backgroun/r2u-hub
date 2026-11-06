@@ -6,6 +6,7 @@ import { getOrders, getRound, getRoundImage } from "@/lib/db";
 import { addNotice, deleteNotice, getNotices, sendPushAll, sendPushToNicks } from "@/lib/notice";
 import { finalCheckText } from "@/lib/gb-export";
 import { designSlots, fmtDeadline, fmtPickup, minLabel, won } from "@/lib/types";
+import { CONFIRM_REQUIRED, isConfirmed } from "@/lib/confirm-token";
 
 type Ctx = { params: Promise<{ id: string }> };
 type Kind = "summary" | "final"; // summary = 공구 소개 공지, final = 최종 주문 확인 공지(누가 뭘 주문했는지)
@@ -95,6 +96,8 @@ export async function DELETE(req: Request, { params }: Ctx) {
   const { id } = await params;
   const u = await currentUser();
   if (!u?.admin) return fail("공지는 운영진만 내릴 수 있어요.", 403);
+  const body = (await req.json().catch(() => ({}))) as { confirmToken?: unknown };
+  if (!(await isConfirmed(body.confirmToken))) return fail(CONFIRM_REQUIRED, 403); // 공지 내리기는 비밀번호 확인 필요
   const kind = kindOf(new URL(req.url).searchParams.get("kind"));
   const old = await postedId(id, kind);
   if (old) await deleteNotice(old);

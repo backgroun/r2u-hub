@@ -9,14 +9,15 @@ export function StatusChip({ status }: { status: RoundStatus }) {
 }
 
 export function PayBadges({ total, paid, delivered }: { total: number; paid: number; delivered?: number }) {
+  // 모바일에서도 한 줄에 들어가도록 글자를 줄였다 (미입금 · 입금 · 미수령 · 수령)
   return (
-    <div className="flex flex-wrap gap-1.5">
-      <span className="chip chip-warn num">입금대기 {total - paid}명</span>
-      <span className="chip chip-confirmed num">입금완료 {paid}명</span>
+    <div className="flex flex-nowrap gap-1">
+      <span className="chip chip-warn num whitespace-nowrap">미입금 {total - paid}</span>
+      <span className="chip chip-confirmed num whitespace-nowrap">입금 {paid}</span>
       {delivered !== undefined && (
         <>
-          <span className="chip chip-warn num">수령대기 {total - delivered}명</span>
-          <span className="chip chip-ship num">수령완료 {delivered}명</span>
+          <span className="chip chip-warn num whitespace-nowrap">미수령 {total - delivered}</span>
+          <span className="chip chip-ship num whitespace-nowrap">수령 {delivered}</span>
         </>
       )}
     </div>

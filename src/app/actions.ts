@@ -9,6 +9,9 @@ import {
 /** 화면을 새로 그리라고 알릴 때 대회 목록 모음(캐시)도 함께 비운다 */
 const revalidatePath = (...a: Parameters<typeof nextRevalidatePath>) => { bustRaces(); nextRevalidatePath(...a); };
 import { syncMembers } from "@/lib/sheet";
+import { CONFIRM_REQUIRED, isConfirmed } from "@/lib/confirm-token";
+/** 삭제 같은 민감한 동작: 화면에서 본인 비밀번호를 확인한 토큰이 있어야 실행한다 */
+const needPw = (fd: FormData) => isConfirmed(fd.get("confirmToken"));
 import type { SyncResult } from "@/lib/member-sync-types";
 import { appendMemberToSheet, clearQueuedMemberName, getJoin, listJoins, newJoinId, queueMemberNameForSheet, renameMemberInSheet, saveJoin, updateMemberNameInSheet } from "@/lib/join";
 import { saveIconOverride } from "@/lib/icon-notice";
@@ -126,6 +129,7 @@ export async function memberAction(fd: FormData) {
   const u = await admin();
   const nick = str(fd, "nick", 30);
   const act = str(fd, "act");
+  if (act === "delete" && !(await needPw(fd))) return; // 회원 삭제는 비밀번호 확인 필요
   const m = await getMember(nick);
   if (!m) return;
   if (isStaffNick(nick)) return; // 관리용 계정은 회원 목록에서 초기화·삭제하지 않는다
@@ -292,6 +296,7 @@ export async function linkAction(fd: FormData) {
   await admin();
   const id = str(fd, "id");
   const act = str(fd, "act");
+  if (act === "delete" && !(await needPw(fd))) return; // 링크 삭제는 비밀번호 확인 필요
   const links = await getLinks();
   const i = links.findIndex((l) => l.id === id);
   if (i < 0) return;
@@ -383,6 +388,7 @@ export async function addExternalRace(_: Result, fd: FormData): Promise<Result> 
 }
 
 export async function deleteRace(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   await admin();
   const id = str(fd, "id");
   const afters = (await redis.hkeys(K.after(id))) ?? [];
@@ -487,6 +493,7 @@ export async function addChecker(_: Result, fd: FormData): Promise<Result> {
   return ok(`${nick} 님에게 출석 체크를 맡겼어요.`);
 }
 export async function removeChecker(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   await admin();
   await redis.del(K.checkers(str(fd, "id")));
   revalidatePath("/races");
@@ -524,6 +531,7 @@ export async function toggleCheer(fd: FormData) {
   const u = await me();
   const id = str(fd, "id");
   const who = u.admin ? str(fd, "nick", 30) || u.nick : u.nick;
+  if (who !== u.nick && !(await needPw(fd))) return; // 다른 사람의 응원을 빼는 일은 비밀번호 확인 필요
   if (!(await redis.hexists(K.races, id))) return;
   if (await redis.hexists(K.cheer(id), who)) { await redis.hdel(K.cheer(id), who); await setPoints(who, `cheer:${id}`, 0, ""); }
   else { await redis.hset(K.cheer(id), { [who]: Date.now() }); await setPoints(who, `cheer:${id}`, (await pts()).cheer, "대회 응원"); }
@@ -701,6 +709,7 @@ export async function rsvpAfter(fd: FormData) {
 }
 
 export async function deleteAfter(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   const u = await me();
   const id = str(fd, "id"), afterId = str(fd, "after");
   const raw = await redis.hget(K.after(id), afterId);
@@ -720,6 +729,7 @@ export async function deleteAfter(fd: FormData) {
 }
 
 export async function leaveRace(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   const u = await me();
   const nick = str(fd, "nick", 30);
   if (nick !== u.nick && !u.admin) return;
@@ -865,6 +875,7 @@ export async function updateAfter(_: Result, fd: FormData): Promise<Result> {
 }
 
 export async function removeRsvp(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   await admin();
   await redis.hdel(K.rsvp(str(fd, "after")), str(fd, "nick", 30));
   await Promise.all([setPoints(str(fd, "nick", 30), `after:${str(fd, "after")}`, 0, ""), setPoints(str(fd, "nick", 30), `ride:${str(fd, "after")}`, 0, "")]);
@@ -873,6 +884,7 @@ export async function removeRsvp(fd: FormData) {
 }
 
 export async function resetMonthRecord(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   await admin();
   const ym = str(fd, "ym", 7);
   if (!/^\d{4}-\d{2}$/.test(ym)) return;
@@ -937,8 +949,9 @@ export async function bingoMember(_: Result, fd: FormData): Promise<Result> {
   return ok(`'${name}' 님을 명단에서 뺐어요. (인증 기록도 함께 지웠어요)`);
 }
 /** 인증 기록과 연결이 끊겨 저장공간만 차지하는 사진 파일을 지운다 (연결된 사진·방금 올린 사진은 건드리지 않는다) */
-export async function bingoCleanupPhotos(): Promise<Result> {
+export async function bingoCleanupPhotos(_: Result, fd: FormData): Promise<Result> {
   await admin();
+  if (!(await needPw(fd))) return fail(CONFIRM_REQUIRED); // 사진 정리는 비밀번호 확인 필요
   const r = await cleanupBingoPhotos();
   revalidatePath("/admin");
   if (!r.removed) return ok(r.kept ? `지울 사진이 없어요. (방금 올린 ${r.kept}장은 1시간 뒤에 다시 확인해 주세요)` : "지울 사진이 없어요. 이미 깨끗해요.");
@@ -947,6 +960,7 @@ export async function bingoCleanupPhotos(): Promise<Result> {
 /** 이벤트 명단에서 고른 여러 명에게 한 번에 적용: 인증 기록 초기화(reset_data) · 명단에서 빼기(delete, 인증 기록도 함께 지움) */
 export async function bingoBulk(_: Result, fd: FormData): Promise<Result> {
   await admin();
+  if (!(await needPw(fd))) return fail(CONFIRM_REQUIRED); // 일괄 초기화·삭제는 비밀번호 확인 필요
   const act = str(fd, "act", 12);
   if (!["reset_data", "delete"].includes(act)) return fail("알 수 없는 동작이에요.");
   const roster = await getBingoRoster();
@@ -978,6 +992,7 @@ export async function bingoComment(_: Result, fd: FormData): Promise<Result> {
   return ok(pushed ? `${row.n} 님에게 댓글을 남기고 알림을 보냈어요.` : `댓글을 남겼어요. ${row.n} 님은 푸시 알림을 켜지 않아서, 빙고 화면의 ‘내 리포트’에서 보게 돼요.`);
 }
 export async function bingoCommentRemove(_: Result, fd: FormData): Promise<Result> {
+  if (!(await needPw(fd))) return fail(CONFIRM_REQUIRED);
   await admin();
   await removeBingoComment(str(fd, "nick", 30), Number(fd.get("no")), Number(fd.get("at")));
   revalidatePath("/admin"); revalidatePath("/event");
@@ -1048,6 +1063,7 @@ export async function activateEventBlock(fd: FormData) {
   revalidatePath("/", "layout");
 }
 export async function removeEventBlock(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   await admin();
   await deleteBlock(str(fd, "id", 20));
   revalidatePath("/", "layout");
@@ -1171,6 +1187,7 @@ export async function editScheduledNotice(_: Result, fd: FormData): Promise<Resu
   return ok("예약 공지를 수정했어요. 올라갈 때 이 문구로 올라가요.");
 }
 export async function removeNotice(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   await admin();
   await deleteNotice(str(fd, "id", 40));
   revalidatePath("/", "layout");
@@ -1274,6 +1291,7 @@ export async function braggRace(_: Result, fd: FormData): Promise<Result> {
 }
 /** 자랑 끄기: 올린 본인이나 운영진이 홈에서 내린다 (key = `${nick}|${raceId}`) */
 export async function unbragRace(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   const u = await me();
   const key = str(fd, "key", 60);
   if (key.split("|")[0] !== u.nick && !u.admin) return;
@@ -1282,6 +1300,7 @@ export async function unbragRace(fd: FormData) {
   revalidatePath("/me");
 }
 export async function deleteRaceRecord(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   const u = await me();
   const id = str(fd, "id", 20);
   await Promise.all([redis.hdel(K.raceRec(u.nick), id), redis.hdel(BRAG_KEY, `${u.nick}|${id}`), setPoints(u.nick, `rec:${id}`, 0, "")]);
@@ -1437,6 +1456,7 @@ export async function manageVersusEnd(_: Result, fd: FormData): Promise<Result> 
 }
 
 export async function cancelVersusByAdmin(_: Result, fd: FormData): Promise<Result> {
+  if (!(await needPw(fd))) return fail(CONFIRM_REQUIRED);
   await admin();
   const ym = str(fd, "ym", 7);
   const a = str(fd, "a", 30), b = str(fd, "b", 30);
@@ -1523,6 +1543,7 @@ async function logLinkChanges(before: Record<number, string>, after: Record<numb
 }
 /** 관리자: 링크 수정 기록에서 "추천한 사람" 표시를 지운다 */
 export async function clearLinkEditBy(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   await manager();
   const g = Number(fd.get("g"));
   if (!Number.isInteger(g) || g < 0 || g >= GEARS.length) return;
@@ -1572,6 +1593,7 @@ export async function suggestGear(g: number, url: string, test = false): Promise
 }
 /** 운영진: 추천 링크 하나 지우기 */
 export async function deleteGearSuggestion(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   await admin();
   const g = Number(fd.get("g")), nick = String(fd.get("nick") ?? "");
   if (!Number.isInteger(g) || !nick) return;
@@ -1761,6 +1783,7 @@ export async function editGbPoll(_: Result, fd: FormData): Promise<Result> {
   return ok("투표를 수정했어요!");
 }
 export async function deleteGbPoll(fd: FormData) {
+  if (!(await needPw(fd))) return; // 비밀번호 확인 필요
   await admin();
   await deletePoll(str(fd, "id", 20));
   revalidatePath("/groupbuy");

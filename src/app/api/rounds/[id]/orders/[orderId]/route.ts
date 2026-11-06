@@ -4,6 +4,7 @@ import { nickKey, roundStatus, type StoredOrder, type StoredRound } from "@/lib/
 import { BadInput, parseOrderInput } from "@/lib/validate";
 import { currentUser } from "@/lib/hub";
 import { setPoints } from "@/lib/points";
+import { CONFIRM_REQUIRED, isConfirmed } from "@/lib/confirm-token";
 import { notifyGoalReached } from "@/lib/gb-notify";
 
 type Ctx = { params: Promise<{ id: string; orderId: string }> };
@@ -91,6 +92,8 @@ export async function DELETE(req: Request, ctx: Ctx) {
     const r = await getRound(id);
     if (!r) return NextResponse.json({ ok: true });
     if (!keyMatches(qKey, r.adminKey)) return fail("운영자 링크가 아니에요.", 403);
+    const qBody = (await req.json().catch(() => ({}))) as { confirmToken?: unknown };
+    if (!(await isConfirmed(qBody.confirmToken))) return fail(CONFIRM_REQUIRED, 403); // 주문 삭제는 비밀번호 확인 필요
     const o = await getOrder(id, orderId);
     await deleteOrder(id, orderId);
     await setPoints(o?.owner, `gb:${id}`, 0, "");
@@ -98,6 +101,7 @@ export async function DELETE(req: Request, ctx: Ctx) {
   }
   const a = await authorize(req, ctx);
   if (a.res) return a.res;
+  if (!(await isConfirmed(a.body.confirmToken))) return fail(CONFIRM_REQUIRED, 403); // 주문 취소·삭제는 비밀번호 확인 필요
   if (a.who === "owner" && !isOpen(a.r)) return fail("마감된 뒤에는 공구 오픈자에게 취소를 요청해 주세요.", 409);
   await deleteOrder(a.id, a.o.id);
   await setPoints(a.o.owner, `gb:${a.id}`, 0, "");

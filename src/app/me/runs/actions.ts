@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { currentUser, isStaffNick } from "@/lib/hub";
 import { deleteAllRuns, deleteRun, saveRunsConsent } from "@/lib/runs";
 import type { Result } from "@/app/actions";
+import { CONFIRM_REQUIRED, isConfirmed } from "@/lib/confirm-token";
 
 async function me() {
   const u = await currentUser();
@@ -23,13 +24,15 @@ export async function agreeRunsConsent(_: Result, fd: FormData): Promise<Result>
 
 export async function removeRun(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
+  if (!(await isConfirmed(fd.get("confirmToken")))) return { ok: false, msg: CONFIRM_REQUIRED }; // 비밀번호 확인 필요
   const ok = await deleteRun(u.nick, String(fd.get("startedAt") ?? "").slice(0, 19));
   refresh();
   return ok ? { ok: true, msg: "기록을 지웠어요. 다시 올려도 되살아나지 않아요." } : { ok: false, msg: "이미 없는 기록이에요." };
 }
 
-export async function removeAllRuns(): Promise<Result> {
+export async function removeAllRuns(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
+  if (!(await isConfirmed(fd.get("confirmToken")))) return { ok: false, msg: CONFIRM_REQUIRED }; // 비밀번호 확인 필요
   const n = await deleteAllRuns(u.nick);
   refresh();
   return { ok: true, msg: `가민 기록 ${n}건과 동의를 모두 지웠어요.` };

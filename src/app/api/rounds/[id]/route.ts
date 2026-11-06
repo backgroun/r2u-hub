@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { delAllDesignImages, delRoundImage, deleteRound, getOrders, getRound, hashPassword, keyMatches, listOrder, publicRound, saveRound, summarize } from "@/lib/db";
 import { BadInput, parsePickup, parseRoundInput } from "@/lib/validate";
 import { designSlots } from "@/lib/types";
+import { CONFIRM_REQUIRED, isConfirmed } from "@/lib/confirm-token";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -20,6 +21,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!r) return NextResponse.json({ error: "공구를 찾을 수 없어요." }, { status: 404 });
   const body = await req.json();
   if (!keyMatches(body.key, r.adminKey)) return NextResponse.json({ error: "운영자 링크가 아니에요." }, { status: 403 });
+  // 접수를 마감하는 일은 되돌리기 번거로워서 본인 비밀번호 확인이 필요하다 (다시 여는 것은 그대로)
+  if (body.closed === true && !r.closed && !(await isConfirmed(body.confirmToken))) return NextResponse.json({ error: CONFIRM_REQUIRED }, { status: 403 });
   try {
     if (typeof body.closed === "boolean") r.closed = body.closed;
     // 배포 장소만 따로 추가·수정 (공구를 연 뒤에 정하는 경우)
@@ -53,6 +56,8 @@ export async function DELETE(req: Request, { params }: Ctx) {
   if (!r) return NextResponse.json({ ok: true });
   const key = new URL(req.url).searchParams.get("key");
   if (!keyMatches(key, r.adminKey)) return NextResponse.json({ error: "운영자 링크가 아니에요." }, { status: 403 });
+  const body = (await req.json().catch(() => ({}))) as { confirmToken?: unknown };
+  if (!(await isConfirmed(body.confirmToken))) return NextResponse.json({ error: CONFIRM_REQUIRED }, { status: 403 }); // 공구 삭제는 비밀번호 확인 필요
   await deleteRound(id);
   return NextResponse.json({ ok: true });
 }

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, copyText, MY_ROUNDS, store, type MyRound } from "@/lib/client";
 import { bibLabel, fmtDeadline, fmtPickup, itemLabel, orderTotal, qtyOf, roundStatus, won, type Order, type Round } from "@/lib/types";
 import RoundForm, { type DesignImage } from "@/components/round-form";
+import { confirmWithPassword } from "@/components/confirm-password";
 import { downloadText, finalCheckText, ordererRows, orderSheetRows, orderSheetText, paidTimeLabel, safeName, toCsv, unpaidReminder } from "@/lib/gb-export";
 import { Countdown, PayBadges, Progress, StatusChip, useToast } from "@/components/ui";
 import { knownMemberLabel } from "@/lib/member-label";
@@ -23,7 +24,6 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   const [orders, setOrders] = useState<Order[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [confirm, setConfirm] = useState<string | null>(null); // "delete-round" | order id
   const [toast, showToast] = useToast();
   // 공구를 홈 공지로 올리기 (공지를 올릴 수 있는 운영진 계정에만 보인다)
   const [noticeInfo, setNoticeInfo] = useState<{ canPost: boolean; posted: boolean } | null>(null);
@@ -182,9 +182,11 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     } catch (e) { showToast((e as Error).message); } finally { setNoticeBusy(false); }
   }
   async function takeDownNotice() {
+    const token = await confirmWithPassword("홈 공지를 내릴까요?", "공지 내리기");
+    if (!token) return;
     setNoticeBusy(true);
     try {
-      await api(`/api/rounds/${id}/notice`, { method: "DELETE" });
+      await api(`/api/rounds/${id}/notice`, { method: "DELETE", json: { confirmToken: token } });
       setNoticeInfo({ canPost: true, posted: false }); showToast("공지를 내렸어요");
     } catch (e) { showToast((e as Error).message); } finally { setNoticeBusy(false); }
   }
@@ -209,20 +211,47 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     } catch (e) { showToast((e as Error).message); }
   }
 
+  // 삭제처럼 되돌리기 어려운 동작은 본인 로그인 비밀번호를 다시 입력해야 실행된다
   async function removeOrder(o: Order) {
-    await api(`/api/rounds/${id}/orders/${o.id}?adminKey=${encodeURIComponent(key ?? "")}`, { method: "DELETE" });
-    setConfirm(null); showToast(`${o.name} 주문을 삭제했어요`); load();
+    const token = await confirmWithPassword(`${o.name}님의 주문을 삭제할까요?\n되돌릴 수 없어요.`, "주문 삭제");
+    if (!token) return;
+    try {
+      await api(`/api/rounds/${id}/orders/${o.id}?adminKey=${encodeURIComponent(key ?? "")}`, { method: "DELETE", json: { confirmToken: token } });
+      showToast(`${o.name} 주문을 삭제했어요`); load();
+    } catch (e) { showToast((e as Error).message); }
   }
 
   async function setClosed(closed: boolean) {
-    const d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, closed } });
-    setRound(d.round); showToast(closed ? "접수를 마감했어요" : "접수를 다시 열었어요");
+    let token: string | null = null;
+    if (closed) {
+      token = await confirmWithPassword("지금 접수를 마감할까요?\n마감하면 더 이상 주문을 받을 수 없어요.", "접수 마감");
+      if (!token) return;
+    }
+    try {
+      const d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, closed, ...(token ? { confirmToken: token } : {}) } });
+      setRound(d.round); showToast(closed ? "접수를 마감했어요" : "접수를 다시 열었어요");
+    } catch (e) { showToast((e as Error).message); }
   }
 
   async function deleteRound() {
-    await api(`/api/rounds/${id}?key=${encodeURIComponent(key ?? "")}`, { method: "DELETE" });
-    store.set(MY_ROUNDS, store.get<MyRound[]>(MY_ROUNDS, []).filter((m) => m.id !== id));
-    router.push("/groupbuy");
+    const token = await confirmWithPassword("이 공구를 삭제할까요?\n주문 내역까지 모두 지워지고 되돌릴 수 없어요.", "공구 삭제");
+    if (!token) return;
+    try {
+      await api(`/api/rounds/${id}?key=${encodeURIComponent(key ?? "")}`, { method: "DELETE", json: { confirmToken: token } });
+      store.set(MY_ROUNDS, store.get<MyRound[]>(MY_ROUNDS, []).filter((m) => m.id !== id));
+      router.push("/groupbuy");
+    } catch (e) { showToast((e as Error).message); }
+  }
+
+  // 주문번호를 1번부터 빈틈없이 다시 매긴다 (삭제로 번호가 비어 있을 때)
+  async function renumber() {
+    const token = await confirmWithPassword("주문번호를 지금 순서 그대로 001번부터 다시 매길까요?\n번호만 바뀌고 주문 내용은 그대로예요.", "번호 다시 매기기");
+    if (!token) return;
+    try {
+      const d = await api<{ changed: number }>(`/api/rounds/${id}/renumber`, { method: "POST", json: { key, confirmToken: token } });
+      showToast(d.changed ? `주문번호를 다시 매겼어요 (${d.changed}건 변경)` : "이미 번호가 순서대로 매겨져 있어요");
+      load();
+    } catch (e) { showToast((e as Error).message); }
   }
 
   if (editing) return (
@@ -344,10 +373,16 @@ export default function Manage({ id, names }: { id: string; names: Record<string
           <h2 className="label">입금 확인 현황 · 주문자 {orders.length}명 <span className="normal-case font-normal">(입금·수령은 신청자가 직접 표시해요)</span></h2>
           <PayBadges total={orders.length} paid={paidOrders.length} delivered={orders.filter((o) => o.delivered).length} />
           {orders.length > 0 && (
-            <div className="panel p-3.5 grid gap-2">
+            <button className="text-xs text-muted underline underline-offset-2 justify-self-end" onClick={renumber}>주문번호 다시 매기기</button>
+          )}
+          {orders.length > 0 && (
+            <div className="rounded-2xl border-2 border-[var(--bib)] p-4 grid gap-2.5 shadow-lg" style={{ background: "linear-gradient(135deg, color-mix(in srgb, var(--bib) 22%, var(--card)), var(--card) 70%)" }}>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-sm text-muted">입금 표시된 금액</span>
-                <span className="num"><b className="text-xl">{won(paidAmount)}</b> <span className="text-sm text-muted">/ {won(grand)}</span></span>
+                <span className="text-sm font-semibold text-[var(--bib)]">💰 입금 확인 현황</span>
+                <span className="text-xs text-muted">입금 표시된 금액</span>
+              </div>
+              <div className="flex items-baseline justify-end gap-1.5">
+                <span className="num"><b className="text-3xl">{won(paidAmount)}</b> <span className="text-sm text-muted">/ {won(grand)}</span></span>
               </div>
               <div className={`track ${paidAmount >= grand && grand > 0 ? "done" : ""}`} aria-hidden style={{ height: 6 }}><span style={{ width: `${grand ? Math.min(100, (paidAmount / grand) * 100) : 0}%` }} /></div>
               {/* 필터는 신청자 카드·상태 칩과 모양이 달라 보이도록 탭(분할 버튼) 형태로 */}
@@ -378,7 +413,11 @@ export default function Manage({ id, names }: { id: string; names: Record<string
                   <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                     <span className="bib text-xs shrink-0">{bibLabel(o.bib)}</span>
                     <span className="min-w-0 flex-1 grid leading-tight">
-                      <span className="font-semibold truncate text-sm">{label(o.name)}</span>
+                      <span className="flex items-baseline gap-1.5 min-w-0">
+                        <span className="font-semibold truncate text-sm">{label(o.name)}</span>
+                        {o.memo && <span className="shrink-0 rounded px-1 text-[10px] font-extrabold leading-4 bg-[var(--bib)] text-black" title={`메모: ${o.memo}`} aria-label="메모 있음">M</span>}
+                        <span className="text-[11px] text-muted shrink-0 max-w-[40%] truncate" title="입금자명">입금 {o.depositor}</span>
+                      </span>
                       <span className="text-xs text-muted truncate">{short}</span>
                     </span>
                     <span className="num text-sm font-bold shrink-0">{won(orderTotal(round.items, o.lines))}</span>
@@ -390,14 +429,7 @@ export default function Manage({ id, names }: { id: string; names: Record<string
                     <p>{full}</p>
                     {o.memo && <p>메모: {o.memo}</p>}
                     <div className="flex justify-end">
-                      {confirm === o.id ? (
-                        <span className="flex gap-1">
-                          <button className="btn btn-danger text-xs py-1" onClick={() => removeOrder(o)}>삭제</button>
-                          <button className="btn btn-ghost text-xs py-1" onClick={() => setConfirm(null)}>아니요</button>
-                        </span>
-                      ) : (
-                        <button className="btn btn-ghost text-xs py-1" onClick={() => setConfirm(o.id)}>주문 삭제</button>
-                      )}
+                      <button className="btn btn-ghost text-xs py-1" onClick={() => removeOrder(o)}>주문 삭제</button>
                     </div>
                   </div>
                 </details>
@@ -468,20 +500,8 @@ export default function Manage({ id, names }: { id: string; names: Record<string
               : <button className="btn text-sm" disabled={!ended} title={ended ? undefined : "마감된 공구만 보관할 수 있어요"} onClick={() => setArchived(true)}>보관함으로 옮기기</button>}
           </div>
           <div className="border-t border-line pt-3 flex items-center justify-between gap-2">
-            {confirm === "delete-round" ? (
-              <>
-                <span className="text-sm">주문까지 모두 지워져요.</span>
-                <span className="flex gap-1">
-                  <button className="btn btn-danger text-sm" onClick={deleteRound}>공구 삭제</button>
-                  <button className="btn btn-ghost text-sm" onClick={() => setConfirm(null)}>아니요</button>
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="text-xs text-muted">주문 내역까지 모두 삭제돼요</span>
-                <button className="btn btn-ghost btn-danger text-sm" onClick={() => setConfirm("delete-round")}>공구 삭제</button>
-              </>
-            )}
+            <span className="text-xs text-muted">비밀번호 확인 후 주문 내역까지 모두 삭제돼요</span>
+            <button className="btn btn-ghost btn-danger text-sm" onClick={deleteRound}>공구 삭제</button>
           </div>
         </div>
       </section>

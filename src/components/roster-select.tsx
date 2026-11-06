@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { confirmWithPassword } from "@/components/confirm-password";
 import { useState, useTransition } from "react";
 import { bingoBulk } from "@/app/actions";
 import { showToast } from "@/components/toaster";
@@ -21,11 +22,13 @@ export default function RosterSelect({ members }: { members: M[] }) {
     const msg = act === "reset_data"
       ? `[기록 초기화]\n${who} (${picked.length}명)의 인증 ${total}칸을 모두 지울까요?\n사진·댓글도 함께 지워지고 되돌릴 수 없어요.\n(명단에는 그대로 남아요)`
       : `[명단에서 빼기]\n${who} (${picked.length}명)을 이벤트 명단에서 뺄까요?\n인증 ${total}칸도 함께 지워지고 되돌릴 수 없어요.`;
-    if (!window.confirm(msg)) return;
-    const fd = new FormData();
-    fd.set("act", act);
-    picked.forEach((p) => fd.append("nick", p.name));
     start(async () => {
+      const token = await confirmWithPassword(msg); // 본인 비밀번호 확인 후에만 실행
+      if (!token) return;
+      const fd = new FormData();
+      fd.set("act", act);
+      fd.set("confirmToken", token);
+      picked.forEach((p) => fd.append("nick", p.name));
       const r = await bingoBulk(null, fd);
       if (r?.msg) showToast(r.msg, r.ok ? "ok" : "err");
       if (r?.ok) setSel(new Set());

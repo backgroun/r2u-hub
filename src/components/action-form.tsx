@@ -3,6 +3,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import type { Result } from "@/app/actions";
 import { showToast } from "@/components/toaster";
+import { confirmWithPassword } from "@/components/confirm-password";
 
 /** 서버 액션 폼: 결과 메시지를 폼 아래에 보여주고, 성공하면 입력칸을 비운다. */
 export function ActionForm({
@@ -50,11 +51,25 @@ export function Submit({ children, className = "btn btn-primary", form, confirm,
   );
 }
 
-/** 위험한 버튼 (삭제 등): 누르면 확인 창을 띄우고, 확인해야 실행된다. message가 없으면 버튼 글자로 문구를 만든다. */
+/**
+ * 위험한 버튼 (삭제 등): 누르면 내 로그인 비밀번호를 다시 입력받고, 맞아야 실행된다.
+ * 맞으면 서버가 확인하는 토큰(confirmToken)을 폼에 담아 제출한다 — 서버 동작은 이 토큰이 없으면 실행하지 않는다.
+ * message가 없으면 버튼 글자로 문구를 만든다.
+ */
 export function ConfirmButton({ children, message, className = "btn btn-ghost btn-danger text-sm py-1.5 px-2.5", label }: { children: React.ReactNode; message?: string; className?: string; label?: string }) {
   const text = message ?? (typeof children === "string" ? `[${children}] 정말 진행할까요?\n되돌릴 수 없어요.` : "정말 진행할까요?\n되돌릴 수 없어요.");
   return (
-    <button type="submit" className={className} aria-label={label} onClick={(e) => { if (!window.confirm(text)) e.preventDefault(); }}>
+    <button type="submit" className={className} aria-label={label} onClick={async (e) => {
+      const btn = e.currentTarget, form = btn.form;
+      if (!form) return;
+      e.preventDefault();
+      const token = await confirmWithPassword(text);
+      if (!token) return;
+      let input = form.querySelector<HTMLInputElement>('input[name="confirmToken"]');
+      if (!input) { input = document.createElement("input"); input.type = "hidden"; input.name = "confirmToken"; form.appendChild(input); }
+      input.value = token;
+      form.requestSubmit(btn);
+    }}>
       {children}
     </button>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ConfirmButton } from "@/components/action-form";
 import { unbragRace } from "@/app/actions";
 
 export type BragLine = { key: string; who: string; race: string; record: string; ago: string; canOff?: boolean };
@@ -28,8 +29,7 @@ export default function BragTicker({ items }: { items: BragLine[] }) {
         {b.canOff && (
           <form action={unbragRace} className="shrink-0">
             <input type="hidden" name="key" value={b.key} />
-            <button type="submit" className="text-muted px-1" aria-label="자랑 끄기" title="자랑 끄기"
-              onClick={(e) => { if (!window.confirm("홈에 올린 자랑을 내릴까요?")) e.preventDefault(); }}>✕</button>
+            <ConfirmButton className="text-muted px-1" label="자랑 끄기" message="홈에 올린 자랑을 내릴까요?">✕</ConfirmButton>
           </form>
         )}
       </p>

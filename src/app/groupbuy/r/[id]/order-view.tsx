@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, copyText, store } from "@/lib/client";
-import { bibLabel, blockedIds, capOf, designSlots, fmtDeadline, fmtPickup, itemLabel, minLabel, needText, nickKey, orderTotal, pruneBlocked, qtyOf, roundImageUrl, roundStatus, won, type Order, type PublicOrder, type PublicSummary, type Round } from "@/lib/types";
+import { bibLabel, blockedIds, capOf, designSlots, fmtDeadline, fmtPickup, itemLabel, minLabel, needText, nickKey, orderTotal, pruneBlocked, roundImageUrl, roundStatus, won, type Order, type PublicOrder, type PublicSummary, type Round } from "@/lib/types";
 import { Countdown, Progress, StatusChip, Stepper, useToast } from "@/components/ui";
 import { knownMemberLabel } from "@/lib/member-label";
 import ImageLightbox, { type LightboxImage } from "@/components/image-lightbox";
+import { confirmWithPassword } from "@/components/confirm-password";
 
 type Unlocked = { order: Order; password: string };
 
@@ -27,7 +28,6 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
   const [rowErr, setRowErr] = useState<string | null>(null);
   const [unlocked, setUnlocked] = useState<Unlocked | null>(null);
   const [editing, setEditing] = useState<Unlocked | null>(null);
-  const [confirmCancel, setConfirmCancel] = useState(false);
   const [toast, showToast] = useToast();
   const [now, setNow] = useState(() => Date.now());
   // 시안·사이즈표 이미지를 누르면 팝업으로 크게 본다
@@ -103,12 +103,6 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
     } finally { setBusy(false); }
   }
 
-  function toggleRow(o: PublicOrder) {
-    setRowErr(null); setRowPw(""); setConfirmCancel(false);
-    const opening = openRow !== o.id;
-    setOpenRow(opening ? o.id : null);
-    if (opening && unlocked?.order.id !== o.id) unlock(o); // 로그인한 본인 주문은 비밀번호 없이 바로 열린다
-  }
   const isMine = (o: PublicOrder) => !!me && nickKey(o.name) === nickKey(me);
   const myOrder = orders.find(isMine);
   const myUnlocked = myOrder && unlocked?.order.id === myOrder.id ? unlocked : null;
@@ -153,9 +147,12 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
 
   async function cancelOrder(u: Unlocked) {
     setRowErr(null);
+    // 주문 취소(삭제)는 본인 로그인 비밀번호를 다시 입력해야 실행된다
+    const token = await confirmWithPassword("주문을 취소할까요?\n취소하면 되돌릴 수 없어요.", "주문 취소");
+    if (!token) return;
     try {
-      await api(`/api/rounds/${round.id}/orders/${u.order.id}`, { method: "DELETE", json: { password: u.password } });
-      setUnlocked(null); setOpenRow(null); setConfirmCancel(false);
+      await api(`/api/rounds/${round.id}/orders/${u.order.id}`, { method: "DELETE", json: { password: u.password, confirmToken: token } });
+      setUnlocked(null); setOpenRow(null);
       if (editing?.order.id === u.order.id) { setEditing(null); resetForm(); }
       if (done?.id === u.order.id) setDone(null);
       showToast("주문을 취소했어요"); refresh();
@@ -167,7 +164,6 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
     !name.trim() && "닉네임",
     !depositor.trim() && "입금자명",
   ].filter(Boolean) as string[];
-  const paidCount = orders.filter((o) => o.paid).length;
   const account = `${round.bank.bank} ${round.bank.account} ${round.bank.holder}`;
 
   return (
@@ -247,6 +243,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
                 ? <button className="btn text-sm" onClick={() => setDelivered(myUnlocked, false)}>수령완료 취소</button>
                 : <button className="btn text-sm" onClick={() => setDelivered(myUnlocked, true)}>수령완료 표시</button>}
               {isOpen && <button className="btn text-sm" onClick={() => startEdit(myUnlocked)}>주문 수정</button>}
+              {isOpen && <button className="btn btn-ghost btn-danger text-sm" onClick={() => cancelOrder(myUnlocked)}>주문 취소</button>}
             </div>
           )}
           {rowErr && !openRow && <p className="chip chip-failed justify-self-start text-xs">{rowErr}</p>}
@@ -356,78 +353,6 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
           </div>
         </div>
       )}
-
-      <section className="grid gap-2" aria-label="주문 현황">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 className="label">주문 현황</h2>
-          <span className="text-xs text-muted num">{orders.length}명 · {summary.totalQty}개 · 입금완료 {paidCount}명</span>
-        </div>
-        {orders.length === 0 && <p className="panel p-4 text-sm text-muted">아직 주문이 없어요. 첫 주문을 넣어 보세요.</p>}
-        {orders.length > 0 && (
-          <ul className="panel divide-y divide-[var(--line)]">
-            {orders.map((o) => {
-              const u = unlocked?.order.id === o.id ? unlocked : null;
-              return (
-                <li key={o.id} className="p-3 grid gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="bib text-sm">{bibLabel(o.bib)}</span>
-                    <div className="min-w-0 flex-1 grid leading-snug">
-                      <span className="font-semibold truncate">{label(o.name)}</span>
-                      <span className="text-xs text-muted">
-                        {round.items.filter((it) => o.lines[it.id]).map((it) => `${itemLabel(it)} ${o.lines[it.id]}`).join(" · ")} · <span className="num">{qtyOf(o.lines)}개 {won(orderTotal(round.items, o.lines))}</span>
-                      </span>
-                      <span className="flex flex-wrap gap-1 mt-1">
-                        {o.paid ? <span className="chip chip-confirmed">입금완료</span> : <span className="chip chip-warn">입금대기</span>}
-                        {o.delivered ? <span className="chip chip-ship">수령완료</span> : o.paid && <span className="chip chip-warn">수령대기</span>}
-                      </span>
-                    </div>
-                    {isMine(o) && (
-                      <button className="btn text-xs py-1.5 px-2.5 shrink-0" aria-expanded={openRow === o.id} onClick={() => toggleRow(o)}>
-                        {openRow === o.id ? "닫기" : "내 주문"}
-                      </button>
-                    )}
-                  </div>
-
-                  {openRow === o.id && !u && (
-                    <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); unlock(o); }}>
-                      <p className="text-xs text-muted">{label(o.name)}님, 주문할 때 정한 비밀번호를 입력해 주세요.</p>
-                      <div className="flex gap-2">
-                        <input id={`pw-${o.id}`} type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" className="input pw-mask py-2" placeholder="주문 비밀번호" value={rowPw} onChange={(e) => setRowPw(e.target.value)} autoFocus />
-                        <button className="btn btn-primary shrink-0 py-2" disabled={!rowPw}>확인</button>
-                      </div>
-                    </form>
-                  )}
-
-                  {openRow === o.id && u && (
-                    <div className="rounded-lg bg-paper p-3 grid gap-2.5">
-                      <p className="text-xs text-muted">입금자명 <b className="text-[var(--ink)]">{u.order.depositor}</b>{u.order.memo && <> · 메모 {u.order.memo}</>}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {u.order.paid
-                          ? <button className="btn text-sm py-2" onClick={() => setPaid(u, false)}>입금완료 취소</button>
-                          : <button className="btn btn-primary text-sm py-2" onClick={() => setPaid(u, true)}>입금완료 표시</button>}
-                        {u.order.delivered
-                          ? <button className="btn text-sm py-2" onClick={() => setDelivered(u, false)}>수령완료 취소</button>
-                          : <button className="btn text-sm py-2" onClick={() => setDelivered(u, true)}>수령완료 표시</button>}
-                        {isOpen && <button className="btn text-sm py-2" onClick={() => startEdit(u)}>주문 수정</button>}
-                        {isOpen && !confirmCancel && <button className="btn btn-ghost btn-danger text-sm py-2" onClick={() => setConfirmCancel(true)}>주문 취소</button>}
-                      </div>
-                      {confirmCancel && (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm">주문을 취소할까요?</span>
-                          <button className="btn btn-danger text-sm py-1.5" onClick={() => cancelOrder(u)}>취소하기</button>
-                          <button className="btn btn-ghost text-sm py-1.5" onClick={() => setConfirmCancel(false)}>아니요</button>
-                        </div>
-                      )}
-                      {!isOpen && <p className="text-xs text-muted">마감 뒤 수정·취소는 공구 오픈자({label(round.opener)})에게 요청해 주세요.</p>}
-                    </div>
-                  )}
-                  {openRow === o.id && rowErr && <p className="chip chip-failed justify-self-start text-xs">{rowErr}</p>}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
 
       {toast}
     </main>

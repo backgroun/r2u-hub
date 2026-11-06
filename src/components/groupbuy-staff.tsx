@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, MY_ROUNDS, store, type MyRound } from "@/lib/client";
 import { fmtDeadline, roundStatus, type PublicSummary, type Round } from "@/lib/types";
 import { PayBadges, StatusChip, useToast } from "@/components/ui";
+import { confirmWithPassword } from "@/components/confirm-password";
 
 type Row = { round: Round; adminKey: string; summary: PublicSummary };
 const TOKEN = "crew-gb:staff";
@@ -18,7 +19,6 @@ export default function GroupbuyStaff({ embedded = false }: { embedded?: boolean
   const [pw, setPw] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "open" | "ended">("all");
-  const [confirm, setConfirm] = useState<string | null>(null);
   const [toast, showToast] = useToast();
 
   useEffect(() => {
@@ -57,14 +57,24 @@ export default function GroupbuyStaff({ embedded = false }: { embedded?: boolean
   }
 
   async function setClosed(r: Row, closed: boolean) {
-    await api(`/api/rounds/${r.round.id}`, { method: "PATCH", json: { key: r.adminKey, closed } });
-    showToast(closed ? "접수를 마감했어요" : "접수를 다시 열었어요"); load();
+    let token: string | null = null;
+    if (closed) { // 마감은 본인 비밀번호를 확인한 뒤에만 (다시 여는 것은 그대로)
+      token = await confirmWithPassword(`[${r.round.title}]` + String.fromCharCode(10) + "지금 접수를 마감할까요?", "접수 마감");
+      if (!token) return;
+    }
+    try {
+      await api(`/api/rounds/${r.round.id}`, { method: "PATCH", json: { key: r.adminKey, closed, ...(token ? { confirmToken: token } : {}) } });
+      showToast(closed ? "접수를 마감했어요" : "접수를 다시 열었어요"); load();
+    } catch (e) { showToast((e as Error).message); }
   }
-
   async function remove(r: Row) {
-    await api(`/api/rounds/${r.round.id}?key=${encodeURIComponent(r.adminKey)}`, { method: "DELETE" });
-    store.set(MY_ROUNDS, store.get<MyRound[]>(MY_ROUNDS, []).filter((m) => m.id !== r.round.id));
-    setConfirm(null); showToast("공구를 삭제했어요"); load();
+    const token = await confirmWithPassword(`[${r.round.title}]` + String.fromCharCode(10) + "공구와 주문 내역을 모두 삭제할까요?" + String.fromCharCode(10) + "되돌릴 수 없어요.", "공구 삭제");
+    if (!token) return;
+    try {
+      await api(`/api/rounds/${r.round.id}?key=${encodeURIComponent(r.adminKey)}`, { method: "DELETE", json: { confirmToken: token } });
+      store.set(MY_ROUNDS, store.get<MyRound[]>(MY_ROUNDS, []).filter((m) => m.id !== r.round.id));
+      showToast("공구를 삭제했어요"); load();
+    } catch (e) { showToast((e as Error).message); }
   }
 
   if (!ready) return null;
@@ -135,14 +145,7 @@ export default function GroupbuyStaff({ embedded = false }: { embedded?: boolean
               {r.round.closed
                 ? <button className="btn text-sm py-2" onClick={() => setClosed(r, false)}>접수 다시 열기</button>
                 : <button className="btn text-sm py-2" onClick={() => setClosed(r, true)}>지금 마감</button>}
-              {confirm === r.round.id ? (
-                <span className="flex items-center gap-1">
-                  <button className="btn btn-danger text-sm py-2" onClick={() => remove(r)}>주문까지 삭제</button>
-                  <button className="btn btn-ghost text-sm py-2" onClick={() => setConfirm(null)}>아니요</button>
-                </span>
-              ) : (
-                <button className="btn btn-ghost btn-danger text-sm py-2" onClick={() => setConfirm(r.round.id)}>삭제</button>
-              )}
+              <button className="btn btn-ghost btn-danger text-sm py-2" onClick={() => remove(r)}>삭제</button>
             </div>
           </li>
         ))}

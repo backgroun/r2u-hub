@@ -836,7 +836,7 @@ async function Events() {
         <div className="grid gap-2 pt-3">
           <p className="text-sm text-muted">저장된 사진 파일 {usage.files}개 중 인증 기록과 연결이 끊긴 파일은 <b>{usage.orphans}개</b>예요. 연결된 사진과 방금 올린 사진은 지워지지 않아요.</p>
           <ActionForm action={bingoCleanupPhotos} keep>
-            <Submit className="btn btn-ghost btn-danger" confirm={`연결이 끊긴 사진 ${usage.orphans}개를 지울까요?\n인증 기록에 연결된 사진은 지워지지 않아요. 지운 사진은 되돌릴 수 없어요.`} pendingText="정리하는 중…" >안 쓰는 사진 정리</Submit>
+            <ConfirmButton className="btn btn-ghost btn-danger" message={`연결이 끊긴 사진 ${usage.orphans}개를 지울까요?\n인증 기록에 연결된 사진은 지워지지 않아요. 지운 사진은 되돌릴 수 없어요.`}>안 쓰는 사진 정리</ConfirmButton>
           </ActionForm>
         </div>
       </details>

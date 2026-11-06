@@ -130,6 +130,7 @@ export type Round = {
   createdAt: number;
   closed: boolean;
   archived?: boolean; // 끝난 공구를 보관함으로 옮겼는가 (공구 오픈자가 정한다)
+  notifiedAt?: number; // 오픈 알림을 보낸 시각 (아직 안 보냈으면 없음)
   notify?: { reminders?: boolean }; // reminders: false 면 마감 임박·입금 확인·목표 달성 알림을 보내지 않는다 (없으면 보낸다)
 };
 

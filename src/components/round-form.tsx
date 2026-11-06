@@ -75,8 +75,8 @@ const fmtSaved = (t: number) => {
 };
 
 export default function RoundForm({
-  initial, submitLabel, onSubmit, askPassword = false, draftKey, roundId,
-}: { initial: RoundDraft; submitLabel: string; onSubmit: (d: RoundDraft, password: string, extra: SubmitExtra) => Promise<void>; askPassword?: boolean; draftKey?: string; roundId?: string }) {
+  initial, submitLabel, onSubmit, askPassword = false, draftKey, roundId, onSendNotify,
+}: { initial: RoundDraft; submitLabel: string; onSubmit: (d: RoundDraft, password: string, extra: SubmitExtra) => Promise<void>; askPassword?: boolean; draftKey?: string; roundId?: string; onSendNotify?: () => Promise<{ message: string; at: number }> }) {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [d, setD] = useState<RoundDraft>({ ...initial, pickup: initial.pickup ?? EMPTY_DRAFT.pickup });
@@ -185,6 +185,18 @@ export default function RoundForm({
 
   // 알림 설정: 오픈 알림은 새 공구를 열 때만 한 번 보내고, 마감 임박·목표 달성·입금 확인 알림은 공구마다 켜고 끈다
   const [notifyOpen, setNotifyOpen] = useState(false);
+  // 수정 화면: 열 때 오픈 알림을 안 보냈어도 지금 보낼 수 있다 (보낸 시각을 기억한다)
+  const [sentAt, setSentAt] = useState<number | null>(initial.notifiedAt ?? null);
+  const [sending, setSending] = useState(false);
+  const [sendMsg, setSendMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  async function sendNotifyNow() {
+    if (!onSendNotify) return;
+    if (sentAt && !window.confirm("이미 오픈 알림을 보냈어요. 한 번 더 보낼까요?")) return;
+    setSending(true); setSendMsg(null);
+    try { const r = await onSendNotify(); setSentAt(r.at); setSendMsg({ ok: true, text: r.message }); }
+    catch (e) { setSendMsg({ ok: false, text: (e as Error).message }); }
+    finally { setSending(false); }
+  }
   const remindersOn = d.notify?.reminders !== false;
   const setReminders = (on: boolean) => setD((x) => ({ ...x, notify: on ? undefined : { reminders: false } }));
 
@@ -535,6 +547,14 @@ export default function RoundForm({
             <input id="f-notify-open" type="checkbox" className="size-5 accent-[var(--bib)] mt-0.5" checked={notifyOpen} onChange={(e) => setNotifyOpen(e.target.checked)} />
             <span><b>공구를 열면서 크루에게 오픈 알림 보내기</b><br /><span className="text-xs text-muted">푸시 알림을 켠 크루원에게 ‘새 공구가 열렸어요’가 한 번 가요. 끄면 알림 없이 열려요.</span></span>
           </label>
+        )}
+        {roundId && onSendNotify && (
+          <div className="rounded-xl bg-paper p-3 grid gap-2">
+            <span className="text-sm"><b>공구 오픈 알림</b> · {sentAt ? `${fmtSaved(sentAt)}에 보냈어요` : "아직 보내지 않았어요"}</span>
+            <span className="text-xs text-muted">푸시 알림을 켠 크루원에게 ‘새 공구가 열렸어요’를 보내요. 공구를 열 때 안 보냈어도 지금 보낼 수 있어요.</span>
+            <button type="button" className="btn text-sm justify-self-start" disabled={sending} onClick={sendNotifyNow}>{sending ? "보내는 중…" : sentAt ? "오픈 알림 다시 보내기" : "지금 오픈 알림 보내기"}</button>
+            {sendMsg && <span className={`text-xs font-semibold ${sendMsg.ok ? "" : "text-[var(--bad)]"}`} role="status">{sendMsg.text}</span>}
+          </div>
         )}
         <label className="flex items-start gap-2 cursor-pointer text-sm">
           <input id="f-notify-reminders" type="checkbox" className="size-5 accent-[var(--bib)] mt-0.5" checked={remindersOn} onChange={(e) => setReminders(e.target.checked)} />

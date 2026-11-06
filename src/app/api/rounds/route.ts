@@ -2,7 +2,7 @@ import { after, NextResponse } from "next/server";
 import { getRound, getRoundImage, hashPassword, listRounds, newId, saveRound, setRoundImage } from "@/lib/db";
 import { BadInput, parseRoundInput } from "@/lib/validate";
 import { MAX_DESIGN_IMAGES } from "@/lib/types";
-import { notifyRoundOpened } from "@/lib/gb-notify";
+import { notifyRoundOpenedAndMark } from "@/lib/gb-notify";
 import { currentUser, isStaffNick } from "@/lib/hub";
 
 export async function GET() {
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     }
     await saveRound(round);
     // 공구를 열면서 ‘오픈 알림’을 켠 경우에만 크루에게 푸시 (응답을 늦추지 않는다)
-    if (body.notifyOpen === true && u) after(() => notifyRoundOpened(round, u.nick).catch(() => {}));
+    if (body.notifyOpen === true && u) after(() => notifyRoundOpenedAndMark(round.id, u.nick).catch(() => {}));
     return NextResponse.json({ id: round.id, adminKey: round.adminKey });
   } catch (e) {
     if (e instanceof BadInput) return NextResponse.json({ error: e.message }, { status: 400 });

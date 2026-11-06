@@ -3,12 +3,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, copyText, MY_ROUNDS, store, type MyRound } from "@/lib/client";
-import { bibLabel, fmtDeadline, fmtPickup, itemLabel, minLabel, orderTotal, qtyOf, roundStatus, won, type Order, type Round } from "@/lib/types";
+import { bibLabel, fmtDeadline, fmtPickup, itemLabel, orderTotal, qtyOf, roundStatus, won, type Order, type Round } from "@/lib/types";
 import RoundForm, { type DesignImage } from "@/components/round-form";
-import { downloadText, ordererRows, orderSheetRows, orderSheetText, paidTimeLabel, safeName, toCsv, unpaidReminder } from "@/lib/gb-export";
+import { downloadText, finalCheckText, ordererRows, orderSheetRows, orderSheetText, paidTimeLabel, safeName, toCsv, unpaidReminder } from "@/lib/gb-export";
 import { Countdown, PayBadges, Progress, StatusChip, useToast } from "@/components/ui";
 import { knownMemberLabel } from "@/lib/member-label";
-import { normalizePassword } from "@/components/password-input";
 
 export default function Manage({ id, names }: { id: string; names: Record<string, string> }) {
   const label = (nick: string) => knownMemberLabel(nick, names);
@@ -20,8 +19,6 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   const [pw, setPw] = useState("");
   const [loginErr, setLoginErr] = useState<string | null>(null);
   const [loggingIn, setLoggingIn] = useState(false);
-  const [pwOpen, setPwOpen] = useState(false);
-  const [newPw, setNewPw] = useState("");
   const [round, setRound] = useState<Round | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -29,13 +26,15 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   const [confirm, setConfirm] = useState<string | null>(null); // "delete-round" | order id
   const [toast, showToast] = useToast();
   // 공구를 홈 공지로 올리기 (공지를 올릴 수 있는 운영진 계정에만 보인다)
-  const [noticeInfo, setNoticeInfo] = useState<{ canPost: boolean; posted: boolean } | null>(null);
+  const [noticeInfo, setNoticeInfo] = useState<{ canPost: boolean; posted: boolean; postedFinal: boolean } | null>(null);
+  const [finalPush, setFinalPush] = useState(false);
   const [noticePush, setNoticePush] = useState(false);
   const [noticeBusy, setNoticeBusy] = useState(false);
   useEffect(() => {
-    api<{ canPost: boolean; posted: boolean }>(`/api/rounds/${id}/notice`).then(setNoticeInfo).catch(() => setNoticeInfo(null));
+    api<{ canPost: boolean; posted: boolean; postedFinal: boolean }>(`/api/rounds/${id}/notice`).then(setNoticeInfo).catch(() => setNoticeInfo(null));
   }, [id]);
   const [pickupDraft, setPickupDraft] = useState<string | null>(null); // 배포 장소 입력 중인 값 (null = 편집 안 함)
+  const [exportKind, setExportKind] = useState<"sheet" | "orderers">("sheet"); // 내보내기 드롭다운: 발주서 / 주문자 명단
   const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all");
   // 새 공구를 열 때 올리지 못한 이미지 (이 탭에 임시로 남겨 둔 것)
   const pendingKey = `crew-gb:pending-img:${id}`;
@@ -124,24 +123,20 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   const ended = round.closed || Date.now() >= new Date(round.deadline).getTime();
   const reminder = unpaidReminder(round, orders, orderUrl);
 
+  // 카톡방 공지 문구: 제목·마감·(배포 장소)·상품·링크만 간결하게
+  const c = round.custom;
   const announce = [
-    `🏃 [공구] ${round.title}`,
-    `공구 오픈자: ${round.opener}`,
-    `마감: ${fmtDeadline(round.deadline)}`,
-    minLabel(round.minQty),
-    ...(fmtPickup(round.pickup) ? [`배포 장소: ${fmtPickup(round.pickup)}`] : []),
-    "",
-    ...round.items.map((it) => `· ${itemLabel(it)} ${won(it.price)}`),
-    "",
-    `👉 주문은 여기서: ${orderUrl}`,
+    `🛒 ${round.title}`,
+    `마감 ${fmtDeadline(round.deadline)}`,
+    ...(fmtPickup(round.pickup) ? [`배포 ${fmtPickup(round.pickup)}`] : []),
+    ...(c
+      ? [`${c.name} ${won(c.price)}`, ...(c.sizes.length ? [`사이즈 ${c.sizes.join("/")}`] : []), ...(c.colors.length ? [`컬러 ${c.colors.join("/")}`] : [])]
+      : round.items.map((it) => `· ${itemLabel(it)} ${won(it.price)}`)),
+    `👉 ${orderUrl}`,
   ].join("\n");
 
+  // 크루용 집계표(카톡): 명단별 입금·수령 현황만
   const report = [
-    `📦 [${round.title}] 집계 (${orders.length}명 · ${totalQty}개)`,
-    ...round.items.map((it) => `· ${itemLabel(it)}: ${totals[it.id] ?? 0}개`),
-    `총액 ${won(grand)} · 입금완료 ${orders.filter((o) => o.paid).length}/${orders.length}명 · 수령완료 ${orders.filter((o) => o.delivered).length}/${orders.length}명`,
-    ...(fmtPickup(round.pickup) ? [`📍 배포 장소: ${fmtPickup(round.pickup)}`] : []),
-    "",
     ...orders.map((o) => `${bibLabel(o.bib)} ${o.name}(${o.depositor}) ${won(orderTotal(round.items, o.lines))} 입금${o.paid ? "✅" : "⬜"} 수령${o.delivered ? "✅" : "⬜"}`),
   ].join("\n");
 
@@ -185,7 +180,7 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     setNoticeBusy(true);
     try {
       const d = await api<{ pushed: number | null }>(`/api/rounds/${id}/notice`, { method: "POST", json: { push: noticePush } });
-      setNoticeInfo({ canPost: true, posted: true });
+      setNoticeInfo((i) => ({ canPost: true, posted: true, postedFinal: !!i?.postedFinal }));
       showToast(d.pushed === null ? "홈 공지로 올렸어요" : `홈 공지로 올리고 알림을 보냈어요 (${d.pushed}명)`);
     } catch (e) { showToast((e as Error).message); } finally { setNoticeBusy(false); }
   }
@@ -193,7 +188,24 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     setNoticeBusy(true);
     try {
       await api(`/api/rounds/${id}/notice`, { method: "DELETE" });
-      setNoticeInfo({ canPost: true, posted: false }); showToast("공지를 내렸어요");
+      setNoticeInfo((i) => ({ canPost: true, posted: false, postedFinal: !!i?.postedFinal })); showToast("공지를 내렸어요");
+    } catch (e) { showToast((e as Error).message); } finally { setNoticeBusy(false); }
+  }
+
+  // 최종 주문 확인 공지 (업체 발주와 별개: 누가 뭘 주문했는지 주문한 사람들이 확인하도록)
+  async function postFinalNotice() {
+    setNoticeBusy(true);
+    try {
+      const d = await api<{ pushed: number | null }>(`/api/rounds/${id}/notice`, { method: "POST", json: { kind: "final", push: finalPush } });
+      setNoticeInfo((i) => ({ canPost: true, posted: !!i?.posted, postedFinal: true }));
+      showToast(d.pushed === null ? "최종 주문 확인 공지를 올렸어요" : `공지를 올리고 주문하신 분께 알림을 보냈어요 (${d.pushed}명)`);
+    } catch (e) { showToast((e as Error).message); } finally { setNoticeBusy(false); }
+  }
+  async function takeDownFinalNotice() {
+    setNoticeBusy(true);
+    try {
+      await api(`/api/rounds/${id}/notice?kind=final`, { method: "DELETE" });
+      setNoticeInfo((i) => ({ canPost: true, posted: !!i?.posted, postedFinal: false })); showToast("최종 확인 공지를 내렸어요");
     } catch (e) { showToast((e as Error).message); } finally { setNoticeBusy(false); }
   }
 
@@ -227,14 +239,6 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     setRound(d.round); showToast(closed ? "접수를 마감했어요" : "접수를 다시 열었어요");
   }
 
-  async function changePassword(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      await api(`/api/rounds/${id}`, { method: "PATCH", json: { key, password: newPw } });
-      setNewPw(""); setPwOpen(false); showToast("관리 비밀번호를 바꿨어요");
-    } catch (e) { showToast((e as Error).message); }
-  }
-
   async function deleteRound() {
     await api(`/api/rounds/${id}?key=${encodeURIComponent(key ?? "")}`, { method: "DELETE" });
     store.set(MY_ROUNDS, store.get<MyRound[]>(MY_ROUNDS, []).filter((m) => m.id !== id));
@@ -245,7 +249,11 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     <main className="wrap grid gap-5">
       <button className="text-sm text-muted justify-self-start" onClick={() => setEditing(false)}>← 관리로 돌아가기</button>
       <h1 className="hub-h1">공구 내용 수정</h1>
-      <RoundForm initial={round} roundId={id} draftKey={`crew-gb:draft:edit:${id}`} submitLabel="수정 저장" onSubmit={async (draft, _pw, extra) => {
+      <RoundForm initial={round} roundId={id} draftKey={`crew-gb:draft:edit:${id}`} submitLabel="수정 저장"
+        onSendNotify={async () => {
+          const d = await api<{ sent: number; notifiedAt: number }>(`/api/rounds/${id}/notify`, { method: "POST", json: { key } });
+          return { message: `${d.sent}명에게 오픈 알림을 보냈어요.`, at: d.notifiedAt };
+        }} onSubmit={async (draft, _pw, extra) => {
         let d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, round: draft } });
         // 시안 이미지: 새로 올렸으면 저장, 빼거나 URL 방식으로 바꿨으면 삭제 (그대로면 건드리지 않는다)
         // 시안 이미지: 뺀 칸은 지우고, 새로 고른 것은 올린다 (그대로인 칸은 건드리지 않는다)
@@ -298,8 +306,11 @@ export default function Manage({ id, names }: { id: string; names: Record<string
         <div className="panel p-4"><Progress count={totalQty} min={round.minQty} /></div>
       </header>
 
-      <section className="grid gap-2" aria-label="배포 장소">
-        <h2 className="label">배포 장소</h2>
+      <details className="past grid gap-3">
+        <summary className="label flex items-center gap-1.5 py-1">
+          <span className="past-caret inline-block transition-transform">▸</span> 배포 장소{fmtPickup(round.pickup) && <span className="normal-case font-normal text-muted"> · {fmtPickup(round.pickup)}</span>}
+        </summary>
+        <div className="grid gap-2">
         {pickupDraft === null ? (
           <div className="panel p-3.5 flex items-center justify-between gap-3">
             {fmtPickup(round.pickup)
@@ -319,11 +330,43 @@ export default function Manage({ id, names }: { id: string; names: Record<string
         {fmtPickup(round.pickup) && pickupDraft === null && (
           <button className="btn text-sm" onClick={() => copy(`📍 [${round.title}] 배포 장소 안내\n${fmtPickup(round.pickup)}\n\n👉 ${orderUrl}`, "배포 장소 안내 문구를 복사했어요. 카톡방에 붙여넣으세요")}>배포 장소 안내 문구 복사</button>
         )}
-      </section>
+        </div>
+      </details>
+
+      <details className="past grid gap-3">
+        <summary className="label flex items-center gap-1.5 py-1">
+          <span className="past-caret inline-block transition-transform">▸</span> 최종 주문 확인 <span className="normal-case font-normal">(업체 발주와 별개)</span>
+        </summary>
+        <div className="grid gap-2">
+        <div className="panel p-3.5 grid gap-2.5">
+          <p className="text-sm text-muted">누가 무엇을 주문했는지 목록으로 올려서, 주문하신 분들이 내용을 최종 확인하게 해요. 입금자명은 들어가지 않아요.</p>
+          <details>
+            <summary className="cursor-pointer text-sm font-semibold">내용 미리보기 ({orders.length}명)</summary>
+            <pre className="mt-2 whitespace-pre-wrap text-xs leading-relaxed rounded-lg bg-paper p-3">{orders.length ? finalCheckText(round, orders) : "아직 주문이 없어요."}</pre>
+          </details>
+          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(finalCheckText(round, orders, orderUrl), "최종 확인 문구를 복사했어요. 카톡방에 붙여넣으세요")}>최종 확인 문구 복사 (카톡용)</button>
+          {noticeInfo?.canPost && (
+            <>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" className="size-5 accent-[var(--bib)]" checked={finalPush} onChange={(e) => setFinalPush(e.target.checked)} />
+                주문하신 분께 푸시 알림도 보내기
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button className="btn btn-primary text-sm" disabled={noticeBusy || orders.length === 0} onClick={postFinalNotice}>{noticeInfo.postedFinal ? "최종 확인 공지 다시 올리기" : "최종 확인 공지로 올리기"}</button>
+                {noticeInfo.postedFinal && <button className="btn btn-ghost text-sm" disabled={noticeBusy} onClick={takeDownFinalNotice}>공지 내리기</button>}
+              </div>
+              {noticeInfo.postedFinal && <p className="text-xs text-muted">✓ 홈 공지에 올라가 있어요(3일간 보여요). 주문이 바뀌었다면 다시 올려 주세요.</p>}
+            </>
+          )}
+        </div>
+        </div>
+      </details>
 
       {noticeInfo?.canPost && (
-        <section className="grid gap-2" aria-label="공지로 올리기">
-          <h2 className="label">공지로 올리기</h2>
+        <details className="past grid gap-3">
+          <summary className="label flex items-center gap-1.5 py-1">
+            <span className="past-caret inline-block transition-transform">▸</span> 공지로 올리기{noticeInfo.posted && <span className="normal-case font-normal text-muted"> · 올라가 있음</span>}
+          </summary>
           <div className="panel p-3.5 grid gap-2.5">
             <p className="text-sm text-muted">공구 요약과 ‘공구 보러 가기’ 버튼이 홈 공지로 올라가고, 마감일까지 보여요. 시안 이미지가 있으면 첫 장이 공지 사진이 돼요.</p>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -337,46 +380,8 @@ export default function Manage({ id, names }: { id: string; names: Record<string
             {ended && <p className="text-xs text-muted">마감된 공구는 새로 올릴 수 없어요.</p>}
             {noticeInfo.posted && <p className="text-xs text-muted">✓ 홈 공지에 올라가 있어요. 다시 올리면 이전 공지는 내려가요.</p>}
           </div>
-        </section>
+        </details>
       )}
-
-      <section className="grid gap-2">
-        <h2 className="label">카톡방에 공유</h2>
-        <div className="grid grid-cols-2 gap-2">
-          <button className="btn btn-primary" onClick={() => copy(announce, "공지 문구를 복사했어요. 카톡방에 붙여넣으세요")}>공지 문구 복사</button>
-          <button className="btn" onClick={() => copy(orderUrl, "주문 링크를 복사했어요")}>주문 링크만 복사</button>
-        </div>
-      </section>
-
-      <section className="grid gap-2">
-        <h2 className="label">상품별 수량 (발주용)</h2>
-        <div className="panel overflow-hidden">
-          <table className="w-full text-sm">
-            <tbody>
-              {round.items.map((it) => (
-                <tr key={it.id} className="border-b border-line last:border-0">
-                  <td className="p-3">
-                    {it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{itemLabel(it)}</a> : itemLabel(it)}
-                    {it.note && <span className="block text-xs text-muted">참고: {it.note}</span>}
-                  </td>
-                  <td className="p-3 text-right num text-xl font-bold whitespace-nowrap">{totals[it.id] ?? 0}<span className="text-sm text-muted">개</span></td>
-                  <td className="p-3 text-right num text-muted whitespace-nowrap">{won(it.price * (totals[it.id] ?? 0))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="flex justify-between gap-3 p-3 bg-paper text-sm">
-            <span>{orders.length}명 · <b className="num">{totalQty}개</b></span>
-            <span>총액 <b className="num">{won(grand)}</b></span>
-          </div>
-        </div>
-        <button className="btn text-sm" onClick={() => copy(report, "집계표를 복사했어요")}>집계표 복사 (카톡용)</button>
-        <div className="grid grid-cols-2 gap-2">
-          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => downloadText(`${safeName(round.title)}_발주서.csv`, toCsv(orderSheetRows(round, orders)))}>발주서 내보내기 (CSV)</button>
-          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => downloadText(`${safeName(round.title)}_주문자명단.csv`, toCsv(ordererRows(round, orders)))}>주문자 명단 (CSV)</button>
-        </div>
-        <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(orderSheetText(round, orders), "발주 문구를 복사했어요. 업체에 붙여넣으세요")}>발주 문구 복사 (업체 전달용)</button>
-      </section>
 
       <section className="grid gap-2">
         <div className="grid gap-2">
@@ -441,6 +446,41 @@ export default function Manage({ id, names }: { id: string; names: Record<string
       </section>
 
       <section className="grid gap-2">
+        <h2 className="label">상품별 수량 (발주용)</h2>
+        <div className="panel overflow-hidden">
+          <table className="w-full text-sm">
+            <tbody>
+              {round.items.map((it) => (
+                <tr key={it.id} className="border-b border-line last:border-0">
+                  <td className="p-3">
+                    {it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{itemLabel(it)}</a> : itemLabel(it)}
+                    {it.note && <span className="block text-xs text-muted">참고: {it.note}</span>}
+                  </td>
+                  <td className="p-3 text-right num text-xl font-bold whitespace-nowrap">{totals[it.id] ?? 0}<span className="text-sm text-muted">개</span></td>
+                  <td className="p-3 text-right num text-muted whitespace-nowrap">{won(it.price * (totals[it.id] ?? 0))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex justify-between gap-3 p-3 bg-paper text-sm">
+            <span>{orders.length}명 · <b className="num">{totalQty}개</b></span>
+            <span>총액 <b className="num">{won(grand)}</b></span>
+          </div>
+        </div>
+        <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(report, "크루용 집계표를 복사했어요")}>크루용 집계표(카톡)</button>
+        <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(orderSheetText(round, orders), "업체용 발주서를 복사했어요. 업체에 붙여넣으세요")}>업체용 전달용 발주서</button>
+        <div className="flex gap-2">
+          <select aria-label="내보낼 파일 종류" className="input min-w-0 flex-1 py-2 text-sm" value={exportKind} onChange={(e) => setExportKind(e.target.value as "sheet" | "orderers")}>
+            <option value="sheet">발주서 (CSV)</option>
+            <option value="orderers">주문자 명단 (CSV)</option>
+          </select>
+          <button className="btn btn-primary text-sm shrink-0" disabled={orders.length === 0} onClick={() => exportKind === "sheet"
+            ? downloadText(`${safeName(round.title)}_발주서.csv`, toCsv(orderSheetRows(round, orders)))
+            : downloadText(`${safeName(round.title)}_주문자명단.csv`, toCsv(ordererRows(round, orders)))}>내보내기</button>
+        </div>
+      </section>
+
+      <section className="grid gap-2">
         <h2 className="label">공구 설정</h2>
         <div className="flex flex-wrap gap-2">
           <button className="btn" onClick={() => setEditing(true)}>내용·마감 수정</button>
@@ -448,7 +488,6 @@ export default function Manage({ id, names }: { id: string; names: Record<string
           {round.archived
             ? <button className="btn" onClick={() => setArchived(false)}>보관함에서 꺼내기</button>
             : ended && <button className="btn" onClick={() => setArchived(true)}>보관함으로 옮기기</button>}
-          <button className="btn" onClick={() => setPwOpen((v) => !v)}>관리 비밀번호 변경</button>
           {round.closed
             ? <button className="btn" onClick={() => setClosed(false)}>접수 다시 열기</button>
             : <button className="btn" onClick={() => setClosed(true)}>지금 접수 마감</button>}
@@ -462,12 +501,14 @@ export default function Manage({ id, names }: { id: string; names: Record<string
             <button className="btn btn-ghost btn-danger" onClick={() => setConfirm("delete-round")}>공구 삭제</button>
           )}
         </div>
-        {pwOpen && (
-          <form onSubmit={changePassword} className="panel p-3 flex gap-2">
-            <input id="m-new-password" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} data-lpignore="true" className="input pw-mask" placeholder="새 관리 비밀번호 (영문·숫자 4자 이상)" value={newPw} onChange={(e) => setNewPw(normalizePassword(e.target.value))} />
-            <button className="btn btn-primary shrink-0" disabled={newPw.length < 4}>저장</button>
-          </form>
-        )}
+      </section>
+
+      <section className="grid gap-2">
+        <h2 className="label">카톡방에 공유</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn btn-primary" onClick={() => copy(announce, "공지 문구를 복사했어요. 카톡방에 붙여넣으세요")}>공지 문구 복사</button>
+          <button className="btn" onClick={() => copy(orderUrl, "주문 링크를 복사했어요")}>주문 링크만 복사</button>
+        </div>
       </section>
       {toast}
     </main>

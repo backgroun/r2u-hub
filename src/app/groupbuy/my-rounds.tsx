@@ -20,10 +20,11 @@ export default function MyRounds() {
     <section className="grid gap-3">
       <h2 className="label">내가 연 공구 (관리)</h2>
       {mine.map((m) => (
-        <Link key={m.id} href={`/groupbuy/r/${m.id}/manage`} className="panel p-4 flex items-center justify-between gap-3">
-          <span className="font-bold min-w-0 truncate">{m.title}</span>
-          <span className="text-sm text-[var(--lane)] shrink-0">관리 →</span>
-        </Link>
+        <div key={m.id} className="panel p-3 pl-4 flex items-center justify-between gap-3">
+          {/* 제목은 주문 화면으로, 관리는 따로 눌러서 들어간다 */}
+          <Link href={`/groupbuy/r/${m.id}`} className="font-bold min-w-0 flex-1 truncate py-1">{m.title}</Link>
+          <Link href={`/groupbuy/r/${m.id}/manage`} className="btn text-sm shrink-0">관리</Link>
+        </div>
       ))}
     </section>
   );

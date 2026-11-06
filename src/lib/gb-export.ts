@@ -75,6 +75,19 @@ export function orderSheetText(round: Round, orders: Order[]) {
   ].join("\n");
 }
 
+/** 최종 확인용: 누가 무엇을 몇 개 주문했는지 (업체 발주서와는 별개로, 주문한 사람들이 내용을 확인하라고 공지한다). 입금자명은 넣지 않는다. */
+export function finalCheckText(round: Round, orders: Order[], orderUrl?: string) {
+  const all = orders.reduce((s, o) => s + Object.values(o.lines).reduce((a, b) => a + b, 0), 0);
+  const label = (it: Round["items"][number]) => (round.custom ? [it.color, it.size].filter(Boolean).join("/") || it.name : it.name);
+  return [
+    `✅ [${round.title}] 최종 주문 확인 (${orders.length}명 · ${all}개)`,
+    "주문하신 내용이 맞는지 확인해 주세요. 다르면 공구 오픈자에게 알려 주세요.",
+    "",
+    ...orders.map((o) => `${bibLabel(o.bib)} ${o.name} · ${round.items.filter((it) => o.lines[it.id]).map((it) => `${label(it)} ${o.lines[it.id]}`).join(", ")} (${won(orderTotal(round.items, o.lines))})`),
+    ...(orderUrl ? ["", `👉 ${orderUrl}`] : []),
+  ].join("\n");
+}
+
 /** 입금 독촉 문구: 아직 입금 표시를 안 한 사람을 모아 카톡방에 붙여넣는다 */
 export function unpaidReminder(round: Round, orders: Order[], orderUrl: string) {
   const un = orders.filter((o) => !o.paid);

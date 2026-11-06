@@ -1,6 +1,6 @@
 import "server-only";
 import { redis } from "./kv/client";
-import { getOrders, getRound, listRoundIds } from "./db";
+import { getOrders, getRound, listRoundIds, saveRound } from "./db";
 import { getPushEnabledNicks, sendPushToNicks } from "./notice";
 import { fmtDeadline, nickKey, qtyOf, type Round } from "./types";
 
@@ -13,9 +13,19 @@ const url = (id: string) => `/groupbuy/r/${id}`;
 export async function notifyRoundOpened(r: Round, openerNick?: string) {
   const nicks = await getPushEnabledNicks();
   if (openerNick) nicks.delete(openerNick);
-  if (!nicks.size) return { sent: 0 };
-  await sendPushToNicks(nicks, "새 공구가 열렸어요 🛒", `${r.opener}님의 공구 · ${r.title} (${fmtDeadline(r.deadline)} 마감)`, url(r.id));
-  return { sent: nicks.size };
+  if (!nicks.size) return { sent: 0, skipped: false };
+  const res = await sendPushToNicks(nicks, "새 공구가 열렸어요 🛒", `${r.opener}님의 공구 · ${r.title} (${fmtDeadline(r.deadline)} 마감)`, url(r.id));
+  return { sent: res.sent, skipped: res.skipped };
+}
+
+/** 공구를 열면서 보낸 오픈 알림이 실제로 나갔으면 ‘보낸 시각’을 공구에 남긴다 (나중에 수정 화면에서 보낸 적 있는지 알 수 있게) */
+export async function notifyRoundOpenedAndMark(roundId: string, openerNick?: string) {
+  const r = await getRound(roundId);
+  if (!r) return;
+  const res = await notifyRoundOpened(r, openerNick);
+  if (res.skipped || res.sent === 0) return;
+  const cur = await getRound(roundId);
+  if (cur) { cur.notifiedAt = Date.now(); await saveRound(cur); }
 }
 
 /** 최소 수량이 처음 채워진 순간: 주문자와 공구 오픈자에게 알린다 */

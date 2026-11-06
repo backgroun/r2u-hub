@@ -4,6 +4,7 @@ import { fmtDeadline, isPastRound, roundStatus, won, type PublicSummary, type Ro
 import { Countdown, PayBadges, StatusChip } from "@/components/ui";
 import MyRounds from "./my-rounds";
 import Polls from "./polls";
+import { isPollOpen, listPolls } from "@/lib/groupbuy-poll";
 import { currentUser, getMembers, isStaffNick } from "@/lib/hub";
 import { knownMemberLabel } from "@/lib/member-label";
 
@@ -12,25 +13,17 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const u = await currentUser();
   const nick = u && !isStaffNick(u.nick) ? u.nick : undefined; // 관리용 ‘운영진’ 계정은 제외
-  const [rounds, members] = await Promise.all([listRounds(100, nick), getMembers()]);
+  const [rounds, members, polls] = await Promise.all([listRounds(100, nick), getMembers(), listPolls().catch(() => [])]);
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
   const now = Date.now();
+  const hasOpenPoll = polls.some((p) => isPollOpen(p, now)); // 진행 중인 투표가 있으면 투표를, 없으면 공구 목록을 위에 둔다
   const archived = rounds.filter((x) => x.round.archived); // 공구 오픈자가 보관함으로 옮긴 공구
   const live = rounds.filter((x) => !x.round.archived);
   const past = live.filter((x) => isPastRound(x.round.deadline, now));
   const current = live.filter((x) => !past.includes(x));
   const mine = live.filter((x) => x.mine); // 내가 주문한 공구를 맨 위에 모아 보여 준다
-  return (
-    <main className="wrap grid gap-6">
-      <header className="flex items-center justify-between gap-3 pt-2">
-        <h1 className="hub-h1">R2U 크루 공구</h1>
-        <Link href="/groupbuy/new" className="btn btn-primary text-sm shrink-0">+ 새 공구</Link>
-      </header>
-
-      <MyRounds />
-
-      <Polls />
-
+  const roundsBlock = (
+    <>
       {mine.length > 0 && (
         <section className="grid gap-3" aria-label="내 주문">
           <h2 className="label">내 주문 {mine.length}건</h2>
@@ -69,6 +62,22 @@ export default async function Home() {
           </div>
         </details>
       )}
+    </>
+  );
+  return (
+    <main className="wrap grid gap-6">
+      <header className="flex items-center justify-between gap-3 pt-2">
+        <h1 className="hub-h1">R2U 크루 공구</h1>
+        <Link href="/groupbuy/new" className="btn btn-primary text-sm shrink-0">+ 새 공구</Link>
+      </header>
+
+      <MyRounds />
+
+      {hasOpenPoll && <Polls />}
+
+      {roundsBlock}
+
+      {!hasOpenPoll && <Polls />}
 
     </main>
   );

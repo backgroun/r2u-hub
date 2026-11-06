@@ -161,6 +161,10 @@ export async function saveOrder(roundId: string, o: StoredOrder) {
 
 export async function deleteOrder(roundId: string, orderId: string) {
   await redis.hdel(K.orders(roundId), orderId);
+  // 주문번호 되돌리기: 지운 뒤 남은 주문의 가장 큰 번호로 맞춘다. 테스트 주문을 지우면 다음 사람이 001, 마지막 번호를 지우면 그 번호를 다시 쓴다.
+  // (가운데 번호를 지워도 다른 사람의 번호는 바뀌지 않는다)
+  const left = await getOrders(roundId);
+  await redis.set(K.bib(roundId), left.reduce((m, o) => Math.max(m, o.bib), 0));
 }
 
 export function summarize(r: Round, orders: Order[]): PublicSummary {

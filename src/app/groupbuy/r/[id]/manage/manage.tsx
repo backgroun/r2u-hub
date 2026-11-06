@@ -410,19 +410,19 @@ export default function Manage({ id, names }: { id: string; names: Record<string
             return (
               <li key={o.id}>
                 <details>
-                  <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                    <span className="bib text-xs shrink-0">{bibLabel(o.bib)}</span>
-                    <span className="min-w-0 flex-1 grid leading-tight">
-                      <span className="flex items-baseline gap-1.5 min-w-0">
-                        <span className="font-semibold truncate text-sm">{label(o.name)}</span>
-                        {o.memo && <span className="shrink-0 rounded px-1 text-[10px] font-extrabold leading-4 bg-[var(--bib)] text-black" title={`메모: ${o.memo}`} aria-label="메모 있음">M</span>}
-                        <span className="text-[11px] text-muted shrink-0 max-w-[40%] truncate" title="입금자명">입금 {o.depositor}</span>
-                      </span>
-                      <span className="text-xs text-muted truncate">{short}</span>
-                    </span>
-                    <span className="num text-sm font-bold shrink-0">{won(orderTotal(round.items, o.lines))}</span>
+                  <summary className="px-3 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden grid gap-1">
+                    {/* 1줄: 번호 · 닉네임(+메모 M) · 금액 / 2줄: 입금자명·주문 요약 · 입금/수령 버튼 — 좁은 모바일 화면에서도 글이 잘리지 않게 두 줄로 나눈다 */}
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span className="num shrink-0 rounded px-1.5 py-0.5 text-[11px] font-extrabold leading-none bg-[var(--bib)] text-[var(--bib-ink)]">{bibLabel(o.bib)}</span>
+                      <span className="font-semibold text-sm min-w-0 flex-1 break-words leading-snug">{label(o.name)}</span>
+                      {o.memo && <span className="shrink-0 rounded px-1 text-[10px] font-extrabold leading-4 bg-[var(--bib)] text-black" title={`메모: ${o.memo}`} aria-label="메모 있음">M</span>}
+                      <span className="num text-sm font-bold shrink-0">{won(orderTotal(round.items, o.lines))}</span>
+                    </div>
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span className="min-w-0 flex-1 text-xs text-muted break-words leading-snug"><span title="입금자명">입금 {o.depositor}</span> · {short}</span>
                     <button type="button" className={`chip shrink-0 ${o.paid ? "chip-confirmed" : "chip-warn"}`} title="신청자가 비밀번호를 잊었을 때 대신 바꿀 수 있어요" onClick={(e) => stop(e, () => void togglePaid(o))}>{o.paid ? "입금✓" : "입금"}</button>
                     <button type="button" className={`chip shrink-0 ${o.delivered ? "chip-ship" : "chip-warn"}`} title="신청자가 비밀번호를 잊었을 때 대신 바꿀 수 있어요" onClick={(e) => stop(e, () => void toggleDelivered(o))}>{o.delivered ? "수령✓" : "수령"}</button>
+                    </div>
                   </summary>
                   <div className="px-3 pb-2.5 grid gap-1 text-xs text-muted">
                     <p>입금자명 <b className="text-[var(--ink)]">{o.depositor}</b>{o.paid && o.paidAt ? ` · 입금 표시 ${paidTimeLabel(o.paidAt)}` : ""}</p>

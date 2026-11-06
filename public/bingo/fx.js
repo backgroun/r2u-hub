@@ -59,6 +59,38 @@
     }).observe(toastEl, { childList: true, characterData: true, subtree: true });
   }
 
+  // 축포: 화면 위에 색종이를 흩뿌려요 (big=true 면 25칸 완성용으로 더 크게)
+  window.fxConfetti = function (big) {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const cv = document.createElement('canvas');
+    cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999';
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.width = innerWidth * dpr, H = cv.height = innerHeight * dpr;
+    document.body.appendChild(cv);
+    const g = cv.getContext('2d');
+    const colors = ['#ff5a5f', '#ffb400', '#2ec4b6', '#4cc9f0', '#b388ff', '#7bd88f', '#ff8fab'];
+    const n = big ? 220 : 110, ps = [];
+    const bursts = big ? [0.2, 0.5, 0.8] : [0.5];
+    for (let i = 0; i < n; i++) {
+      const bx = bursts[i % bursts.length] * W, by = H * 0.55;
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.9, v = (6 + Math.random() * 9) * dpr;
+      ps.push({ x: bx, y: by, vx: Math.cos(a) * v, vy: Math.sin(a) * v, s: (5 + Math.random() * 6) * dpr,
+        r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, c: colors[i % colors.length] });
+    }
+    const t0 = performance.now(), dur = big ? 3600 : 2400;
+    (function frame(now) {
+      const el = now - t0;
+      g.clearRect(0, 0, W, H);
+      g.globalAlpha = Math.max(0, Math.min(1, (dur - el) / 600));
+      ps.forEach(p => {
+        p.vy += 0.28 * dpr; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c;
+        g.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); g.restore();
+      });
+      if (el < dur) requestAnimationFrame(frame); else cv.remove();
+    })(t0);
+  };
+
   // 효과음 켜기/끄기 스위치
   const sw = document.getElementById('fxToggle');
   function paint() { sw.textContent = on ? '🔊' : '🔇'; sw.setAttribute('aria-label', on ? '효과음 끄기' : '효과음 켜기'); sw.title = on ? '효과음 끄기' : '효과음 켜기'; }

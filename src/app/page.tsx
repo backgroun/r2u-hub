@@ -62,8 +62,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   const liveNotices = allNotices.filter((n) => noticeState(n, today) === "live").slice(0, await homeNoticeCount());
   const notice = liveNotices[0];
   // 대회 당일: 그날 대회에 올라온 단사·뒷풀이를 홈 맨 위에 띄운다
-  // 오늘 열리는 대회는 단사·뒷풀이가 없어도 모두 보여 준다 (출발 시각 순), 그 아래에 대회별 단사·뒷풀이
-  const todayRaces = races.filter((r) => r.date === today).sort((x, y) => (x.time || "99:99").localeCompare(y.time || "99:99"));
+  // 오늘 열리는 대회 중 참가자가 한 명이라도 있는 대회만 보여 준다 (출발 시각 순), 그 아래에 대회별 단사·뒷풀이
+  const todayRaces = races.filter((r) => r.date === today && r.participants.length > 0).sort((x, y) => (x.time || "99:99").localeCompare(y.time || "99:99"));
   const plansOf = (r: (typeof races)[number]) => r.afters.filter((a) => a.kind === "photo" || (a.kind ?? "after") === "after").sort((x, y) => (x.time || "99:99").localeCompare(y.time || "99:99"));
   // 오늘부터 15일 안에 열리는데 참가자가 한 명도 없는 대회는 '다가오는 대회'에서 뺀다 (/races 의 다가오는 대회와 같은 기준)
   const soonEnd = new Date(Date.parse(`${today}T00:00:00Z`) + 15 * 86400000).toISOString().slice(0, 10);

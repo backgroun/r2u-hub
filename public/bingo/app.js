@@ -534,13 +534,14 @@ $('sOk').addEventListener('click', async () => {
     }
     $('sOk').disabled = false;
   }
-  const before = doneLines().length;
+  const before = doneLines().length, cellsBefore = doneCount();
   state.done[idx] = date;
   save(); render(); closeSheet();
   const after = doneLines().length;
-  if (after > before) toast(`🎉 빙고! 지금 ${after}줄이에요`);
-  else if (doneCount() === 25) toast('🏆 25칸 전부 완료! 대단해요');
-  else toast('인증완료! 게시판 인증도 잊지 마세요 😊');
+  if (doneCount() === 25 && cellsBefore < 25) { toast('🏆 풀빙고! 25칸 전부 완료, 정말 대단해요! 🎊', 6000); if (window.fxConfetti) { fxConfetti(true); setTimeout(() => fxConfetti(true), 1300); setTimeout(() => fxConfetti(true), 2600); } }
+  else if (after >= 5 && before < 5) { toast('🎉 빙고 달성! 5줄 완성, 축하해요! 🎊', 4500); if (window.fxConfetti) { fxConfetti(true); setTimeout(() => fxConfetti(true), 1200); } }
+  else if (after > before) { toast(`🎉 ${after}줄 완성, 축하해요! 🎊`, 3500); if (window.fxConfetti) fxConfetti(false); }
+  else toast('인증완료! 런하우스에 기록 입력하기!');
   push({ action: 'set', no: idx + 1, title: MISSIONS[idx].t, date, photo });
 });
 

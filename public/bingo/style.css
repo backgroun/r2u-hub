@@ -260,6 +260,10 @@ body .btn:active:not([disabled]) { transform: scale(.98); filter: none; }
 /* 타이틀과 이벤트 기간 사이 간격 */
 .hero h1 { margin: 0 0 12px; }
 
+/* 닫힌 시트는 위치와 상관없이 안 보이게 (휴대폰 iframe 안에서 빈 시트가 비쳐 보이던 문제). 열 때는 바로 보이고, 닫을 때는 내려간 뒤에 숨긴다 */
+.sheet { visibility: hidden; transition: transform .25s ease, visibility 0s linear .25s; }
+.sheet.on { visibility: visible; transition-delay: 0s; }
+
 /* 빙고 완성 선 */
 .grid { position: relative; }
 .bingo-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }

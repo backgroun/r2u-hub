@@ -28,10 +28,11 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null); // "delete-round" | order id
   const [toast, showToast] = useToast();
+  const [pickupDraft, setPickupDraft] = useState<string | null>(null); // 배포 장소 입력 중인 값 (null = 편집 안 함)
   const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all");
   // 새 공구를 열 때 올리지 못한 이미지 (이 탭에 임시로 남겨 둔 것)
   const pendingKey = `crew-gb:pending-img:${id}`;
-  const [pending, setPending] = useState<{ design?: DesignImage; size?: DesignImage } | null>(null);
+  const [pending, setPending] = useState<{ design?: { slot: number; img: DesignImage }[]; size?: DesignImage } | null>(null);
   useEffect(() => {
     try { const v = sessionStorage.getItem(pendingKey); if (v) setPending(JSON.parse(v)); } catch { /* 저장소를 못 읽으면 안내만 건너뛴다 */ }
   }, [pendingKey]);
@@ -160,15 +161,26 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     if (!pending || !key) return;
     const left: typeof pending = {};
     let last: Round | null = null;
-    for (const kind of ["design", "size"] as const) {
-      const img = pending[kind];
-      if (!img) continue;
-      try { last = (await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "PUT", json: { key, kind, ...img } })).round; }
-      catch { left[kind] = img; }
+    for (const a of pending.design ?? []) {
+      try { last = (await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "PUT", json: { key, kind: "design", slot: a.slot, ...a.img } })).round; }
+      catch { (left.design ??= []).push(a); }
+    }
+    if (pending.size) {
+      try { last = (await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "PUT", json: { key, kind: "size", ...pending.size } })).round; }
+      catch { left.size = pending.size; }
     }
     if (last) setRound(last);
-    if (left.design || left.size) { sessionStorage.setItem(pendingKey, JSON.stringify(left)); setPending(left); showToast("아직 올리지 못한 이미지가 있어요. 잠시 뒤 다시 눌러 주세요"); }
+    if (left.design?.length || left.size) { sessionStorage.setItem(pendingKey, JSON.stringify(left)); setPending(left); showToast("아직 올리지 못한 이미지가 있어요. 잠시 뒤 다시 눌러 주세요"); }
     else { sessionStorage.removeItem(pendingKey); setPending(null); showToast("이미지를 올렸어요"); }
+  }
+
+  // 배포 장소는 공구를 연 뒤에 언제든 추가·수정한다
+  async function savePickup() {
+    if (pickupDraft === null) return;
+    try {
+      const d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, pickup: { place: pickupDraft } } });
+      setRound(d.round); setPickupDraft(null); showToast(pickupDraft.trim() ? "배포 장소를 저장했어요" : "배포 장소를 지웠어요");
+    } catch (e) { showToast((e as Error).message); }
   }
 
   // 이 공구를 복사해서 새 공구 열기 (계좌·상품·옵션·이미지를 그대로 가져온다)
@@ -213,11 +225,12 @@ export default function Manage({ id, names }: { id: string; names: Record<string
       <RoundForm initial={round} roundId={id} draftKey={`crew-gb:draft:edit:${id}`} submitLabel="수정 저장" onSubmit={async (draft, _pw, extra) => {
         let d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, round: draft } });
         // 시안 이미지: 새로 올렸으면 저장, 빼거나 URL 방식으로 바꿨으면 삭제 (그대로면 건드리지 않는다)
-        // 사이즈표도 같은 방식 (kind: size)
-        for (const [kind, img, has] of [["design", extra.designImage, d.round.custom?.image], ["size", extra.sizeImage, d.round.custom?.sizeImage]] as const) {
-          if (img && img !== "keep") d = await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "PUT", json: { key, kind, ...img } });
-          else if (img === null && has) d = await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "DELETE", json: { key, kind } });
-        }
+        // 시안 이미지: 뺀 칸은 지우고, 새로 고른 것은 올린다 (그대로인 칸은 건드리지 않는다)
+        for (const slot of extra.design.remove) d = await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "DELETE", json: { key, kind: "design", slot } });
+        for (const a of extra.design.add) d = await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "PUT", json: { key, kind: "design", slot: a.slot, ...a.img } });
+        // 사이즈표: 새로 올렸으면 저장, 뺐으면 삭제
+        if (extra.sizeImage && extra.sizeImage !== "keep") d = await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "PUT", json: { key, kind: "size", ...extra.sizeImage } });
+        else if (extra.sizeImage === null && d.round.custom?.sizeImage) d = await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "DELETE", json: { key, kind: "size" } });
         setRound(d.round); setEditing(false); showToast("저장했어요");
       }} />
     </main>
@@ -236,9 +249,9 @@ export default function Manage({ id, names }: { id: string; names: Record<string
         </div>
       )}
 
-      {pending && (pending.design || pending.size) && (
+      {pending && (pending.design?.length || pending.size) && (
         <div className="panel p-4 grid gap-2 border-[var(--bad)]" role="alert">
-          <p className="font-bold">{[pending.design && "시안 이미지", pending.size && "사이즈표"].filter(Boolean).join("·")}를 올리지 못했어요</p>
+          <p className="font-bold">{[pending.design?.length && "시안 이미지", pending.size && "사이즈표"].filter(Boolean).join("·")}를 올리지 못했어요</p>
           <p className="text-sm text-muted">공구는 정상으로 열렸어요. 다시 올려 볼까요? 계속 안 되면 ‘내용·마감 수정’에서 이미지를 직접 올려 주세요.</p>
           <div className="flex gap-2">
             <button className="btn btn-primary text-sm" onClick={retryImages}>다시 올리기</button>
@@ -261,6 +274,29 @@ export default function Manage({ id, names }: { id: string; names: Record<string
         </p>
         <div className="panel p-4"><Progress count={totalQty} min={round.minQty} /></div>
       </header>
+
+      <section className="grid gap-2" aria-label="배포 장소">
+        <h2 className="label">배포 장소</h2>
+        {pickupDraft === null ? (
+          <div className="panel p-3.5 flex items-center justify-between gap-3">
+            {fmtPickup(round.pickup)
+              ? <span className="font-semibold min-w-0 break-words">{fmtPickup(round.pickup)}</span>
+              : <span className="text-sm text-muted">아직 정하지 않았어요. 정해지면 여기서 추가해 주세요.</span>}
+            <button className="btn text-sm shrink-0" onClick={() => setPickupDraft(round.pickup?.place ?? "")}>{fmtPickup(round.pickup) ? "수정" : "＋ 배포 장소 추가"}</button>
+          </div>
+        ) : (
+          <form className="panel p-3 grid gap-2" onSubmit={(e) => { e.preventDefault(); void savePickup(); }}>
+            <input className="input" autoFocus maxLength={60} placeholder="예) 울산 OOO" value={pickupDraft} onChange={(e) => setPickupDraft(e.target.value)} />
+            <div className="flex gap-2">
+              <button className="btn btn-primary text-sm">저장</button>
+              <button type="button" className="btn btn-ghost text-sm" onClick={() => setPickupDraft(null)}>취소</button>
+            </div>
+          </form>
+        )}
+        {fmtPickup(round.pickup) && pickupDraft === null && (
+          <button className="btn text-sm" onClick={() => copy(`📍 [${round.title}] 배포 장소 안내\n${fmtPickup(round.pickup)}\n\n👉 ${orderUrl}`, "배포 장소 안내 문구를 복사했어요. 카톡방에 붙여넣으세요")}>배포 장소 안내 문구 복사</button>
+        )}
+      </section>
 
       <section className="grid gap-2">
         <h2 className="label">카톡방에 공유</h2>

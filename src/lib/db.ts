@@ -79,16 +79,18 @@ export async function saveRound(r: StoredRound) {
 
 /** 단체 제작 시안 이미지 (JPEG·PNG·WebP, base64) */
 export type RoundImage = { type: string; data: string };
-/** kind: design = 시안 이미지, size = 사이즈표 이미지 */
-export type RoundImageKind = "design" | "size";
-const imgKey = (id: string, kind: RoundImageKind = "design") => (kind === "size" ? `gb:roundimg:${id}:size` : `gb:roundimg:${id}`);
+/** 이미지 칸: 숫자 0~4 = 시안 이미지(0번이 첫 장), "size" = 사이즈표 */
+export type RoundImageKey = "size" | number;
+const imgKey = (id: string, k: RoundImageKey = 0) => (k === "size" ? `gb:roundimg:${id}:size` : k === 0 ? `gb:roundimg:${id}` : `gb:roundimg:${id}:d${k}`);
 export const ROUND_IMAGE_MAX_BYTES = 400 * 1024;
-export const getRoundImage = (id: string, kind: RoundImageKind = "design") => redis.get<RoundImage>(imgKey(id, kind));
-export const setRoundImage = (id: string, img: RoundImage, kind: RoundImageKind = "design") => redis.set(imgKey(id, kind), img);
-export const delRoundImage = (id: string, kind: RoundImageKind = "design") => redis.del(imgKey(id, kind));
+export const getRoundImage = (id: string, k: RoundImageKey = 0) => redis.get<RoundImage>(imgKey(id, k));
+export const setRoundImage = (id: string, img: RoundImage, k: RoundImageKey = 0) => redis.set(imgKey(id, k), img);
+export const delRoundImage = (id: string, k: RoundImageKey = 0) => redis.del(imgKey(id, k));
+/** 시안 이미지를 모두 지운다 (사이즈표는 그대로) */
+export const delAllDesignImages = (id: string) => redis.del(...[0, 1, 2, 3, 4].map((n) => imgKey(id, n)));
 
 export async function deleteRound(id: string) {
-  await redis.del(K.round(id), K.orders(id), K.bib(id), K.fails(id), imgKey(id), imgKey(id, "size"));
+  await redis.del(K.round(id), K.orders(id), K.bib(id), K.fails(id), ...[0, 1, 2, 3, 4].map((n) => imgKey(id, n)), imgKey(id, "size"));
   await redis.zrem(K.rounds, id);
 }
 

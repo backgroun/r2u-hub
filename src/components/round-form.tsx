@@ -1,13 +1,17 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { buildCustomItems, colorNeeds, CUSTOM_KINDS, CUSTOM_PRESETS, makeTitle, type CustomKind, type CustomSpec, type Item, type Round } from "@/lib/types";
+import { buildCustomItems, colorNeeds, CUSTOM_KINDS, designSlots, MAX_DESIGN_IMAGES, roundImageUrl, CUSTOM_PRESETS, makeTitle, type CustomKind, type CustomSpec, type Item, type Round } from "@/lib/types";
 import { normalizePassword } from "@/components/password-input";
 import { store } from "@/lib/client";
 
 export type RoundDraft = Omit<Round, "id" | "createdAt" | "closed">;
 /** 시안 이미지: 새로 올린 것(base64) · null 이면 이미지 없음(있던 것은 지운다) · "keep" 이면 올려 둔 그대로 */
 export type DesignImage = { type: string; data: string };
-export type SubmitExtra = { designImage: DesignImage | null | "keep"; sizeImage: DesignImage | null | "keep" };
+/** 시안 이미지 변경 내용: add = 새로 올릴 것(칸 번호 포함), remove = 지울 칸, keep = 그대로 둘 칸 */
+export type DesignChange = { add: { slot: number; img: DesignImage }[]; remove: number[]; keep: number[] };
+export type SubmitExtra = { design: DesignChange; sizeImage: DesignImage | null | "keep"; notifyOpen: boolean };
+/** 폼에서 다루는 시안 한 장: slot 이 있으면 이미 올려 둔 것, 없으면 이번에 새로 고른 것 */
+type DesignItem = { slot: number | null; img: DesignImage | null };
 
 // 이전에 입력한 입금 계좌 (이 기기에만, 최근 10개)
 type BankRec = { bank: string; account: string; holder: string };
@@ -61,7 +65,7 @@ export const EMPTY_DRAFT: RoundDraft = {
 };
 
 // 임시저장: 입력 중인 내용을 이 기기(브라우저)에만 저장해 두었다가 다음에 열면 불러온다. 비밀번호는 저장하지 않는다.
-type Extras = { designMode: "url" | "image"; designImg: DesignImage | null; imgRemoved: boolean; sizeOpen: boolean; sizeImg: DesignImage | null; sizeRemoved: boolean; needsOpen: boolean };
+type Extras = { designMode: "url" | "image"; designItems: DesignItem[]; sizeOpen: boolean; sizeImg: DesignImage | null; sizeRemoved: boolean; needsOpen: boolean; notifyOpen: boolean };
 type FormSnap = { d: RoundDraft; deadlineLocal: string; custom: CustomSpec | null; sizesText: string; colorsText: string; lastMin: number } & Extras;
 type SavedDraft = FormSnap & { savedAt: number };
 const fmtSaved = (t: number) => {
@@ -83,7 +87,8 @@ export default function RoundForm({
   const [busy, setBusy] = useState(false);
   // R2U 단체 제작: 종류(의류·모자·양말·기타)와 사이즈·컬러를 정해서 주문받는다
   const [custom, setCustom] = useState<CustomSpec | null>(initial.custom ?? null);
-  const hadImage = !!initial.custom?.image;
+  const initSlots = designSlots(initial.custom);
+  const hadImage = initSlots.length > 0;
   const [designMode, setDesignMode] = useState<"url" | "image">(hadImage ? "image" : "url");
   const [sizesText, setSizesText] = useState((initial.custom?.sizes ?? []).join(", "));
   const [colorsText, setColorsText] = useState((initial.custom?.colors ?? []).join(", "));
@@ -120,10 +125,9 @@ export default function RoundForm({
   const forgetBank = (b: BankRec) => { const next = banks.filter((x) => !sameBank(x, b)); store.set(BANKS_KEY, next); setBanks(next); };
 
   // ----- 시안: URL 또는 이미지 올리기 -----
-  const [designImg, setDesignImg] = useState<DesignImage | null>(null); // 이번에 새로 고른 이미지
-  const [imgRemoved, setImgRemoved] = useState(false);
+  const [designItems, setDesignItems] = useState<DesignItem[]>(initSlots.map((slot) => ({ slot, img: null })));
   const [imgBusy, setImgBusy] = useState(false);
-  const previewSrc = designImg ? `data:${designImg.type};base64,${designImg.data}` : hadImage && !imgRemoved && roundId ? `/api/gb-round-image/${roundId}?t=${roundId}` : null;
+  const designSrc = (it: DesignItem) => (it.img ? `data:${it.img.type};base64,${it.img.data}` : roundId && it.slot !== null ? roundImageUrl(roundId, it.slot) : "");
   // 사이즈표: 필요할 때만 ‘사이즈표 추가’를 눌러 이미지로 올린다
   const hadSize = !!initial.custom?.sizeImage;
   const [sizeOpen, setSizeOpen] = useState(hadSize);
@@ -141,7 +145,11 @@ export default function RoundForm({
   async function pickImage(file: File | undefined) {
     if (!file) return;
     setErr(null); setImgBusy(true);
-    try { setDesignImg(await compressImage(file)); setImgRemoved(false); }
+    try {
+      if (designItems.length >= MAX_DESIGN_IMAGES) throw new Error(`시안 이미지는 최대 ${MAX_DESIGN_IMAGES}장까지 올릴 수 있어요.`);
+      const img = await compressImage(file);
+      setDesignItems((xs) => [...xs, { slot: null, img }]);
+    }
     catch (e) { setErr((e as Error).message || "이미지를 불러오지 못했어요."); }
     finally { setImgBusy(false); }
   }
@@ -175,6 +183,11 @@ export default function RoundForm({
     setItem(i, { needs: next.length ? next : undefined, needsMode: next.length ? it.needsMode : undefined });
   };
 
+  // 알림 설정: 오픈 알림은 새 공구를 열 때만 한 번 보내고, 마감 임박·목표 달성·입금 확인 알림은 공구마다 켜고 끈다
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const remindersOn = d.notify?.reminders !== false;
+  const setReminders = (on: boolean) => setD((x) => ({ ...x, notify: on ? undefined : { reminders: false } }));
+
   // 구매 조건은 공구마다 달라서 ‘구매 조건 설정’을 눌러야만 설정 칸이 나온다. (이미 조건이 있으면 처음부터 펼쳐 둔다)
   const [needsOpen, setNeedsOpen] = useState(false);
   const hasNeeds = Object.keys(custom?.needs ?? {}).length > 0 || d.items.some((x) => x.needs?.length);
@@ -194,19 +207,19 @@ export default function RoundForm({
   const initialSnap = (): FormSnap => ({
     d: { ...initial, pickup: initial.pickup ?? EMPTY_DRAFT.pickup }, deadlineLocal: toLocalInput(initial.deadline), custom: initial.custom ?? null,
     sizesText: (initial.custom?.sizes ?? []).join(", "), colorsText: (initial.custom?.colors ?? []).join(", "), lastMin: initial.minQty > 0 ? initial.minQty : 20,
-    designMode: hadImage ? "image" : "url", designImg: null, imgRemoved: false, sizeOpen: hadSize, sizeImg: null, sizeRemoved: false, needsOpen: false,
+    designMode: hadImage ? "image" : "url", designItems: initSlots.map((slot) => ({ slot, img: null })), sizeOpen: hadSize, sizeImg: null, sizeRemoved: false, needsOpen: false, notifyOpen: false,
   });
-  const snapNow = (): FormSnap => ({ d, deadlineLocal, custom, sizesText, colorsText, lastMin, designMode, designImg, imgRemoved, sizeOpen, sizeImg, sizeRemoved, needsOpen });
+  const snapNow = (): FormSnap => ({ d, deadlineLocal, custom, sizesText, colorsText, lastMin, designMode, designItems, sizeOpen, sizeImg, sizeRemoved, needsOpen, notifyOpen });
   const apply = (v: FormSnap) => {
     setD(v.d); setDeadlineLocal(v.deadlineLocal); setCustom(v.custom); setSizesText(v.sizesText); setColorsText(v.colorsText); setLastMin(v.lastMin);
-    setDesignMode(v.designMode); setDesignImg(v.designImg); setImgRemoved(v.imgRemoved); setSizeOpen(v.sizeOpen); setSizeImg(v.sizeImg); setSizeRemoved(v.sizeRemoved); setNeedsOpen(v.needsOpen);
+    setDesignMode(v.designMode); setDesignItems(v.designItems ?? []); setSizeOpen(v.sizeOpen); setSizeImg(v.sizeImg); setSizeRemoved(v.sizeRemoved); setNeedsOpen(v.needsOpen); setNotifyOpen(!!v.notifyOpen);
   };
   // 이미지(base64)까지 저장하되, 저장 공간이 모자라면 이미지는 빼고 글만 저장한다
   const writeDraft = () => {
     const at = Date.now(); const snap = snapNow();
     const put = (v: unknown) => { try { localStorage.setItem(draftKey!, JSON.stringify(v)); return true; } catch { return false; } };
     if (put({ ...snap, savedAt: at } satisfies SavedDraft)) setDraftNote("");
-    else if (put({ ...snap, designImg: null, sizeImg: null, savedAt: at } satisfies SavedDraft)) setDraftNote("이미지는 용량 때문에 저장하지 못했어요. 이미지는 다시 골라야 해요.");
+    else if (put({ ...snap, designItems: snap.designItems.filter((x) => x.slot !== null), sizeImg: null, savedAt: at } satisfies SavedDraft)) setDraftNote("이미지는 용량 때문에 저장하지 못했어요. 이미지는 다시 골라야 해요.");
     else { setDraftNote("이 기기에 저장하지 못했어요. (저장 공간 부족 또는 저장 차단)"); return; }
     setSavedAt(at);
   };
@@ -233,7 +246,7 @@ export default function RoundForm({
     }, 600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d, deadlineLocal, custom, sizesText, colorsText, lastMin, designMode, designImg, imgRemoved, sizeOpen, sizeImg, sizeRemoved, needsOpen]);
+  }, [d, deadlineLocal, custom, sizesText, colorsText, lastMin, designMode, designItems, sizeOpen, sizeImg, sizeRemoved, needsOpen, notifyOpen]);
   const clearDraft = () => { blocked.current = true; if (draftKey) store.del(draftKey); setSavedAt(null); setRestored(false); setDraftNote(""); };
   const resetDraft = () => { clearDraft(); apply(initialSnap()); blocked.current = false; };
 
@@ -250,9 +263,19 @@ export default function RoundForm({
     setBusy(true);
     try {
       if (customNow && !customNow.name.trim()) throw new Error("제작할 상품 이름을 입력해 주세요.");
-      const designImage: SubmitExtra["designImage"] = customNow && designMode === "image" ? (designImg ?? (hadImage && !imgRemoved ? "keep" : null)) : null;
+      // 시안 이미지: 남길 칸(keep) · 지울 칸(remove) · 새로 올릴 것(add, 빈 칸 번호에 차례로)
+      const items = customNow && designMode === "image" ? designItems : [];
+      const keep = items.filter((x) => x.slot !== null).map((x) => x.slot as number);
+      const used = new Set(keep);
+      const add: DesignChange["add"] = [];
+      for (const it of items) {
+        if (it.slot !== null || !it.img) continue;
+        let n = 0; while (used.has(n)) n++;
+        used.add(n); add.push({ slot: n, img: it.img });
+      }
+      const design: DesignChange = { add, keep, remove: initSlots.filter((s) => !keep.includes(s) && !add.some((a) => a.slot === s)) };
       const sizeImage: SubmitExtra["sizeImage"] = customNow && sizeOpen ? (sizeImg ?? (hadSize && !sizeRemoved ? "keep" : null)) : null;
-      await onSubmit({ ...d, deadline: t.toISOString(), custom: customNow, items: customNow ? buildCustomItems(customNow) : d.items.filter((i) => i.name.trim()) }, password, { designImage, sizeImage });
+      await onSubmit({ ...d, deadline: t.toISOString(), custom: customNow, items: customNow ? buildCustomItems(customNow) : d.items.filter((i) => i.name.trim()) }, password, { design, sizeImage, notifyOpen: !roundId && notifyOpen });
       rememberBank(d.bank);
       if (draftKey) clearDraft(); // 공구를 열었으면 임시저장본은 지운다
     } catch (e) {
@@ -307,10 +330,7 @@ export default function RoundForm({
             </label>
           </div>
         </div>
-        <label className="field">
-          <span className="label">배포 장소</span>
-          <input id="f-pickup-place" className="input" placeholder="예) 울산 OOO" value={d.pickup.place} onChange={(e) => set("pickup", { place: e.target.value })} />
-        </label>
+        <p className="text-xs text-muted">배포 장소는 공구를 연 뒤 관리 화면에서 언제든 추가할 수 있어요.</p>
       </fieldset>
 
       <fieldset className="panel p-4 grid gap-4">
@@ -405,20 +425,25 @@ export default function RoundForm({
               <input type="url" inputMode="url" className="input" placeholder="시안·참고 URL (선택)" value={custom.url ?? ""} onChange={(e) => setCustom({ ...custom, url: e.target.value })} />
             ) : (
               <div className="grid gap-2">
-                {previewSrc && (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={previewSrc} alt="시안 미리보기" className="rounded-lg max-h-56 max-w-full object-contain border border-line justify-self-start" />
-                  </>
+                {designItems.length > 0 && (
+                  <ul className="flex flex-wrap gap-2" aria-label="올린 시안 이미지">
+                    {designItems.map((it, i) => (
+                      <li key={`${it.slot ?? "new"}-${i}`} className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={designSrc(it)} alt={`시안 ${i + 1}`} className="h-24 w-24 rounded-lg object-cover border border-line" />
+                        <button type="button" aria-label={`시안 ${i + 1} 빼기`} className="absolute -top-2 -right-2 size-7 rounded-full bg-[var(--ink)] text-white text-sm leading-none" onClick={() => setDesignItems((xs) => xs.filter((_, j) => j !== i))}>✕</button>
+                        {i === 0 && <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 text-[10px] text-white">대표</span>}
+                      </li>
+                    ))}
+                  </ul>
                 )}
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="btn cursor-pointer text-sm">
-                    {imgBusy ? "처리 중…" : previewSrc ? "다른 이미지 고르기" : "📷 이미지 고르기"}
+                {designItems.length < MAX_DESIGN_IMAGES && (
+                  <label className="btn cursor-pointer text-sm justify-self-start">
+                    {imgBusy ? "처리 중…" : designItems.length === 0 ? "📷 시안 이미지 고르기" : "＋ 시안 이미지 추가"}
                     <input type="file" accept="image/*" hidden disabled={imgBusy} onChange={(e) => { void pickImage(e.target.files?.[0]); e.target.value = ""; }} />
                   </label>
-                  {previewSrc && <button type="button" className="btn btn-ghost text-sm" onClick={() => { setDesignImg(null); setImgRemoved(true); }}>이미지 빼기</button>}
-                </div>
-                <span className="text-xs text-muted">큰 사진은 자동으로 줄여서 올려요. 로그인한 크루원에게만 보여요.</span>
+                )}
+                <span className="text-xs text-muted">시안은 기본 1장, 최대 {MAX_DESIGN_IMAGES}장까지 올릴 수 있어요 ({designItems.length}/{MAX_DESIGN_IMAGES}). 큰 사진은 자동으로 줄여서 올려요. 로그인한 크루원에게만 보여요.</span>
               </div>
             )}
           </div>
@@ -502,6 +527,20 @@ export default function RoundForm({
         {needsShown && d.items.length >= 2 && <p className="text-xs text-muted">상품마다 먼저 사야 하는 상품을 골라 두면, 그 상품을 담은 사람만 주문할 수 있어요. 아무것도 고르지 않은 상품은 조건 없이 주문돼요.</p>}
       </fieldset>
       )}
+
+      <fieldset className="panel p-4 grid gap-3">
+        <legend className="label px-1">알림 설정</legend>
+        {!roundId && (
+          <label className="flex items-start gap-2 cursor-pointer text-sm">
+            <input id="f-notify-open" type="checkbox" className="size-5 accent-[var(--bib)] mt-0.5" checked={notifyOpen} onChange={(e) => setNotifyOpen(e.target.checked)} />
+            <span><b>공구를 열면서 크루에게 오픈 알림 보내기</b><br /><span className="text-xs text-muted">푸시 알림을 켠 크루원에게 ‘새 공구가 열렸어요’가 한 번 가요. 끄면 알림 없이 열려요.</span></span>
+          </label>
+        )}
+        <label className="flex items-start gap-2 cursor-pointer text-sm">
+          <input id="f-notify-reminders" type="checkbox" className="size-5 accent-[var(--bib)] mt-0.5" checked={remindersOn} onChange={(e) => setReminders(e.target.checked)} />
+          <span><b>마감 임박·입금 확인·목표 달성 알림 보내기</b><br /><span className="text-xs text-muted">마감이 가까우면 아직 주문 안 한 크루에게, 입금 전인 주문자에게 알려 주고, 최소 수량이 차면 주문자에게 알려요. 끄면 이 공구는 자동 알림이 가지 않아요.</span></span>
+        </label>
+      </fieldset>
 
       {err && <p className="chip chip-failed justify-self-start text-sm">{err}</p>}
       {draftKey && (

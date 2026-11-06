@@ -225,10 +225,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
           {regs.map((r) => {
             const g = regInfo(r, now);
             return (
-              <Link key={r.id} href={`/races?view=reg#${r.id}`} className="flex items-center gap-3 py-3 px-1 hover:bg-[var(--card)]">
+              <Link key={r.id} href={`/races?view=reg#${r.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 px-1 hover:bg-[var(--card)]">
                 <span className={`chip shrink-0 ${g.status === "open" ? "chip-open" : "chip-warn"}`}>{g.status === "open" ? "접수중" : "접수예정"}</span>
-                <span className="font-bold truncate min-w-0 flex-1">{r.name}</span>
-                <span className="text-sm text-muted shrink-0 whitespace-nowrap">{r.regStart ? `${fmtDtKo(r.regStart)} 시작` : g.text}</span>
+                <span className="font-bold truncate min-w-0 flex-1 basis-32">{r.name}</span>
+                {/* 날짜가 길어 한 줄에 안 들어가면 다음 줄로 내려가서 섹션 밖으로 나가지 않는다 */}
+                <span className="text-sm text-muted max-w-full whitespace-nowrap ml-auto">{r.regStart ? `${fmtDtKo(r.regStart)} 시작` : g.text}</span>
               </Link>
             );
           })}

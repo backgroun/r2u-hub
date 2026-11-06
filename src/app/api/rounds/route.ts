@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getRound, getRoundImage, hashPassword, listRounds, newId, saveRound, setRoundImage } from "@/lib/db";
 import { BadInput, parseRoundInput } from "@/lib/validate";
+import { MAX_DESIGN_IMAGES } from "@/lib/types";
+import { notifyRoundOpened } from "@/lib/gb-notify";
 import { currentUser, isStaffNick } from "@/lib/hub";
 
 export async function GET() {
@@ -20,15 +22,23 @@ export async function POST(req: Request) {
     // 공구 복제: 원본의 시안·사이즈표 이미지를 그대로 가져온다 (로그인한 크루원이면 볼 수 있는 이미지라 그대로 복사해도 된다)
     const cp = body.copyImages as { from?: unknown; design?: unknown; size?: unknown } | undefined;
     if (u && round.custom && cp && typeof cp.from === "string" && /^[A-Za-z0-9_-]{6,30}$/.test(cp.from) && (await getRound(cp.from))) {
-      for (const kind of ["design", "size"] as const) {
-        if (cp[kind] !== true) continue;
-        const img = await getRoundImage(cp.from, kind);
+      const slots = (Array.isArray(cp.design) ? cp.design : cp.design === true ? [0] : []).filter((n): n is number => Number.isInteger(n) && n >= 0 && n < MAX_DESIGN_IMAGES);
+      const copied: number[] = [];
+      for (const slot of [...new Set(slots)].sort((a, b) => a - b)) {
+        const img = await getRoundImage(cp.from, slot);
         if (!img) continue;
-        await setRoundImage(round.id, img, kind);
-        if (kind === "size") round.custom.sizeImage = true; else round.custom.image = true;
+        await setRoundImage(round.id, img, slot);
+        copied.push(slot);
+      }
+      if (copied.length) round.custom.images = copied;
+      if (cp.size === true) {
+        const img = await getRoundImage(cp.from, "size");
+        if (img) { await setRoundImage(round.id, img, "size"); round.custom.sizeImage = true; }
       }
     }
     await saveRound(round);
+    // 공구를 열면서 ‘오픈 알림’을 켠 경우에만 크루에게 푸시 (응답을 늦추지 않는다)
+    if (body.notifyOpen === true && u) after(() => notifyRoundOpened(round, u.nick).catch(() => {}));
     return NextResponse.json({ id: round.id, adminKey: round.adminKey });
   } catch (e) {
     if (e instanceof BadInput) return NextResponse.json({ error: e.message }, { status: 400 });

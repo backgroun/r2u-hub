@@ -8,7 +8,7 @@ export type Item = { id: string; name: string; price: number; url?: string; note
 export const CUSTOM_KINDS = ["의류", "모자", "양말", "기타"] as const;
 export type CustomKind = (typeof CUSTOM_KINDS)[number];
 /** image: 시안 이미지를 올려 둔 공구인가 (파일은 서버가 따로 보관하고, 이 값은 이미지 올리기·지우기 API 만 바꾼다) */
-export type CustomSpec = { kind: CustomKind; name: string; price: number; sizes: string[]; colors: string[]; url?: string; note?: string; image?: boolean; sizeImage?: boolean; needs?: Record<string, string[]>; needsMode?: NeedsMode };
+export type CustomSpec = { kind: CustomKind; name: string; price: number; sizes: string[]; colors: string[]; url?: string; note?: string; image?: boolean; images?: number[]; sizeImage?: boolean; needs?: Record<string, string[]>; needsMode?: NeedsMode };
 /** 종류별로 처음 채워 주는 사이즈·컬러 (운영진이 자유롭게 바꾼다) */
 export const CUSTOM_PRESETS: Record<CustomKind, { sizes: string[]; colors: string[] }> = {
   의류: { sizes: ["S", "M", "L", "XL"], colors: ["블랙", "화이트"] },
@@ -29,6 +29,17 @@ export function buildCustomItems(c: CustomSpec): Item[] {
   }
   return items;
 }
+
+/** 시안 이미지는 최대 5장 (칸 번호 0~4) */
+export const MAX_DESIGN_IMAGES = 5;
+/** 올려 둔 시안 이미지 칸 번호들. 예전 공구(image: true)는 0번 한 장으로 본다 */
+export function designSlots(c?: Pick<CustomSpec, "image" | "images">): number[] {
+  if (!c) return [];
+  if (Array.isArray(c.images)) return [...new Set(c.images)].filter((n) => Number.isInteger(n) && n >= 0 && n < MAX_DESIGN_IMAGES).sort((a, b) => a - b);
+  return c.image ? [0] : [];
+}
+/** 이미지 주소: 시안 0번은 기본 주소, 1~4번은 ?k=d1.., 사이즈표는 ?k=size */
+export const roundImageUrl = (id: string, k: "size" | number) => `/api/gb-round-image/${id}${k === "size" ? "?k=size" : k > 0 ? `?k=d${k}` : ""}`;
 
 /** 컬러 조건 { 화이트: ["블랙"] } (예전 형식 { 화이트: "블랙" } 도 읽는다) */
 export function colorNeeds(c: Pick<CustomSpec, "needs">, color: string): string[] {
@@ -119,6 +130,7 @@ export type Round = {
   createdAt: number;
   closed: boolean;
   archived?: boolean; // 끝난 공구를 보관함으로 옮겼는가 (공구 오픈자가 정한다)
+  notify?: { reminders?: boolean }; // reminders: false 면 마감 임박·입금 확인·목표 달성 알림을 보내지 않는다 (없으면 보낸다)
 };
 
 export type StoredRound = Round & { adminKey: string; pwHash: string; openerNick?: string }; // openerNick: 공구를 연 허브 닉네임

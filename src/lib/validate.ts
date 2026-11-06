@@ -74,7 +74,10 @@ export function parseRoundInput(body: Record<string, unknown>) {
   }
   if (hasNeedCycle(items)) throw new BadInput("구매 조건이 서로 물려 있어요. 서로를 먼저 사야 하는 상품이 없게 해 주세요.");
 
-  return { title: makeTitle(opener, items), opener, bank, pickup, deadline: new Date(deadline).toISOString(), minQty, items, custom };
+  // 알림 설정: 끄면 { reminders: false }, 켜 두면(기본) 값을 저장하지 않는다
+  const nt = body.notify as { reminders?: unknown } | undefined;
+  const notify = nt && typeof nt === "object" && nt.reminders === false ? { reminders: false } : undefined;
+  return { title: makeTitle(opener, items), opener, bank, pickup, deadline: new Date(deadline).toISOString(), minQty, items, custom, notify };
 }
 
 export function parseOrderInput(body: Record<string, unknown>, items: Item[], needPassword = true) {

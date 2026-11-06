@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, copyText, store } from "@/lib/client";
-import { bibLabel, blockedIds, capOf, fmtDeadline, fmtPickup, itemLabel, minLabel, needText, nickKey, orderTotal, pruneBlocked, qtyOf, roundStatus, won, type Order, type PublicOrder, type PublicSummary, type Round } from "@/lib/types";
+import { bibLabel, blockedIds, capOf, designSlots, fmtDeadline, fmtPickup, itemLabel, minLabel, needText, nickKey, orderTotal, pruneBlocked, qtyOf, roundImageUrl, roundStatus, won, type Order, type PublicOrder, type PublicSummary, type Round } from "@/lib/types";
 import { Countdown, Progress, StatusChip, Stepper, useToast } from "@/components/ui";
 import { knownMemberLabel } from "@/lib/member-label";
+import ImageLightbox, { type LightboxImage } from "@/components/image-lightbox";
 
 type Unlocked = { order: Order; password: string };
 
@@ -29,6 +30,9 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [toast, showToast] = useToast();
   const [now, setNow] = useState(() => Date.now());
+  // 시안·사이즈표 이미지를 누르면 팝업으로 크게 본다
+  const [box, setBox] = useState<{ images: LightboxImage[]; i: number } | null>(null);
+  const designImages: LightboxImage[] = designSlots(round.custom).map((s, n, all) => ({ src: roundImageUrl(round.id, s), alt: all.length > 1 ? `시안 ${n + 1}` : "시안" }));
   const [payDep, setPayDep] = useState(""); // 입금완료를 표시할 때 적는 입금자명
 
   // 주문서 임시저장: 수량·입금자명·메모를 이 기기에 남겨 두었다가, 다시 열면 불러온다 (주문하면 지운다)
@@ -194,6 +198,8 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
         </div>
       </header>
 
+      {box && <ImageLightbox images={box.images} index={box.i} onIndex={(i) => setBox((b) => (b ? { ...b, i } : b))} onClose={() => setBox(null)} />}
+
       {myOrder && (
         <section className="panel p-4 grid gap-3 border-[var(--lane)]" aria-label="내 주문">
           <div className="flex flex-wrap items-center gap-2">
@@ -282,15 +288,23 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
               <b className="text-lg leading-snug">{round.custom.name}</b>
               <span className="num text-sm">{won(round.custom.price)}{round.custom.sizes.length > 0 && <span className="text-muted"> · 사이즈 {round.custom.sizes.join(" / ")}</span>}{round.custom.colors.length > 0 && <span className="text-muted"> · 컬러 {round.custom.colors.join(" / ")}</span>}</span>
               {round.custom.note && <span className="text-xs text-muted">참고: {round.custom.note}</span>}
-              {round.custom.image && <a href={`/api/gb-round-image/${round.id}`} target="_blank" rel="noopener noreferrer" className="justify-self-start mt-1">{/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/gb-round-image/${round.id}`} alt="시안 이미지" className="rounded-lg max-h-64 max-w-full object-contain border border-line" /></a>}
+              {designImages.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1" aria-label="시안 이미지">
+                  {designImages.map((im, i) => (
+                    <button key={im.src} type="button" className="rounded-lg overflow-hidden border border-line" aria-label={`${im.alt} 크게 보기`} onClick={() => setBox({ images: designImages, i })}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={im.src} alt={im.alt} loading="lazy" className="h-28 w-28 object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
               {round.custom.sizeImage && (
                 <details className="mt-1">
                   <summary className="cursor-pointer text-sm font-semibold">📏 사이즈표 보기</summary>
-                  <a href={`/api/gb-round-image/${round.id}?k=size`} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                  <button type="button" className="block mt-2 text-left" aria-label="사이즈표 크게 보기" onClick={() => setBox({ images: [{ src: roundImageUrl(round.id, "size"), alt: "사이즈표" }], i: 0 })}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/gb-round-image/${round.id}?k=size`} alt="사이즈표" loading="lazy" className="rounded-lg max-w-full object-contain border border-line" />
-                  </a>
+                    <img src={roundImageUrl(round.id, "size")} alt="사이즈표" loading="lazy" className="rounded-lg max-w-full object-contain border border-line" />
+                  </button>
                 </details>
               )}
               {round.custom.url && <a href={round.custom.url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--lane)] underline underline-offset-2 justify-self-start">시안·상품 보기 ↗</a>}

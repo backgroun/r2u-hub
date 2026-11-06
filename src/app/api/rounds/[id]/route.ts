@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { delRoundImage, deleteRound, getOrders, getRound, hashPassword, keyMatches, listOrder, publicRound, saveRound, summarize } from "@/lib/db";
+import { delAllDesignImages, delRoundImage, deleteRound, getOrders, getRound, hashPassword, keyMatches, listOrder, publicRound, saveRound, summarize } from "@/lib/db";
 import { BadInput, parseRoundInput } from "@/lib/validate";
+import { designSlots } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -21,13 +22,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!keyMatches(body.key, r.adminKey)) return NextResponse.json({ error: "운영자 링크가 아니에요." }, { status: 403 });
   try {
     if (typeof body.closed === "boolean") r.closed = body.closed;
+    // 배포 장소만 따로 추가·수정 (공구를 연 뒤에 정하는 경우)
+    if (body.pickup && typeof body.pickup === "object" && typeof (body.pickup as { place?: unknown }).place === "string") r.pickup = { place: ((body.pickup as { place: string }).place).trim().slice(0, 60) };
     if (typeof body.archived === "boolean") { if (body.archived) r.archived = true; else delete r.archived; } // 종료 공구 보관/해제
     if (body.round) {
-      const hadImage = !!r.custom?.image, hadSize = !!r.custom?.sizeImage; // 이미지 표시는 이미지 API 만 바꾼다 (화면에서 보낸 값은 믿지 않는다)
+      const hadSlots = designSlots(r.custom), hadSize = !!r.custom?.sizeImage; // 이미지 표시는 이미지 API 만 바꾼다 (화면에서 보낸 값은 믿지 않는다)
       Object.assign(r, parseRoundInput(body.round));
-      if (r.custom) { if (hadImage) r.custom.image = true; if (hadSize) r.custom.sizeImage = true; }
+      if (r.custom) { if (hadSlots.length) r.custom.images = hadSlots; if (hadSize) r.custom.sizeImage = true; }
       else { // 단체 제작이 아니게 바뀌면 이미지도 지운다
-        if (hadImage) await delRoundImage(id);
+        if (hadSlots.length) await delAllDesignImages(id);
         if (hadSize) await delRoundImage(id, "size");
       }
     }

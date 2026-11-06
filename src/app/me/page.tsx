@@ -209,7 +209,7 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
       {/* 공구 내역: 주문한 공구가 있을 때만 보인다 */}
       {myOrders.length > 0 && (
       <section className="grid gap-2">
-        <div className="sec-head"><h2 className="label">공구 내역</h2><Link href="/groupbuy">공구 보기 →</Link></div>
+        <div className="sec-head"><h2 className="label">공구 내역</h2><Link href="/me/orders">내 주문 이력 전체 →</Link></div>
         <div className="row-list">
           {myOrders.map(({ round, summary, o }) => {
             const open = roundStatus(round, summary.totalQty) === "open";

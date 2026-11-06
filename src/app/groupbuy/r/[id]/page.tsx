@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getOrders, getRound, listOrder, publicRound, summarize } from "@/lib/db";
-import { fmtDeadline, minLabel } from "@/lib/types";
+import { fmtDeadline, minLabel, nickKey } from "@/lib/types";
 import OrderView from "./order-view";
 import { currentUser, getMembers, isStaffNick } from "@/lib/hub";
 
@@ -26,5 +26,7 @@ export default async function RoundPage({ params }: Props) {
   // 로그인한 크루원 닉네임을 주문서에 미리 채운다 (관리용 ‘운영진’ 계정은 제외)
   const me = u && !isStaffNick(u.nick) ? u.nick : "";
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
-  return <OrderView round={publicRound(r)} initialSummary={summarize(r, orders)} initialOrders={orders.map(listOrder)} me={me} names={names} />;
+  // 내 주문: 로그인 닉네임으로 주문했거나(owner) 주문서 닉네임이 같은 것. 주문서에 다른 닉네임을 적은 경우도 owner 로 찾는다.
+  const mine = u && !isStaffNick(u.nick) ? orders.find((o) => o.owner === u.nick || nickKey(o.name) === nickKey(u.nick)) : undefined;
+  return <OrderView round={publicRound(r)} initialSummary={summarize(r, orders)} initialOrders={orders.map(listOrder)} me={me} myOrderId={mine?.id} names={names} />;
 }

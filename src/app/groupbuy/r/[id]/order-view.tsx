@@ -10,7 +10,7 @@ import { confirmWithPassword } from "@/components/confirm-password";
 
 type Unlocked = { order: Order; password: string };
 
-export default function OrderView({ round, initialSummary, initialOrders, me = "", names }: { round: Round; initialSummary: PublicSummary; initialOrders: PublicOrder[]; me?: string; names: Record<string, string> }) {
+export default function OrderView({ round, initialSummary, initialOrders, me = "", myOrderId, names }: { round: Round; initialSummary: PublicSummary; initialOrders: PublicOrder[]; me?: string; myOrderId?: string; names: Record<string, string> }) {
   const label = (nick: string) => knownMemberLabel(nick, names);
   const [summary, setSummary] = useState(initialSummary);
   const [orders, setOrders] = useState(initialOrders);
@@ -104,7 +104,7 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
   }
 
   const isMine = (o: PublicOrder) => !!me && nickKey(o.name) === nickKey(me);
-  const myOrder = orders.find(isMine);
+  const myOrder = (myOrderId ? orders.find((o) => o.id === myOrderId) : undefined) ?? orders.find(isMine);
   const myUnlocked = myOrder && unlocked?.order.id === myOrder.id ? unlocked : null;
   // 로그인한 본인 주문은 비밀번호 없이 자동으로 열어 둔다 (입금 안내·입금완료 표시를 바로 하도록)
   useEffect(() => { if (myOrder && !unlocked) void unlock(myOrder); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [myOrder?.id]);

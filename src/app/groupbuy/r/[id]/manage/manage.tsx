@@ -450,76 +450,91 @@ export default function Manage({ id, names }: { id: string; names: Record<string
         </ul>
       </section>
 
-      <section className="grid gap-2">
-        <details className="past grid gap-3">
-          <summary className="label flex items-center gap-1.5 py-1">
-            <span className="past-caret inline-block transition-transform">▸</span> 상품별 수량 (발주용)
-            <span className="normal-case font-normal text-muted"> · {orders.length}명 · {totalQty}개 · {won(grand)}</span>
-          </summary>
-        <div className="panel overflow-hidden">
-          <table className="w-full text-sm">
-            <tbody>
-              {round.items.map((it) => (
-                <tr key={it.id} className="border-b border-line last:border-0">
-                  <td className="p-3">
-                    {it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{itemLabel(it)}</a> : itemLabel(it)}
-                    {it.note && <span className="block text-xs text-muted">참고: {it.note}</span>}
-                  </td>
-                  <td className="p-3 text-right num text-xl font-bold whitespace-nowrap">{totals[it.id] ?? 0}<span className="text-sm text-muted">개</span></td>
-                  <td className="p-3 text-right num text-muted whitespace-nowrap">{won(it.price * (totals[it.id] ?? 0))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="flex justify-between gap-3 p-3 bg-paper text-sm">
-            <span>{orders.length}명 · <b className="num">{totalQty}개</b></span>
-            <span>총액 <b className="num">{won(grand)}</b></span>
+      {/* 1) 업체 발주: 상품별 수량 · 업체 전달용 발주서 · 파일 내보내기 */}
+      <section className="grid gap-2" aria-label="발주">
+        <h2 className="label">발주 · 내보내기 <span className="normal-case font-normal">(업체용)</span></h2>
+        <div className="panel p-3.5 grid gap-3">
+          <details className="past">
+            <summary className="flex items-center gap-1.5 text-sm font-semibold">
+              <span className="past-caret inline-block transition-transform">▸</span> 상품별 수량
+              <span className="font-normal text-muted"> · {orders.length}명 · {totalQty}개 · {won(grand)}</span>
+            </summary>
+            <div className="mt-2.5 rounded-lg border border-line overflow-hidden">
+              <table className="w-full text-sm">
+                <tbody>
+                  {round.items.map((it) => (
+                    <tr key={it.id} className="border-b border-line last:border-0">
+                      <td className="p-3">
+                        {it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{itemLabel(it)}</a> : itemLabel(it)}
+                        {it.note && <span className="block text-xs text-muted">참고: {it.note}</span>}
+                      </td>
+                      <td className="p-3 text-right num text-xl font-bold whitespace-nowrap">{totals[it.id] ?? 0}<span className="text-sm text-muted">개</span></td>
+                      <td className="p-3 text-right num text-muted whitespace-nowrap">{won(it.price * (totals[it.id] ?? 0))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex justify-between gap-3 p-3 bg-paper text-sm">
+                <span>{orders.length}명 · <b className="num">{totalQty}개</b></span>
+                <span>총액 <b className="num">{won(grand)}</b></span>
+              </div>
+            </div>
+          </details>
+          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(orderSheetText(round, orders), "업체용 발주서를 복사했어요. 업체에 붙여넣으세요")}>업체용 전달용 발주서 복사</button>
+          <div className="flex gap-2">
+            <select aria-label="내보낼 파일 종류" className="input min-w-0 flex-1 py-2 text-sm" value={exportKind} onChange={(e) => setExportKind(e.target.value as "sheet" | "orderers")}>
+              <option value="sheet">발주서 (CSV)</option>
+              <option value="orderers">주문자 명단 (CSV)</option>
+            </select>
+            <button className="btn btn-primary text-sm shrink-0" disabled={orders.length === 0} onClick={() => exportKind === "sheet"
+              ? downloadText(`${safeName(round.title)}_발주서.csv`, toCsv(orderSheetRows(round, orders)))
+              : downloadText(`${safeName(round.title)}_주문자명단.csv`, toCsv(ordererRows(round, orders)))}>내보내기</button>
           </div>
         </div>
-        </details>
-        <div className="grid grid-cols-2 gap-2">
-          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(report, "크루용 집계표(최종 주문 확인)를 복사했어요. 카톡방에 붙여넣으세요")}>크루용 집계표(카톡)</button>
-          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(orderSheetText(round, orders), "업체용 발주서를 복사했어요. 업체에 붙여넣으세요")}>업체용 전달용 발주서</button>
-        </div>
-        <div className="flex gap-2">
-          <select aria-label="내보낼 파일 종류" className="input min-w-0 flex-1 py-2 text-sm" value={exportKind} onChange={(e) => setExportKind(e.target.value as "sheet" | "orderers")}>
-            <option value="sheet">발주서 (CSV)</option>
-            <option value="orderers">주문자 명단 (CSV)</option>
-          </select>
-          <button className="btn btn-primary text-sm shrink-0" disabled={orders.length === 0} onClick={() => exportKind === "sheet"
-            ? downloadText(`${safeName(round.title)}_발주서.csv`, toCsv(orderSheetRows(round, orders)))
-            : downloadText(`${safeName(round.title)}_주문자명단.csv`, toCsv(ordererRows(round, orders)))}>내보내기</button>
-        </div>
       </section>
 
-      <section className="grid gap-2">
+      {/* 2) 공구 설정: 접수 상태·수정·복사·보관은 위, 삭제는 구분선 아래 */}
+      <section className="grid gap-2" aria-label="공구 설정">
         <h2 className="label">공구 설정</h2>
-        <div className="flex flex-wrap gap-2">
-          <button className="btn" onClick={() => setEditing(true)}>내용·마감 수정</button>
-          <button className="btn" onClick={copyRound}>복사해서 새 공구 열기</button>
-          {round.archived
-            ? <button className="btn" onClick={() => setArchived(false)}>보관함에서 꺼내기</button>
-            : ended && <button className="btn" onClick={() => setArchived(true)}>보관함으로 옮기기</button>}
-          {round.closed
-            ? <button className="btn" onClick={() => setClosed(false)}>접수 다시 열기</button>
-            : <button className="btn" onClick={() => setClosed(true)}>지금 접수 마감</button>}
-          {confirm === "delete-round" ? (
-            <span className="flex items-center gap-1">
-              <span className="text-sm">주문까지 모두 지워져요.</span>
-              <button className="btn btn-danger" onClick={deleteRound}>공구 삭제</button>
-              <button className="btn btn-ghost" onClick={() => setConfirm(null)}>아니요</button>
-            </span>
-          ) : (
-            <button className="btn btn-ghost btn-danger" onClick={() => setConfirm("delete-round")}>공구 삭제</button>
-          )}
+        <div className="panel p-3.5 grid gap-3">
+          <div className="grid grid-cols-2 gap-2">
+            <button className="btn text-sm" onClick={() => setEditing(true)}>내용·마감 수정</button>
+            <button className="btn text-sm" onClick={copyRound}>복사해서 새 공구 열기</button>
+            {round.closed
+              ? <button className="btn text-sm" onClick={() => setClosed(false)}>접수 다시 열기</button>
+              : <button className="btn text-sm" onClick={() => setClosed(true)}>지금 접수 마감</button>}
+            {round.archived
+              ? <button className="btn text-sm" onClick={() => setArchived(false)}>보관함에서 꺼내기</button>
+              : <button className="btn text-sm" disabled={!ended} title={ended ? undefined : "마감된 공구만 보관할 수 있어요"} onClick={() => setArchived(true)}>보관함으로 옮기기</button>}
+          </div>
+          <div className="border-t border-line pt-3 flex items-center justify-between gap-2">
+            {confirm === "delete-round" ? (
+              <>
+                <span className="text-sm">주문까지 모두 지워져요.</span>
+                <span className="flex gap-1">
+                  <button className="btn btn-danger text-sm" onClick={deleteRound}>공구 삭제</button>
+                  <button className="btn btn-ghost text-sm" onClick={() => setConfirm(null)}>아니요</button>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-muted">주문 내역까지 모두 삭제돼요</span>
+                <button className="btn btn-ghost btn-danger text-sm" onClick={() => setConfirm("delete-round")}>공구 삭제</button>
+              </>
+            )}
+          </div>
         </div>
       </section>
 
-      <section className="grid gap-2">
+      {/* 3) 카톡방에 공유: 공지·링크·크루용 집계표 */}
+      <section className="grid gap-2" aria-label="카톡방에 공유">
         <h2 className="label">카톡방에 공유</h2>
-        <div className="grid grid-cols-2 gap-2">
-          <button className="btn btn-primary" onClick={() => copy(announce, "공지 문구를 복사했어요. 카톡방에 붙여넣으세요")}>공지 문구 복사</button>
-          <button className="btn" onClick={() => copy(orderUrl, "주문 링크를 복사했어요")}>주문 링크만 복사</button>
+        <div className="panel p-3.5 grid gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button className="btn btn-primary text-sm" onClick={() => copy(announce, "공지 문구를 복사했어요. 카톡방에 붙여넣으세요")}>공지 문구 복사</button>
+            <button className="btn text-sm" onClick={() => copy(orderUrl, "주문 링크를 복사했어요")}>주문 링크만 복사</button>
+          </div>
+          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(report, "크루용 집계표(최종 주문 확인)를 복사했어요. 카톡방에 붙여넣으세요")}>크루용 집계표(카톡) 복사</button>
         </div>
       </section>
       {toast}

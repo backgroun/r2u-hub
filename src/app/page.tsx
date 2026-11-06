@@ -65,7 +65,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
   // 오늘 열리는 대회는 단사·뒷풀이가 없어도 모두 보여 준다 (출발 시각 순), 그 아래에 대회별 단사·뒷풀이
   const todayRaces = races.filter((r) => r.date === today).sort((x, y) => (x.time || "99:99").localeCompare(y.time || "99:99"));
   const plansOf = (r: (typeof races)[number]) => r.afters.filter((a) => a.kind === "photo" || (a.kind ?? "after") === "after").sort((x, y) => (x.time || "99:99").localeCompare(y.time || "99:99"));
-  const upcoming = races.filter((r) => r.date >= today).slice(0, 4);
+  // 오늘부터 15일 안에 열리는데 참가자가 한 명도 없는 대회는 '다가오는 대회'에서 뺀다 (/races 의 다가오는 대회와 같은 기준)
+  const soonEnd = new Date(Date.parse(`${today}T00:00:00Z`) + 15 * 86400000).toISOString().slice(0, 10);
+  const upcoming = races.filter((r) => r.date >= today && !(r.date <= soonEnd && r.participants.length === 0)).slice(0, 4);
   // 접수 마감 전인 대회: 접수중 먼저(마감 임박 순), 그다음 접수예정(시작 순)
   const now = kstNow();
   const regs = races

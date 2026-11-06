@@ -117,9 +117,11 @@
   .sheet {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; margin: 0 auto; max-width: 480px;
     background: #fff; border-radius: 20px 20px 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom) + 16px);
-    transform: translateY(105%); transition: transform .25s ease;
+    transform: translateY(105%); transition: transform .25s ease, visibility 0s linear .25s;
+    /* 닫혀 있을 때는 화면 밖으로 밀어낼 뿐 아니라 아예 숨긴다 (모바일 iframe 에서 빈 인증 시트가 하단에 비쳐 보이던 문제) */
+    visibility: hidden; pointer-events: none;
   }
-  .sheet.on { transform: translateY(0); }
+  .sheet.on { transform: translateY(0); visibility: visible; pointer-events: auto; transition: transform .25s ease, visibility 0s; }
   .sheet .top { display: flex; align-items: center; gap: 12px; }
   .sheet .big { font-size: 40px; }
   .sheet .num { font-size: 12px; font-weight: 800; color: var(--pink); }

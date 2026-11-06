@@ -28,6 +28,13 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null); // "delete-round" | order id
   const [toast, showToast] = useToast();
+  // 공구를 홈 공지로 올리기 (공지를 올릴 수 있는 운영진 계정에만 보인다)
+  const [noticeInfo, setNoticeInfo] = useState<{ canPost: boolean; posted: boolean } | null>(null);
+  const [noticePush, setNoticePush] = useState(false);
+  const [noticeBusy, setNoticeBusy] = useState(false);
+  useEffect(() => {
+    api<{ canPost: boolean; posted: boolean }>(`/api/rounds/${id}/notice`).then(setNoticeInfo).catch(() => setNoticeInfo(null));
+  }, [id]);
   const [pickupDraft, setPickupDraft] = useState<string | null>(null); // 배포 장소 입력 중인 값 (null = 편집 안 함)
   const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all");
   // 새 공구를 열 때 올리지 못한 이미지 (이 탭에 임시로 남겨 둔 것)
@@ -174,6 +181,22 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     else { sessionStorage.removeItem(pendingKey); setPending(null); showToast("이미지를 올렸어요"); }
   }
 
+  async function postAsNotice() {
+    setNoticeBusy(true);
+    try {
+      const d = await api<{ pushed: number | null }>(`/api/rounds/${id}/notice`, { method: "POST", json: { push: noticePush } });
+      setNoticeInfo({ canPost: true, posted: true });
+      showToast(d.pushed === null ? "홈 공지로 올렸어요" : `홈 공지로 올리고 알림을 보냈어요 (${d.pushed}명)`);
+    } catch (e) { showToast((e as Error).message); } finally { setNoticeBusy(false); }
+  }
+  async function takeDownNotice() {
+    setNoticeBusy(true);
+    try {
+      await api(`/api/rounds/${id}/notice`, { method: "DELETE" });
+      setNoticeInfo({ canPost: true, posted: false }); showToast("공지를 내렸어요");
+    } catch (e) { showToast((e as Error).message); } finally { setNoticeBusy(false); }
+  }
+
   // 배포 장소는 공구를 연 뒤에 언제든 추가·수정한다
   async function savePickup() {
     if (pickupDraft === null) return;
@@ -297,6 +320,25 @@ export default function Manage({ id, names }: { id: string; names: Record<string
           <button className="btn text-sm" onClick={() => copy(`📍 [${round.title}] 배포 장소 안내\n${fmtPickup(round.pickup)}\n\n👉 ${orderUrl}`, "배포 장소 안내 문구를 복사했어요. 카톡방에 붙여넣으세요")}>배포 장소 안내 문구 복사</button>
         )}
       </section>
+
+      {noticeInfo?.canPost && (
+        <section className="grid gap-2" aria-label="공지로 올리기">
+          <h2 className="label">공지로 올리기</h2>
+          <div className="panel p-3.5 grid gap-2.5">
+            <p className="text-sm text-muted">공구 요약과 ‘공구 보러 가기’ 버튼이 홈 공지로 올라가고, 마감일까지 보여요. 시안 이미지가 있으면 첫 장이 공지 사진이 돼요.</p>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" className="size-5 accent-[var(--bib)]" checked={noticePush} onChange={(e) => setNoticePush(e.target.checked)} />
+              푸시 알림도 함께 보내기 (푸시를 켠 크루 모두)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn btn-primary text-sm" disabled={noticeBusy || ended} onClick={postAsNotice}>{noticeInfo.posted ? "공지 다시 올리기" : "공지로 올리기"}</button>
+              {noticeInfo.posted && <button className="btn btn-ghost text-sm" disabled={noticeBusy} onClick={takeDownNotice}>공지 내리기</button>}
+            </div>
+            {ended && <p className="text-xs text-muted">마감된 공구는 새로 올릴 수 없어요.</p>}
+            {noticeInfo.posted && <p className="text-xs text-muted">✓ 홈 공지에 올라가 있어요. 다시 올리면 이전 공지는 내려가요.</p>}
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-2">
         <h2 className="label">카톡방에 공유</h2>

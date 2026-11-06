@@ -4,7 +4,7 @@ import webpush from "web-push";
 import { redis, newId } from "@/lib/hub";
 
 /* ---------- 공지사항 (운영진이 올리고 홈에 보인다) ---------- */
-export type Notice = { id: string; title: string; body: string; at: number; by: string; from?: string; to?: string; image?: boolean; forever?: boolean; editedAt?: number; icon?: string; guide?: boolean; auto?: "icon" }; // icon: 공지에 크게 보여 줄 앱 아이콘 시즌, guide: 홈 화면에 추가 방법 안내 이미지 // from·to: 노출 기간 YYYY-MM-DD(한국 날짜). to를 비우면 시작일부터 3일, forever면 계속
+export type Notice = { id: string; title: string; body: string; at: number; by: string; from?: string; to?: string; image?: boolean; forever?: boolean; editedAt?: number; icon?: string; guide?: boolean; auto?: "icon"; link?: string }; // link: 공지에서 바로 갈 앱 안 주소(공구 공지의 ‘공구 보러 가기’), icon: 공지에 크게 보여 줄 앱 아이콘 시즌, guide: 홈 화면에 추가 방법 안내 이미지 // from·to: 노출 기간 YYYY-MM-DD(한국 날짜). to를 비우면 시작일부터 3일, forever면 계속
 export const NOTICE_DEFAULT_DAYS = 3;
 const kstDate = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10);
 /** 노출 마지막 날(한국 날짜). 계속 노출이면 null */

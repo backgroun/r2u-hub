@@ -7,6 +7,7 @@ export default function NoticeMedia({ notice: n, className = "", open = false }:
   const wrap = (_href: string, img: React.ReactNode) => (open ? <Link href={`/notices?n=${n.id}#n-${n.id}`} className="block text-center">{img}<span className="text-xs text-muted block pt-1">🔍 눌러서 공지 페이지에서 크게 보기</span></Link> : img);
   return (
     <>
+      {n.link && n.link.startsWith("/") && <Link href={n.link} className="btn btn-primary text-sm justify-self-start inline-block">🛒 공구 보러 가기 →</Link>}
       {n.icon && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={`/icons/${n.icon}-512.png`} alt={`${n.title} 새 앱 아이콘`} width={open ? 56 : 96} height={open ? 56 : 96} className="rounded-2xl notice-icon" />

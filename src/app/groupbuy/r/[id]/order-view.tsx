@@ -293,13 +293,13 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
                   {designImages.map((im, i) => (
                     <button key={im.src} type="button" className="rounded-lg overflow-hidden border border-line" aria-label={`${im.alt} 크게 보기`} onClick={() => setBox({ images: designImages, i })}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={im.src} alt={im.alt} loading="lazy" className="h-28 w-28 object-cover" />
+                      <img src={im.src} alt={im.alt} loading="lazy" className="h-32 w-auto max-w-full object-contain bg-white" />
                     </button>
                   ))}
                 </div>
               )}
               {round.custom.sizeImage && (
-                <details className="mt-1">
+                <details className="mt-1" open={!!round.custom.sizeChartOpen}>
                   <summary className="cursor-pointer text-sm font-semibold">📏 사이즈표 보기</summary>
                   <button type="button" className="block mt-2 text-left" aria-label="사이즈표 크게 보기" onClick={() => setBox({ images: [{ src: roundImageUrl(round.id, "size"), alt: "사이즈표" }], i: 0 })}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}

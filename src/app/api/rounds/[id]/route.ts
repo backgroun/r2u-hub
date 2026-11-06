@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { delAllDesignImages, delRoundImage, deleteRound, getOrders, getRound, hashPassword, keyMatches, listOrder, publicRound, saveRound, summarize } from "@/lib/db";
-import { BadInput, parseRoundInput } from "@/lib/validate";
+import { BadInput, parsePickup, parseRoundInput } from "@/lib/validate";
 import { designSlots } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -23,7 +23,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   try {
     if (typeof body.closed === "boolean") r.closed = body.closed;
     // 배포 장소만 따로 추가·수정 (공구를 연 뒤에 정하는 경우)
-    if (body.pickup && typeof body.pickup === "object" && typeof (body.pickup as { place?: unknown }).place === "string") r.pickup = { place: ((body.pickup as { place: string }).place).trim().slice(0, 60) };
+    if (body.pickup && typeof body.pickup === "object") r.pickup = parsePickup(body.pickup);
     if (typeof body.archived === "boolean") { if (body.archived) r.archived = true; else delete r.archived; } // 종료 공구 보관/해제
     if (body.round) {
       const hadSlots = designSlots(r.custom), hadSize = !!r.custom?.sizeImage; // 이미지 표시는 이미지 API 만 바꾼다 (화면에서 보낸 값은 믿지 않는다)

@@ -8,7 +8,7 @@ export type Item = { id: string; name: string; price: number; url?: string; note
 export const CUSTOM_KINDS = ["의류", "모자", "양말", "기타"] as const;
 export type CustomKind = (typeof CUSTOM_KINDS)[number];
 /** image: 시안 이미지를 올려 둔 공구인가 (파일은 서버가 따로 보관하고, 이 값은 이미지 올리기·지우기 API 만 바꾼다) */
-export type CustomSpec = { kind: CustomKind; name: string; price: number; sizes: string[]; colors: string[]; url?: string; note?: string; image?: boolean; images?: number[]; sizeImage?: boolean; needs?: Record<string, string[]>; needsMode?: NeedsMode };
+export type CustomSpec = { kind: CustomKind; name: string; price: number; sizes: string[]; colors: string[]; url?: string; note?: string; image?: boolean; images?: number[]; sizeImage?: boolean; sizeChartOpen?: boolean; needs?: Record<string, string[]>; needsMode?: NeedsMode };
 /** 종류별로 처음 채워 주는 사이즈·컬러 (운영진이 자유롭게 바꾼다) */
 export const CUSTOM_PRESETS: Record<CustomKind, { sizes: string[]; colors: string[] }> = {
   의류: { sizes: ["S", "M", "L", "XL"], colors: ["블랙", "화이트"] },
@@ -30,6 +30,7 @@ export function buildCustomItems(c: CustomSpec): Item[] {
   return items;
 }
 
+/** sizeChartOpen: 주문 화면에서 사이즈표를 처음부터 펼쳐 둘지 (기본은 접힘) */
 /** 시안 이미지는 최대 5장 (칸 번호 0~4) */
 export const MAX_DESIGN_IMAGES = 5;
 /** 올려 둔 시안 이미지 칸 번호들. 예전 공구(image: true)는 0번 한 장으로 본다 */
@@ -113,7 +114,8 @@ export const itemLabel = (it: Pick<Item, "name" | "size" | "color">) => {
 };
 
 /** 배포 장소 */
-export type Pickup = { place: string };
+/** 배포 장소와 일자·시간 (일자·시간은 선택, 공구를 연 뒤에 정해도 된다). date: YYYY-MM-DD, time: HH:MM */
+export type Pickup = { place: string; date?: string; time?: string };
 
 export type Bank = { bank: string; account: string; holder: string };
 
@@ -189,7 +191,13 @@ export function fmtDeadline(iso: string) {
   });
 }
 
-export const fmtPickup = (p?: Pickup) => p?.place ?? "";
+const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
+/** 화면·공지에 쓰는 표기: ‘울산 OOO · 11/15(일) 14:00’ (정해진 것만 보여 준다) */
+export const fmtPickup = (p?: Pickup) => {
+  if (!p) return "";
+  const d = p.date && /^\d{4}-\d{2}-\d{2}$/.test(p.date) ? `${Number(p.date.slice(5, 7))}/${Number(p.date.slice(8))}(${WEEK[new Date(`${p.date}T00:00:00Z`).getUTCDay()]})` : "";
+  return [p.place, [d, p.time].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+};
 
 export const minLabel = (min: number) => (min > 0 ? `${min}개 이상 모이면 진행` : "수량 무관 진행");
 

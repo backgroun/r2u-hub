@@ -33,7 +33,7 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   useEffect(() => {
     api<{ canPost: boolean; posted: boolean; postedFinal: boolean }>(`/api/rounds/${id}/notice`).then(setNoticeInfo).catch(() => setNoticeInfo(null));
   }, [id]);
-  const [pickupDraft, setPickupDraft] = useState<string | null>(null); // 배포 장소 입력 중인 값 (null = 편집 안 함)
+  const [pickupDraft, setPickupDraft] = useState<{ place: string; date: string; time: string } | null>(null); // 배포 장소·일자 입력 중인 값 (null = 편집 안 함)
   const [exportKind, setExportKind] = useState<"sheet" | "orderers">("sheet"); // 내보내기 드롭다운: 발주서 / 주문자 명단
   const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all");
   // 새 공구를 열 때 올리지 못한 이미지 (이 탭에 임시로 남겨 둔 것)
@@ -135,10 +135,8 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     `👉 ${orderUrl}`,
   ].join("\n");
 
-  // 크루용 집계표(카톡): 명단별 입금·수령 현황만
-  const report = [
-    ...orders.map((o) => `${bibLabel(o.bib)} ${o.name}(${o.depositor}) ${won(orderTotal(round.items, o.lines))} 입금${o.paid ? "✅" : "⬜"} 수령${o.delivered ? "✅" : "⬜"}`),
-  ].join("\n");
+  // 크루용 집계표(카톡) = 최종 주문 확인 문구: 누가 무엇을 주문했는지 목록
+  const report = finalCheckText(round, orders, orderUrl);
 
   async function copy(text: string, done: string) {
     showToast((await copyText(text)) ? done : "복사하지 못했어요");
@@ -213,8 +211,8 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   async function savePickup() {
     if (pickupDraft === null) return;
     try {
-      const d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, pickup: { place: pickupDraft } } });
-      setRound(d.round); setPickupDraft(null); showToast(pickupDraft.trim() ? "배포 장소를 저장했어요" : "배포 장소를 지웠어요");
+      const d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, pickup: pickupDraft } });
+      setRound(d.round); setPickupDraft(null); showToast(pickupDraft.place.trim() || pickupDraft.date || pickupDraft.time ? "배포 장소·일자를 저장했어요" : "배포 정보를 지웠어요");
     } catch (e) { showToast((e as Error).message); }
   }
 
@@ -309,19 +307,23 @@ export default function Manage({ id, names }: { id: string; names: Record<string
       <div className="panel divide-y divide-[var(--line)]">
       <details className="past px-3.5 py-2.5">
         <summary className="label flex items-center gap-1.5">
-          <span className="past-caret inline-block transition-transform">▸</span> 배포 장소{fmtPickup(round.pickup) && <span className="normal-case font-normal text-muted"> · {fmtPickup(round.pickup)}</span>}
+          <span className="past-caret inline-block transition-transform">▸</span> 배포 장소·일자{fmtPickup(round.pickup) && <span className="normal-case font-normal text-muted"> · {fmtPickup(round.pickup)}</span>}
         </summary>
         <div className="grid gap-2 mt-2.5">
         {pickupDraft === null ? (
           <div className="flex items-center justify-between gap-3">
             {fmtPickup(round.pickup)
               ? <span className="font-semibold min-w-0 break-words">{fmtPickup(round.pickup)}</span>
-              : <span className="text-sm text-muted">아직 정하지 않았어요. 정해지면 여기서 추가해 주세요.</span>}
-            <button className="btn text-sm shrink-0" onClick={() => setPickupDraft(round.pickup?.place ?? "")}>{fmtPickup(round.pickup) ? "수정" : "＋ 배포 장소 추가"}</button>
+              : <span className="text-sm text-muted">아직 정하지 않았어요. 정해지면 장소·일자를 추가해 주세요.</span>}
+            <button className="btn text-sm shrink-0" onClick={() => setPickupDraft({ place: round.pickup?.place ?? "", date: round.pickup?.date ?? "", time: round.pickup?.time ?? "" })}>{fmtPickup(round.pickup) ? "수정" : "＋ 장소·일자 추가"}</button>
           </div>
         ) : (
           <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); void savePickup(); }}>
-            <input className="input" autoFocus maxLength={60} placeholder="예) 울산 OOO" value={pickupDraft} onChange={(e) => setPickupDraft(e.target.value)} />
+            <input className="input" autoFocus maxLength={60} placeholder="배포 장소 예) 울산 OOO" value={pickupDraft.place} onChange={(e) => setPickupDraft({ ...pickupDraft, place: e.target.value })} />
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <input type="date" aria-label="배포 일자" className="input min-w-0" value={pickupDraft.date} onChange={(e) => setPickupDraft({ ...pickupDraft, date: e.target.value })} />
+              <input type="time" aria-label="배포 시간 (선택)" className="input" value={pickupDraft.time} onChange={(e) => setPickupDraft({ ...pickupDraft, time: e.target.value })} />
+            </div>
             <div className="flex gap-2">
               <button className="btn btn-primary text-sm">저장</button>
               <button type="button" className="btn btn-ghost text-sm" onClick={() => setPickupDraft(null)}>취소</button>
@@ -345,18 +347,17 @@ export default function Manage({ id, names }: { id: string; names: Record<string
             <summary className="cursor-pointer text-sm font-semibold">내용 미리보기 ({orders.length}명)</summary>
             <pre className="mt-2 whitespace-pre-wrap text-xs leading-relaxed rounded-lg bg-paper p-3">{orders.length ? finalCheckText(round, orders) : "아직 주문이 없어요."}</pre>
           </details>
-          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(finalCheckText(round, orders, orderUrl), "최종 확인 문구를 복사했어요. 카톡방에 붙여넣으세요")}>최종 확인 문구 복사 (카톡용)</button>
           {noticeInfo?.canPost && (
             <>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" className="size-5 accent-[var(--bib)]" checked={finalPush} onChange={(e) => setFinalPush(e.target.checked)} />
-                주문하신 분께 푸시 알림도 보내기
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <button className="btn btn-primary text-sm" disabled={noticeBusy || orders.length === 0} onClick={postFinalNotice}>{noticeInfo.postedFinal ? "최종 확인 공지 다시 올리기" : "최종 확인 공지로 올리기"}</button>
-                {noticeInfo.postedFinal && <button className="btn btn-ghost text-sm" disabled={noticeBusy} onClick={takeDownFinalNotice}>공지 내리기</button>}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer" title="주문하신 분께만 알림을 보내요">
+                  <input type="checkbox" className="size-5 accent-[var(--bib)]" checked={finalPush} onChange={(e) => setFinalPush(e.target.checked)} />
+                  푸시 알림
+                </label>
+                <button className="btn btn-primary text-sm py-1.5" disabled={noticeBusy || orders.length === 0} onClick={postFinalNotice}>{noticeInfo.postedFinal ? "공지 다시 올리기" : "공지로 올리기"}</button>
+                {noticeInfo.postedFinal && <button className="btn btn-ghost text-sm py-1.5" disabled={noticeBusy} onClick={takeDownFinalNotice}>공지 내리기</button>}
               </div>
-              {noticeInfo.postedFinal && <p className="text-xs text-muted">✓ 홈 공지에 올라가 있어요(3일간 보여요). 주문이 바뀌었다면 다시 올려 주세요.</p>}
+              {noticeInfo.postedFinal && <p className="text-xs text-muted">✓ 홈 공지에 올라가 있어요(3일간). 주문이 바뀌면 다시 올려 주세요.</p>}
             </>
           )}
         </div>
@@ -369,17 +370,16 @@ export default function Manage({ id, names }: { id: string; names: Record<string
             <span className="past-caret inline-block transition-transform">▸</span> 공지로 올리기{noticeInfo.posted && <span className="normal-case font-normal text-muted"> · 올라가 있음</span>}
           </summary>
           <div className="grid gap-2.5 mt-2.5">
-            <p className="text-xs text-muted">공구 요약과 ‘공구 보러 가기’ 버튼이 홈 공지로 올라가고, 마감일까지 보여요. 시안 이미지가 있으면 첫 장이 공지 사진이 돼요.</p>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" className="size-5 accent-[var(--bib)]" checked={noticePush} onChange={(e) => setNoticePush(e.target.checked)} />
-              푸시 알림도 함께 보내기 (푸시를 켠 크루 모두)
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <button className="btn btn-primary text-sm" disabled={noticeBusy || ended} onClick={postAsNotice}>{noticeInfo.posted ? "공지 다시 올리기" : "공지로 올리기"}</button>
-              {noticeInfo.posted && <button className="btn btn-ghost text-sm" disabled={noticeBusy} onClick={takeDownNotice}>공지 내리기</button>}
+            <p className="text-xs text-muted">공구 요약과 ‘공구 보러 가기’ 버튼이 홈 공지로 올라가요. 다시 올리면 이전 공지는 내려가요.</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer" title="푸시를 켠 크루 모두에게 알림을 보내요">
+                <input type="checkbox" className="size-5 accent-[var(--bib)]" checked={noticePush} onChange={(e) => setNoticePush(e.target.checked)} />
+                푸시 알림
+              </label>
+              <button className="btn btn-primary text-sm py-1.5" disabled={noticeBusy || ended} onClick={postAsNotice}>{noticeInfo.posted ? "공지 다시 올리기" : "공지로 올리기"}</button>
+              {noticeInfo.posted && <button className="btn btn-ghost text-sm py-1.5" disabled={noticeBusy} onClick={takeDownNotice}>공지 내리기</button>}
             </div>
             {ended && <p className="text-xs text-muted">마감된 공구는 새로 올릴 수 없어요.</p>}
-            {noticeInfo.posted && <p className="text-xs text-muted">✓ 홈 공지에 올라가 있어요. 다시 올리면 이전 공지는 내려가요.</p>}
           </div>
         </details>
       )}
@@ -396,9 +396,12 @@ export default function Manage({ id, names }: { id: string; names: Record<string
                 <span className="num"><b className="text-xl">{won(paidAmount)}</b> <span className="text-sm text-muted">/ {won(grand)}</span></span>
               </div>
               <div className={`track ${paidAmount >= grand && grand > 0 ? "done" : ""}`} aria-hidden style={{ height: 6 }}><span style={{ width: `${grand ? Math.min(100, (paidAmount / grand) * 100) : 0}%` }} /></div>
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="입금 상태 필터">
-                {([["all", `전체 ${orders.length}`], ["unpaid", `입금 전 ${unpaidOrders.length}`], ["paid", `입금완료 ${paidOrders.length}`]] as const).map(([k, t]) => (
-                  <button key={k} type="button" className={`chip ${payFilter === k ? "chip-confirmed" : ""}`} aria-pressed={payFilter === k} onClick={() => setPayFilter(k)}>{t}</button>
+              {/* 필터는 신청자 카드·상태 칩과 모양이 달라 보이도록 탭(분할 버튼) 형태로 */}
+              <div className="grid grid-cols-3 gap-1 rounded-xl bg-[var(--paper)] p-1" role="tablist" aria-label="입금 상태 필터">
+                {([["all", "전체", orders.length], ["unpaid", "입금 전", unpaidOrders.length], ["paid", "입금완료", paidOrders.length]] as const).map(([k, t, n]) => (
+                  <button key={k} type="button" role="tab" aria-selected={payFilter === k}
+                    className={`rounded-lg py-1.5 text-sm font-semibold transition-colors ${payFilter === k ? "bg-[var(--ink)] text-[var(--card)]" : "text-muted"}`}
+                    onClick={() => setPayFilter(k)}>{t} <span className="num">{n}</span></button>
                 ))}
               </div>
               <button className="btn text-sm" disabled={!reminder} onClick={() => copy(reminder, "독촉 문구를 복사했어요. 카톡방에 붙여넣으세요")}>
@@ -448,7 +451,11 @@ export default function Manage({ id, names }: { id: string; names: Record<string
       </section>
 
       <section className="grid gap-2">
-        <h2 className="label">상품별 수량 (발주용)</h2>
+        <details className="past grid gap-3">
+          <summary className="label flex items-center gap-1.5 py-1">
+            <span className="past-caret inline-block transition-transform">▸</span> 상품별 수량 (발주용)
+            <span className="normal-case font-normal text-muted"> · {orders.length}명 · {totalQty}개 · {won(grand)}</span>
+          </summary>
         <div className="panel overflow-hidden">
           <table className="w-full text-sm">
             <tbody>
@@ -469,8 +476,9 @@ export default function Manage({ id, names }: { id: string; names: Record<string
             <span>총액 <b className="num">{won(grand)}</b></span>
           </div>
         </div>
+        </details>
         <div className="grid grid-cols-2 gap-2">
-          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(report, "크루용 집계표를 복사했어요")}>크루용 집계표(카톡)</button>
+          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(report, "크루용 집계표(최종 주문 확인)를 복사했어요. 카톡방에 붙여넣으세요")}>크루용 집계표(카톡)</button>
           <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(orderSheetText(round, orders), "업체용 발주서를 복사했어요. 업체에 붙여넣으세요")}>업체용 전달용 발주서</button>
         </div>
         <div className="flex gap-2">

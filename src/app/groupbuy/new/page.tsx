@@ -11,7 +11,7 @@ export default async function NewRound({ searchParams }: { searchParams: Promise
   const src = copy && /^[A-Za-z0-9_-]{6,30}$/.test(copy) ? await getRound(copy) : null;
   const copyOf = src ? (() => {
     const r = publicRound(src);
-    return { id: r.id, round: { bank: r.bank, pickup: r.pickup, minQty: r.minQty, items: r.items, custom: r.custom } };
+    return { id: r.id, round: { bank: r.bank, pickup: { place: r.pickup?.place ?? "" }, minQty: r.minQty, items: r.items, custom: r.custom } };
   })() : undefined;
   // 공구 오픈자 칸에 로그인한 닉네임을 미리 채운다 (관리용 ‘운영진’ 계정은 제외)
   return <NewRoundForm me={u && !isStaffNick(u.nick) ? u.nick : ""} copyOf={copyOf} />;

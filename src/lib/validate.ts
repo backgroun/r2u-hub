@@ -34,15 +34,25 @@ function parseCustom(v: unknown): CustomSpec | undefined {
     const arr = [...new Set((Array.isArray(v) ? v : [v]).filter((x): x is string => typeof x === "string"))].filter((x) => x !== k && colors.includes(x));
     if (colors.includes(k) && arr.length) needs[k] = arr;
   }
-  return { kind, name, price: Math.max(0, Math.floor(Number(c.price) || 0)), sizes, colors, url: safeUrl(str(c.url, 500)), note: str(c.note, 200) || undefined, ...(Object.keys(needs).length ? { needs, ...(c.needsMode === "cap" ? { needsMode: "cap" as const } : {}) } : {}) };
+  return { kind, name, price: Math.max(0, Math.floor(Number(c.price) || 0)), sizes, colors, url: safeUrl(str(c.url, 500)), note: str(c.note, 200) || undefined, ...(c.sizeChartOpen === true ? { sizeChartOpen: true } : {}), ...(Object.keys(needs).length ? { needs, ...(c.needsMode === "cap" ? { needsMode: "cap" as const } : {}) } : {}) };
+}
+
+/** 배포 장소·일자·시간: 형식이 맞는 것만 남긴다 */
+export function parsePickup(v: unknown) {
+  const pk = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const date = str(pk.date, 10), time = str(pk.time, 5);
+  return {
+    place: str(pk.place, 60),
+    ...(/^\d{4}-\d{2}-\d{2}$/.test(date) ? { date } : {}),
+    ...(/^\d{2}:\d{2}$/.test(time) ? { time } : {}),
+  };
 }
 
 export function parseRoundInput(body: Record<string, unknown>) {
   const opener = str(body.opener, 30);
   const b = (body.bank ?? {}) as Record<string, unknown>;
   const bank = { bank: str(b.bank, 20), account: str(b.account, 40), holder: str(b.holder, 20) };
-  const pk = (body.pickup ?? {}) as Record<string, unknown>;
-  const pickup = { place: str(pk.place, 60) };
+  const pickup = parsePickup(body.pickup);
   const deadline = str(body.deadline, 40);
   const minQty = Math.floor(Number(body.minQty));
   const custom = parseCustom(body.custom);

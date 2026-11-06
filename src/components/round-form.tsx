@@ -442,7 +442,7 @@ export default function RoundForm({
                     {designItems.map((it, i) => (
                       <li key={`${it.slot ?? "new"}-${i}`} className="relative">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={designSrc(it)} alt={`시안 ${i + 1}`} className="h-24 w-24 rounded-lg object-cover border border-line" />
+                        <img src={designSrc(it)} alt={`시안 ${i + 1}`} className="h-24 w-auto max-w-full rounded-lg object-contain bg-white border border-line" />
                         <button type="button" aria-label={`시안 ${i + 1} 빼기`} className="absolute -top-2 -right-2 size-7 rounded-full bg-[var(--ink)] text-white text-sm leading-none" onClick={() => setDesignItems((xs) => xs.filter((_, j) => j !== i))}>✕</button>
                         {i === 0 && <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 text-[10px] text-white">대표</span>}
                       </li>
@@ -478,7 +478,11 @@ export default function RoundForm({
                   </label>
                   <button type="button" className="btn btn-ghost text-sm" onClick={() => { setSizeImg(null); setSizeRemoved(true); setSizeOpen(false); }}>사이즈표 빼기</button>
                 </div>
-                <span className="text-xs text-muted">주문 화면에서 ‘사이즈표 보기’로 펼쳐 볼 수 있어요. 큰 사진은 자동으로 줄여서 올려요.</span>
+                <div className="seg" role="group" aria-label="주문 화면에서 사이즈표 기본 상태">
+                  <button type="button" className={`btn text-sm ${!custom?.sizeChartOpen ? "btn-primary" : ""}`} onClick={() => setCustom((c) => (c ? { ...c, sizeChartOpen: undefined } : c))}>기본 접어 두기</button>
+                  <button type="button" className={`btn text-sm ${custom?.sizeChartOpen ? "btn-primary" : ""}`} onClick={() => setCustom((c) => (c ? { ...c, sizeChartOpen: true } : c))}>기본 펼쳐 두기</button>
+                </div>
+                <span className="text-xs text-muted">주문 화면에서 사이즈표를 처음부터 {custom?.sizeChartOpen ? "펼쳐서" : "접어서"} 보여 줘요. 주문하는 사람이 눌러서 바꿀 수 있어요. 큰 사진은 자동으로 줄여서 올려요.</span>
               </div>
             </div>
           )}

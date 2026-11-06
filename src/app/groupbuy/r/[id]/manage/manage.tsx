@@ -306,20 +306,21 @@ export default function Manage({ id, names }: { id: string; names: Record<string
         <div className="panel p-4"><Progress count={totalQty} min={round.minQty} /></div>
       </header>
 
-      <details className="past grid gap-3">
-        <summary className="label flex items-center gap-1.5 py-1">
+      <div className="panel divide-y divide-[var(--line)]">
+      <details className="past px-3.5 py-2.5">
+        <summary className="label flex items-center gap-1.5">
           <span className="past-caret inline-block transition-transform">▸</span> 배포 장소{fmtPickup(round.pickup) && <span className="normal-case font-normal text-muted"> · {fmtPickup(round.pickup)}</span>}
         </summary>
-        <div className="grid gap-2">
+        <div className="grid gap-2 mt-2.5">
         {pickupDraft === null ? (
-          <div className="panel p-3.5 flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             {fmtPickup(round.pickup)
               ? <span className="font-semibold min-w-0 break-words">{fmtPickup(round.pickup)}</span>
               : <span className="text-sm text-muted">아직 정하지 않았어요. 정해지면 여기서 추가해 주세요.</span>}
             <button className="btn text-sm shrink-0" onClick={() => setPickupDraft(round.pickup?.place ?? "")}>{fmtPickup(round.pickup) ? "수정" : "＋ 배포 장소 추가"}</button>
           </div>
         ) : (
-          <form className="panel p-3 grid gap-2" onSubmit={(e) => { e.preventDefault(); void savePickup(); }}>
+          <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); void savePickup(); }}>
             <input className="input" autoFocus maxLength={60} placeholder="예) 울산 OOO" value={pickupDraft} onChange={(e) => setPickupDraft(e.target.value)} />
             <div className="flex gap-2">
               <button className="btn btn-primary text-sm">저장</button>
@@ -333,13 +334,13 @@ export default function Manage({ id, names }: { id: string; names: Record<string
         </div>
       </details>
 
-      <details className="past grid gap-3">
-        <summary className="label flex items-center gap-1.5 py-1">
+      <details className="past px-3.5 py-2.5">
+        <summary className="label flex items-center gap-1.5">
           <span className="past-caret inline-block transition-transform">▸</span> 최종 주문 확인 <span className="normal-case font-normal">(업체 발주와 별개)</span>
         </summary>
         <div className="grid gap-2">
-        <div className="panel p-3.5 grid gap-2.5">
-          <p className="text-sm text-muted">누가 무엇을 주문했는지 목록으로 올려서, 주문하신 분들이 내용을 최종 확인하게 해요. 입금자명은 들어가지 않아요.</p>
+        <div className="grid gap-2.5 mt-2.5">
+          <p className="text-xs text-muted">누가 무엇을 주문했는지 목록으로 올려서, 주문하신 분들이 내용을 최종 확인하게 해요. 입금자명은 들어가지 않아요.</p>
           <details>
             <summary className="cursor-pointer text-sm font-semibold">내용 미리보기 ({orders.length}명)</summary>
             <pre className="mt-2 whitespace-pre-wrap text-xs leading-relaxed rounded-lg bg-paper p-3">{orders.length ? finalCheckText(round, orders) : "아직 주문이 없어요."}</pre>
@@ -363,12 +364,12 @@ export default function Manage({ id, names }: { id: string; names: Record<string
       </details>
 
       {noticeInfo?.canPost && (
-        <details className="past grid gap-3">
-          <summary className="label flex items-center gap-1.5 py-1">
+        <details className="past px-3.5 py-2.5">
+          <summary className="label flex items-center gap-1.5">
             <span className="past-caret inline-block transition-transform">▸</span> 공지로 올리기{noticeInfo.posted && <span className="normal-case font-normal text-muted"> · 올라가 있음</span>}
           </summary>
-          <div className="panel p-3.5 grid gap-2.5">
-            <p className="text-sm text-muted">공구 요약과 ‘공구 보러 가기’ 버튼이 홈 공지로 올라가고, 마감일까지 보여요. 시안 이미지가 있으면 첫 장이 공지 사진이 돼요.</p>
+          <div className="grid gap-2.5 mt-2.5">
+            <p className="text-xs text-muted">공구 요약과 ‘공구 보러 가기’ 버튼이 홈 공지로 올라가고, 마감일까지 보여요. 시안 이미지가 있으면 첫 장이 공지 사진이 돼요.</p>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="checkbox" className="size-5 accent-[var(--bib)]" checked={noticePush} onChange={(e) => setNoticePush(e.target.checked)} />
               푸시 알림도 함께 보내기 (푸시를 켠 크루 모두)
@@ -382,6 +383,7 @@ export default function Manage({ id, names }: { id: string; names: Record<string
           </div>
         </details>
       )}
+      </div>
 
       <section className="grid gap-2">
         <div className="grid gap-2">
@@ -467,8 +469,10 @@ export default function Manage({ id, names }: { id: string; names: Record<string
             <span>총액 <b className="num">{won(grand)}</b></span>
           </div>
         </div>
-        <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(report, "크루용 집계표를 복사했어요")}>크루용 집계표(카톡)</button>
-        <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(orderSheetText(round, orders), "업체용 발주서를 복사했어요. 업체에 붙여넣으세요")}>업체용 전달용 발주서</button>
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(report, "크루용 집계표를 복사했어요")}>크루용 집계표(카톡)</button>
+          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(orderSheetText(round, orders), "업체용 발주서를 복사했어요. 업체에 붙여넣으세요")}>업체용 전달용 발주서</button>
+        </div>
         <div className="flex gap-2">
           <select aria-label="내보낼 파일 종류" className="input min-w-0 flex-1 py-2 text-sm" value={exportKind} onChange={(e) => setExportKind(e.target.value as "sheet" | "orderers")}>
             <option value="sheet">발주서 (CSV)</option>

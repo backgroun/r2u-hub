@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getOrders, getRound, hashPassword, newId, nextBib, publicOrder, saveOrder } from "@/lib/db";
 import { nickKey, roundStatus } from "@/lib/types";
 import { BadInput, parseOrderInput } from "@/lib/validate";
 import { currentUser, isStaffNick } from "@/lib/hub";
 import { pts, setPoints } from "@/lib/points";
+import { notifyGoalReached } from "@/lib/gb-notify";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +21,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const order = { ...input, id: newId(), bib: await nextBib(id), paid: false, delivered: false, pwHash: password ? hashPassword(password) : undefined, owner: u && !isStaffNick(u.nick) ? u.nick : undefined, createdAt: now, updatedAt: now };
     await saveOrder(id, order);
     await setPoints(order.owner, `gb:${id}`, (await pts()).gb, "공구 주문");
+    after(() => notifyGoalReached(id).catch(() => {})); // 최소 수량이 처음 채워지면 알림 (응답을 늦추지 않는다)
     return NextResponse.json({ order: publicOrder(order) });
   } catch (e) {
     if (e instanceof BadInput) return NextResponse.json({ error: e.message }, { status: 400 });

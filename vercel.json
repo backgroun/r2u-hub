@@ -1,4 +1,7 @@
 {
   "regions": ["icn1"],
-  "crons": [{ "path": "/api/cron/icon-notice", "schedule": "5 15 * * *" }]
+  "crons": [
+    { "path": "/api/cron/icon-notice", "schedule": "5 15 * * *" },
+    { "path": "/api/cron/gb-notify", "schedule": "0 0 * * *" }
+  ]
 }

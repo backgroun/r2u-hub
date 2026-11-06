@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { checkPassword, deleteOrder, getOrder, getOrders, getRound, keyMatches, listOrder, loginBlocked, publicOrder, recordLoginFail, saveOrder } from "@/lib/db";
 import { nickKey, roundStatus, type StoredOrder, type StoredRound } from "@/lib/types";
 import { BadInput, parseOrderInput } from "@/lib/validate";
 import { currentUser } from "@/lib/hub";
 import { setPoints } from "@/lib/points";
+import { notifyGoalReached } from "@/lib/gb-notify";
 
 type Ctx = { params: Promise<{ id: string; orderId: string }> };
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
@@ -48,7 +49,13 @@ export async function PUT(req: Request, ctx: Ctx) {
   const a = await authorize(req, ctx);
   if (a.res) return a.res;
   const { id, o, body } = a;
-  if (typeof body.paid === "boolean") o.paid = body.paid;
+  // 입금완료를 표시할 때 통장에 찍힌 입금자명을 함께 적을 수 있다
+  if (typeof body.depositor === "string" && body.depositor.trim()) o.depositor = body.depositor.trim().slice(0, 30);
+  if (typeof body.paid === "boolean") {
+    if (body.paid && !o.paid) o.paidAt = Date.now();
+    if (!body.paid) delete o.paidAt;
+    o.paid = body.paid;
+  }
   if (typeof body.delivered === "boolean") o.delivered = body.delivered;
   await save(id, o);
   return NextResponse.json({ order: listOrder(o) });
@@ -71,6 +78,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     throw e;
   }
   await save(id, o);
+  after(() => notifyGoalReached(id).catch(() => {}));
   return NextResponse.json({ order: publicOrder(o) });
 }
 

@@ -4,7 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, copyText, MY_ROUNDS, store, type MyRound } from "@/lib/client";
 import { bibLabel, fmtDeadline, fmtPickup, itemLabel, minLabel, orderTotal, qtyOf, roundStatus, won, type Order, type Round } from "@/lib/types";
-import RoundForm from "@/components/round-form";
+import RoundForm, { type DesignImage } from "@/components/round-form";
+import { downloadText, ordererRows, orderSheetRows, orderSheetText, paidTimeLabel, safeName, toCsv, unpaidReminder } from "@/lib/gb-export";
 import { Countdown, PayBadges, Progress, StatusChip, useToast } from "@/components/ui";
 import { knownMemberLabel } from "@/lib/member-label";
 import { normalizePassword } from "@/components/password-input";
@@ -27,6 +28,13 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null); // "delete-round" | order id
   const [toast, showToast] = useToast();
+  const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all");
+  // 새 공구를 열 때 올리지 못한 이미지 (이 탭에 임시로 남겨 둔 것)
+  const pendingKey = `crew-gb:pending-img:${id}`;
+  const [pending, setPending] = useState<{ design?: DesignImage; size?: DesignImage } | null>(null);
+  useEffect(() => {
+    try { const v = sessionStorage.getItem(pendingKey); if (v) setPending(JSON.parse(v)); } catch { /* 저장소를 못 읽으면 안내만 건너뛴다 */ }
+  }, [pendingKey]);
 
   // 이 기기에 저장된 관리 키 (예전 ?key= 링크도 지원)
   useEffect(() => {
@@ -101,6 +109,12 @@ export default function Manage({ id, names }: { id: string; names: Record<string
   const grand = orders.reduce((s, o) => s + orderTotal(round.items, o.lines), 0);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const orderUrl = `${origin}/groupbuy/r/${round.id}`;
+  const paidOrders = orders.filter((o) => o.paid);
+  const unpaidOrders = orders.filter((o) => !o.paid);
+  const paidAmount = paidOrders.reduce((s, o) => s + orderTotal(round.items, o.lines), 0);
+  const shown = payFilter === "unpaid" ? unpaidOrders : payFilter === "paid" ? paidOrders : orders;
+  const ended = round.closed || Date.now() >= new Date(round.deadline).getTime();
+  const reminder = unpaidReminder(round, orders, orderUrl);
 
   const announce = [
     `🏃 [공구] ${round.title}`,
@@ -141,6 +155,33 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     } catch (e) { showToast((e as Error).message); }
   }
 
+  // 올리지 못했던 시안·사이즈표 이미지를 다시 올린다
+  async function retryImages() {
+    if (!pending || !key) return;
+    const left: typeof pending = {};
+    let last: Round | null = null;
+    for (const kind of ["design", "size"] as const) {
+      const img = pending[kind];
+      if (!img) continue;
+      try { last = (await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "PUT", json: { key, kind, ...img } })).round; }
+      catch { left[kind] = img; }
+    }
+    if (last) setRound(last);
+    if (left.design || left.size) { sessionStorage.setItem(pendingKey, JSON.stringify(left)); setPending(left); showToast("아직 올리지 못한 이미지가 있어요. 잠시 뒤 다시 눌러 주세요"); }
+    else { sessionStorage.removeItem(pendingKey); setPending(null); showToast("이미지를 올렸어요"); }
+  }
+
+  // 이 공구를 복사해서 새 공구 열기 (계좌·상품·옵션·이미지를 그대로 가져온다)
+  const copyRound = () => router.push(`/groupbuy/new?copy=${id}`);
+
+  // 끝난 공구는 보관함으로 옮겨 목록을 깔끔하게
+  async function setArchived(archived: boolean) {
+    try {
+      const d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, archived } });
+      setRound(d.round); showToast(archived ? "보관함으로 옮겼어요" : "보관함에서 꺼냈어요");
+    } catch (e) { showToast((e as Error).message); }
+  }
+
   async function removeOrder(o: Order) {
     await api(`/api/rounds/${id}/orders/${o.id}?adminKey=${encodeURIComponent(key ?? "")}`, { method: "DELETE" });
     setConfirm(null); showToast(`${o.name} 주문을 삭제했어요`); load();
@@ -169,8 +210,14 @@ export default function Manage({ id, names }: { id: string; names: Record<string
     <main className="wrap grid gap-5">
       <button className="text-sm text-muted justify-self-start" onClick={() => setEditing(false)}>← 관리로 돌아가기</button>
       <h1 className="hub-h1">공구 내용 수정</h1>
-      <RoundForm initial={round} submitLabel="수정 저장" onSubmit={async (draft) => {
-        const d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, round: draft } });
+      <RoundForm initial={round} roundId={id} draftKey={`crew-gb:draft:edit:${id}`} submitLabel="수정 저장" onSubmit={async (draft, _pw, extra) => {
+        let d = await api<{ round: Round }>(`/api/rounds/${id}`, { method: "PATCH", json: { key, round: draft } });
+        // 시안 이미지: 새로 올렸으면 저장, 빼거나 URL 방식으로 바꿨으면 삭제 (그대로면 건드리지 않는다)
+        // 사이즈표도 같은 방식 (kind: size)
+        for (const [kind, img, has] of [["design", extra.designImage, d.round.custom?.image], ["size", extra.sizeImage, d.round.custom?.sizeImage]] as const) {
+          if (img && img !== "keep") d = await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "PUT", json: { key, kind, ...img } });
+          else if (img === null && has) d = await api<{ round: Round }>(`/api/rounds/${id}/image`, { method: "DELETE", json: { key, kind } });
+        }
         setRound(d.round); setEditing(false); showToast("저장했어요");
       }} />
     </main>
@@ -189,9 +236,21 @@ export default function Manage({ id, names }: { id: string; names: Record<string
         </div>
       )}
 
+      {pending && (pending.design || pending.size) && (
+        <div className="panel p-4 grid gap-2 border-[var(--bad)]" role="alert">
+          <p className="font-bold">{[pending.design && "시안 이미지", pending.size && "사이즈표"].filter(Boolean).join("·")}를 올리지 못했어요</p>
+          <p className="text-sm text-muted">공구는 정상으로 열렸어요. 다시 올려 볼까요? 계속 안 되면 ‘내용·마감 수정’에서 이미지를 직접 올려 주세요.</p>
+          <div className="flex gap-2">
+            <button className="btn btn-primary text-sm" onClick={retryImages}>다시 올리기</button>
+            <button className="btn btn-ghost text-sm" onClick={() => { sessionStorage.removeItem(pendingKey); setPending(null); }}>닫기</button>
+          </div>
+        </div>
+      )}
+
       <header className="grid gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="label">공구 관리</span>
+          {round.archived && <span className="chip">보관됨</span>}
           <StatusChip status={status} />
           {status === "open" && <Countdown deadline={round.deadline} />}
         </div>
@@ -234,22 +293,45 @@ export default function Manage({ id, names }: { id: string; names: Record<string
           </div>
         </div>
         <button className="btn text-sm" onClick={() => copy(report, "집계표를 복사했어요")}>집계표 복사 (카톡용)</button>
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => downloadText(`${safeName(round.title)}_발주서.csv`, toCsv(orderSheetRows(round, orders)))}>발주서 내보내기 (CSV)</button>
+          <button className="btn text-sm" disabled={orders.length === 0} onClick={() => downloadText(`${safeName(round.title)}_주문자명단.csv`, toCsv(ordererRows(round, orders)))}>주문자 명단 (CSV)</button>
+        </div>
+        <button className="btn text-sm" disabled={orders.length === 0} onClick={() => copy(orderSheetText(round, orders), "발주 문구를 복사했어요. 업체에 붙여넣으세요")}>발주 문구 복사 (업체 전달용)</button>
       </section>
 
       <section className="grid gap-2">
         <div className="grid gap-2">
-          <h2 className="label">주문자 {orders.length}명 · 입금·수령은 신청자가 직접 표시해요</h2>
-          <PayBadges total={orders.length} paid={orders.filter((o) => o.paid).length} delivered={orders.filter((o) => o.delivered).length} />
+          <h2 className="label">입금 확인 현황 · 주문자 {orders.length}명 <span className="normal-case font-normal">(입금·수령은 신청자가 직접 표시해요)</span></h2>
+          <PayBadges total={orders.length} paid={paidOrders.length} delivered={orders.filter((o) => o.delivered).length} />
+          {orders.length > 0 && (
+            <div className="panel p-3.5 grid gap-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm text-muted">입금 표시된 금액</span>
+                <span className="num"><b className="text-xl">{won(paidAmount)}</b> <span className="text-sm text-muted">/ {won(grand)}</span></span>
+              </div>
+              <div className={`track ${paidAmount >= grand && grand > 0 ? "done" : ""}`} aria-hidden style={{ height: 6 }}><span style={{ width: `${grand ? Math.min(100, (paidAmount / grand) * 100) : 0}%` }} /></div>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="입금 상태 필터">
+                {([["all", `전체 ${orders.length}`], ["unpaid", `입금 전 ${unpaidOrders.length}`], ["paid", `입금완료 ${paidOrders.length}`]] as const).map(([k, t]) => (
+                  <button key={k} type="button" className={`chip ${payFilter === k ? "chip-confirmed" : ""}`} aria-pressed={payFilter === k} onClick={() => setPayFilter(k)}>{t}</button>
+                ))}
+              </div>
+              <button className="btn text-sm" disabled={!reminder} onClick={() => copy(reminder, "독촉 문구를 복사했어요. 카톡방에 붙여넣으세요")}>
+                {reminder ? `입금 독촉 문구 복사 (입금 전 ${unpaidOrders.length}명)` : "모두 입금 표시를 했어요 🎉"}
+              </button>
+            </div>
+          )}
         </div>
         {orders.length === 0 && <p className="panel p-4 text-sm text-muted">아직 주문이 없어요. 공지 문구를 카톡방에 올려 보세요.</p>}
+        {orders.length > 0 && shown.length === 0 && <p className="panel p-4 text-sm text-muted">해당하는 주문이 없어요.</p>}
         <ul className="grid gap-2">
-          {orders.map((o) => (
+          {shown.map((o) => (
             <li key={o.id} className="panel p-3.5 grid gap-2">
               <div className="flex items-center gap-3">
                 <span className="bib">{bibLabel(o.bib)}</span>
                 <span className="min-w-0 flex-1 grid leading-tight">
                   <span className="font-bold truncate">{label(o.name)}</span>
-                  <span className="text-xs text-muted truncate">입금자명 {o.depositor}</span>
+                  <span className="text-xs text-muted truncate">입금자명 {o.depositor}{o.paid && o.paidAt ? ` · 입금 표시 ${paidTimeLabel(o.paidAt)}` : ""}</span>
                 </span>
                 <span className="num font-bold">{won(orderTotal(round.items, o.lines))}</span>
               </div>
@@ -284,6 +366,10 @@ export default function Manage({ id, names }: { id: string; names: Record<string
         <h2 className="label">공구 설정</h2>
         <div className="flex flex-wrap gap-2">
           <button className="btn" onClick={() => setEditing(true)}>내용·마감 수정</button>
+          <button className="btn" onClick={copyRound}>복사해서 새 공구 열기</button>
+          {round.archived
+            ? <button className="btn" onClick={() => setArchived(false)}>보관함에서 꺼내기</button>
+            : ended && <button className="btn" onClick={() => setArchived(true)}>보관함으로 옮기기</button>}
           <button className="btn" onClick={() => setPwOpen((v) => !v)}>관리 비밀번호 변경</button>
           {round.closed
             ? <button className="btn" onClick={() => setClosed(false)}>접수 다시 열기</button>

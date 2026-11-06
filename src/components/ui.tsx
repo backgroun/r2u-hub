@@ -76,12 +76,12 @@ export function useToast() {
   return [node, setMsg] as const;
 }
 
-export function Stepper({ value, onChange, label }: { value: number; onChange: (n: number) => void; label: string }) {
+export function Stepper({ value, onChange, label, disabled = false, max = 999 }: { value: number; onChange: (n: number) => void; label: string; disabled?: boolean; max?: number }) {
   return (
     <div className="stepper" aria-label={`${label} 수량`}>
       <button type="button" aria-label="하나 빼기" disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))}>−</button>
       <output>{value}</output>
-      <button type="button" aria-label="하나 더하기" onClick={() => onChange(Math.min(999, value + 1))}>+</button>
+      <button type="button" aria-label="하나 더하기" disabled={disabled || value >= max} onClick={() => onChange(Math.min(max, value + 1))}>+</button>
     </div>
   );
 }

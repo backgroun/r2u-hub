@@ -1,7 +1,7 @@
 import "server-only";
 import { redis } from "./kv/client";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
-import { makeTitle, type Order, type PublicOrder, type PublicSummary, type Round, type StoredOrder, type StoredRound } from "./types";
+import { makeTitle, nickKey, orderTotal, type Order, type PublicOrder, type PublicSummary, type Round, type StoredOrder, type StoredRound } from "./types";
 
 const K = {
   round: (id: string) => `gb:round:${id}`,
@@ -77,8 +77,18 @@ export async function saveRound(r: StoredRound) {
   await redis.zadd(K.rounds, { score: r.createdAt, member: r.id });
 }
 
+/** 단체 제작 시안 이미지 (JPEG·PNG·WebP, base64) */
+export type RoundImage = { type: string; data: string };
+/** kind: design = 시안 이미지, size = 사이즈표 이미지 */
+export type RoundImageKind = "design" | "size";
+const imgKey = (id: string, kind: RoundImageKind = "design") => (kind === "size" ? `gb:roundimg:${id}:size` : `gb:roundimg:${id}`);
+export const ROUND_IMAGE_MAX_BYTES = 400 * 1024;
+export const getRoundImage = (id: string, kind: RoundImageKind = "design") => redis.get<RoundImage>(imgKey(id, kind));
+export const setRoundImage = (id: string, img: RoundImage, kind: RoundImageKind = "design") => redis.set(imgKey(id, kind), img);
+export const delRoundImage = (id: string, kind: RoundImageKind = "design") => redis.del(imgKey(id, kind));
+
 export async function deleteRound(id: string) {
-  await redis.del(K.round(id), K.orders(id), K.bib(id), K.fails(id));
+  await redis.del(K.round(id), K.orders(id), K.bib(id), K.fails(id), imgKey(id), imgKey(id, "size"));
   await redis.zrem(K.rounds, id);
 }
 
@@ -91,6 +101,11 @@ export function staffToken() {
 
 export function isStaff(token: string | null | undefined) {
   return staffEnabled() && keyMatches(token, staffToken());
+}
+
+/** 공구 id 목록 (최근 순) */
+export async function listRoundIds(limit = 100) {
+  return redis.zrange<string[]>(K.rounds, 0, limit - 1, { rev: true });
 }
 
 export async function listAllRounds(limit = 300) {
@@ -106,15 +121,21 @@ export async function listAllRounds(limit = 300) {
   return out;
 }
 
-export async function listRounds(limit = 30) {
+/** 내가 한 주문 요약 (목록에서 ‘내 주문’ 표시용) */
+export type MyOrderInfo = { id: string; total: number; paid: boolean; delivered: boolean };
+
+/** nick 을 주면 각 공구에서 그 사람(로그인 닉네임 또는 주문 닉네임이 같은 사람)의 주문도 함께 돌려준다 */
+export async function listRounds(limit = 30, nick?: string) {
   const ids = await redis.zrange<string[]>(K.rounds, 0, limit - 1, { rev: true });
   if (!ids.length) return [];
   const rounds = await redis.mget<(StoredRound | null)[]>(...ids.map(K.round));
-  const out: { round: Round; summary: PublicSummary }[] = [];
+  const out: { round: Round; summary: PublicSummary; mine: MyOrderInfo | null }[] = [];
   for (const raw of rounds) {
     const r = normalize(raw);
     if (!r) continue;
-    out.push({ round: publicRound(r), summary: summarize(r, await getOrders(r.id)) });
+    const orders = await getOrders(r.id);
+    const m = nick ? orders.find((o) => o.owner === nick || nickKey(o.name) === nickKey(nick)) : undefined;
+    out.push({ round: publicRound(r), summary: summarize(r, orders), mine: m ? { id: m.id, total: orderTotal(r.items, m.lines), paid: !!m.paid, delivered: !!m.delivered } : null });
   }
   return out;
 }

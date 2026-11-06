@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, copyText } from "@/lib/client";
-import { bibLabel, fmtDeadline, fmtPickup, itemLabel, minLabel, nickKey, orderTotal, qtyOf, roundStatus, won, type Order, type PublicOrder, type PublicSummary, type Round } from "@/lib/types";
+import { api, copyText, store } from "@/lib/client";
+import { bibLabel, blockedIds, capOf, fmtDeadline, fmtPickup, itemLabel, minLabel, needText, nickKey, orderTotal, pruneBlocked, qtyOf, roundStatus, won, type Order, type PublicOrder, type PublicSummary, type Round } from "@/lib/types";
 import { Countdown, Progress, StatusChip, Stepper, useToast } from "@/components/ui";
 import { knownMemberLabel } from "@/lib/member-label";
 
@@ -29,10 +29,31 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [toast, showToast] = useToast();
   const [now, setNow] = useState(() => Date.now());
+  const [payDep, setPayDep] = useState(""); // 입금완료를 표시할 때 적는 입금자명
+
+  // 주문서 임시저장: 수량·입금자명·메모를 이 기기에 남겨 두었다가, 다시 열면 불러온다 (주문하면 지운다)
+  const draftKey = `crew-gb:order-draft:${round.id}`;
+  const [draftReady, setDraftReady] = useState(false);
+  useEffect(() => {
+    const v = store.get<{ lines?: Record<string, number>; depositor?: string; memo?: string } | null>(draftKey, null);
+    if (v) {
+      if (v.lines) setLines(pruneBlocked(round.items, Object.fromEntries(Object.entries(v.lines).filter(([k]) => round.items.some((it) => it.id === k)))));
+      if (v.depositor) setDepositor(v.depositor);
+      if (v.memo) setMemo(v.memo);
+    }
+    setDraftReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+  useEffect(() => {
+    if (!draftReady || editing) return;
+    if (!Object.values(lines).some(Boolean) && !depositor && !memo) store.del(draftKey);
+    else store.set(draftKey, { lines, depositor, memo });
+  }, [draftReady, editing, lines, depositor, memo, draftKey]);
 
   const status = roundStatus(round, summary.totalQty);
   const isOpen = status === "open" && now < new Date(round.deadline).getTime();
   const total = orderTotal(round.items, lines);
+  const blocked = blockedIds(round.items, lines); // 구매 조건을 못 채운 상품(수량을 못 올린다)
   const req = <span className="text-[var(--bad)]" aria-hidden> *</span>;
   const dup = name.trim() !== "" && orders.some((o) => o.id !== editing?.order.id && nickKey(o.name) === nickKey(name));
 
@@ -85,6 +106,11 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
     if (opening && unlocked?.order.id !== o.id) unlock(o); // 로그인한 본인 주문은 비밀번호 없이 바로 열린다
   }
   const isMine = (o: PublicOrder) => !!me && nickKey(o.name) === nickKey(me);
+  const myOrder = orders.find(isMine);
+  const myUnlocked = myOrder && unlocked?.order.id === myOrder.id ? unlocked : null;
+  // 로그인한 본인 주문은 비밀번호 없이 자동으로 열어 둔다 (입금 안내·입금완료 표시를 바로 하도록)
+  useEffect(() => { if (myOrder && !unlocked) void unlock(myOrder); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [myOrder?.id]);
+  useEffect(() => { if (myUnlocked) setPayDep(myUnlocked.order.depositor); }, [myUnlocked?.order.depositor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function unlock(o: PublicOrder) {
     setRowErr(null);
@@ -94,12 +120,13 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
     } catch (e) { setRowErr((e as Error).message); }
   }
 
-  async function setPaid(u: Unlocked, paid: boolean) {
+  async function setPaid(u: Unlocked, paid: boolean, depositorName?: string) {
     setRowErr(null);
     try {
-      const d = await api<{ order: PublicOrder }>(`/api/rounds/${round.id}/orders/${u.order.id}`, { method: "PUT", json: { password: u.password, paid } });
+      const dep = depositorName?.trim();
+      const d = await api<{ order: PublicOrder }>(`/api/rounds/${round.id}/orders/${u.order.id}`, { method: "PUT", json: { password: u.password, paid, ...(dep ? { depositor: dep } : {}) } });
       setOrders((os) => os.map((x) => (x.id === d.order.id ? d.order : x)));
-      setUnlocked({ ...u, order: { ...u.order, paid } });
+      setUnlocked({ ...u, order: { ...u.order, paid, depositor: dep || u.order.depositor } });
       showToast(paid ? "입금완료로 표시했어요" : "입금완료 표시를 취소했어요");
     } catch (e) { setRowErr((e as Error).message); }
   }
@@ -167,6 +194,59 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
         </div>
       </header>
 
+      {myOrder && (
+        <section className="panel p-4 grid gap-3 border-[var(--lane)]" aria-label="내 주문">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="bib">{bibLabel(myOrder.bib)}</span>
+            <b className="flex-1 min-w-0">내 주문</b>
+            {myOrder.paid ? <span className="chip chip-confirmed">입금완료</span> : <span className="chip chip-warn">입금대기</span>}
+            {myOrder.delivered && <span className="chip chip-ship">수령완료</span>}
+          </div>
+          <p className="text-sm text-muted">{round.items.filter((it) => myOrder.lines[it.id]).map((it) => `${itemLabel(it)} ${myOrder.lines[it.id]}`).join(" · ")}</p>
+          {!myOrder.paid ? (
+            <div className="rounded-xl bg-paper p-3.5 grid gap-3">
+              <div className="flex items-end justify-between gap-2">
+                <div className="grid">
+                  <span className="text-xs text-muted">입금하실 금액</span>
+                  <span className="num text-3xl font-bold leading-tight">{won(orderTotal(round.items, myOrder.lines))}</span>
+                </div>
+                <button className="btn text-sm shrink-0" onClick={async () => showToast((await copyText(String(orderTotal(round.items, myOrder.lines)))) ? "금액을 복사했어요" : "복사하지 못했어요")}>금액 복사</button>
+              </div>
+              <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] pt-3">
+                <div className="min-w-0 grid">
+                  <span className="text-xs text-muted">입금 계좌</span>
+                  <span className="num font-semibold break-all">{account}</span>
+                </div>
+                <button className="btn text-sm shrink-0" onClick={async () => showToast((await copyText(`${round.bank.bank} ${round.bank.account}`)) ? "계좌번호를 복사했어요" : "복사하지 못했어요")}>계좌 복사</button>
+              </div>
+              {myUnlocked ? (
+                <>
+                  <label className="field">
+                    <span className="label">입금자명 <span className="font-normal normal-case">(통장에 찍히는 이름)</span></span>
+                    <input className="input" value={payDep} onChange={(e) => setPayDep(e.target.value)} placeholder="입금하신 분 이름" />
+                  </label>
+                  <button className="btn btn-primary py-3" disabled={!payDep.trim()} onClick={() => setPaid(myUnlocked, true, payDep)}>입금했어요 (입금완료 표시)</button>
+                </>
+              ) : <p className="text-xs text-muted">주문 정보를 불러오는 중…</p>}
+            </div>
+          ) : (
+            <div className="rounded-xl bg-paper p-3.5 grid gap-2">
+              <p className="text-sm"><b>✓ 입금완료로 표시했어요</b> · 합계 <b className="num">{won(orderTotal(round.items, myOrder.lines))}</b>{myUnlocked && <> · 입금자명 <b>{myUnlocked.order.depositor}</b></>}</p>
+              {myUnlocked && <button className="btn text-sm justify-self-start" onClick={() => setPaid(myUnlocked, false)}>입금완료 취소</button>}
+            </div>
+          )}
+          {myUnlocked && (
+            <div className="flex flex-wrap gap-2">
+              {myUnlocked.order.delivered
+                ? <button className="btn text-sm" onClick={() => setDelivered(myUnlocked, false)}>수령완료 취소</button>
+                : <button className="btn text-sm" onClick={() => setDelivered(myUnlocked, true)}>수령완료 표시</button>}
+              {isOpen && <button className="btn text-sm" onClick={() => startEdit(myUnlocked)}>주문 수정</button>}
+            </div>
+          )}
+          {rowErr && !openRow && <p className="chip chip-failed justify-self-start text-xs">{rowErr}</p>}
+        </section>
+      )}
+
       {done && (
         <div className="panel p-4 grid gap-1 border-[var(--good)]" role="status">
           <div className="flex items-center gap-2">
@@ -176,7 +256,9 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
           <p className="text-sm text-muted">
             {round.items.filter((it) => done.lines[it.id]).map((it) => `${itemLabel(it)} ${done.lines[it.id]}개`).join(" · ")} · <b className="num">{won(orderTotal(round.items, done.lines))}</b>
           </p>
-          <p className="text-sm text-muted">입금한 뒤 아래 <b>주문 현황</b>에서 내 닉네임 옆 ‘내 주문’을 누르고 비밀번호를 넣어 입금완료를, 물건을 받으면 수령완료를 표시해 주세요. 마감 전에는 같은 곳에서 수정·취소도 할 수 있어요.</p>
+          {me
+            ? <p className="text-sm text-muted">위쪽 <b>내 주문</b>에서 입금 금액·계좌를 확인하고, 입금한 뒤 ‘입금했어요’를 눌러 주세요.</p>
+            : <p className="text-sm text-muted">입금한 뒤 아래 <b>주문 현황</b>에서 내 닉네임 옆 ‘내 주문’을 누르고 비밀번호를 넣어 입금완료를, 물건을 받으면 수령완료를 표시해 주세요. 마감 전에는 같은 곳에서 수정·취소도 할 수 있어요.</p>}
         </div>
       )}
 
@@ -200,6 +282,17 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
               <b className="text-lg leading-snug">{round.custom.name}</b>
               <span className="num text-sm">{won(round.custom.price)}{round.custom.sizes.length > 0 && <span className="text-muted"> · 사이즈 {round.custom.sizes.join(" / ")}</span>}{round.custom.colors.length > 0 && <span className="text-muted"> · 컬러 {round.custom.colors.join(" / ")}</span>}</span>
               {round.custom.note && <span className="text-xs text-muted">참고: {round.custom.note}</span>}
+              {round.custom.image && <a href={`/api/gb-round-image/${round.id}`} target="_blank" rel="noopener noreferrer" className="justify-self-start mt-1">{/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/api/gb-round-image/${round.id}`} alt="시안 이미지" className="rounded-lg max-h-64 max-w-full object-contain border border-line" /></a>}
+              {round.custom.sizeImage && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-sm font-semibold">📏 사이즈표 보기</summary>
+                  <a href={`/api/gb-round-image/${round.id}?k=size`} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/api/gb-round-image/${round.id}?k=size`} alt="사이즈표" loading="lazy" className="rounded-lg max-w-full object-contain border border-line" />
+                  </a>
+                </details>
+              )}
               {round.custom.url && <a href={round.custom.url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--lane)] underline underline-offset-2 justify-self-start">시안·상품 보기 ↗</a>}
             </div>
           )}
@@ -211,8 +304,9 @@ export default function OrderView({ round, initialSummary, initialOrders, me = "
                   {!round.custom && it.note && <span className="text-xs text-muted">참고: {it.note}</span>}
                   {!round.custom && it.url && <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--lane)] underline underline-offset-2 justify-self-start">상품 보기 ↗</a>}
                   <span className="num text-sm">{won(it.price)} <span className="text-muted">· 지금까지 {summary.itemTotals[it.id] ?? 0}개</span></span>
+                  {it.needs?.length ? <span className={`text-xs font-semibold ${blocked.has(it.id) ? "text-[var(--bad)]" : "text-muted"}`}>🔒 {needText(round.items, it)}</span> : null}
                 </div>
-                <Stepper label={itemLabel(it)} value={lines[it.id] ?? 0} onChange={(n) => setLines((l) => ({ ...l, [it.id]: n }))} />
+                <Stepper label={itemLabel(it)} value={lines[it.id] ?? 0} disabled={blocked.has(it.id)} max={Math.min(999, capOf(round.items, lines, it.id))} onChange={(n) => setLines((l) => pruneBlocked(round.items, { ...l, [it.id]: n }))} />
               </li>
             ))}
           </ul>

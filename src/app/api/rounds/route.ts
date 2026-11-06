@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hashPassword, listRounds, newId, saveRound } from "@/lib/db";
+import { getRound, getRoundImage, hashPassword, listRounds, newId, saveRound, setRoundImage } from "@/lib/db";
 import { BadInput, parseRoundInput } from "@/lib/validate";
 import { currentUser, isStaffNick } from "@/lib/hub";
 
@@ -17,6 +17,17 @@ export async function POST(req: Request) {
     if (pw && !/^[a-z0-9]+$/.test(pw)) throw new BadInput("관리 비밀번호는 영문 소문자와 숫자만 사용할 수 있어요.");
     const u = await currentUser();
     const round = { ...input, id: newId(), adminKey: newId(18), pwHash: pw ? hashPassword(pw) : "", openerNick: u && !isStaffNick(u.nick) ? u.nick : undefined, createdAt: Date.now(), closed: false };
+    // 공구 복제: 원본의 시안·사이즈표 이미지를 그대로 가져온다 (로그인한 크루원이면 볼 수 있는 이미지라 그대로 복사해도 된다)
+    const cp = body.copyImages as { from?: unknown; design?: unknown; size?: unknown } | undefined;
+    if (u && round.custom && cp && typeof cp.from === "string" && /^[A-Za-z0-9_-]{6,30}$/.test(cp.from) && (await getRound(cp.from))) {
+      for (const kind of ["design", "size"] as const) {
+        if (cp[kind] !== true) continue;
+        const img = await getRoundImage(cp.from, kind);
+        if (!img) continue;
+        await setRoundImage(round.id, img, kind);
+        if (kind === "size") round.custom.sizeImage = true; else round.custom.image = true;
+      }
+    }
     await saveRound(round);
     return NextResponse.json({ id: round.id, adminKey: round.adminKey });
   } catch (e) {

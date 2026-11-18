@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
-import { driverOf, currentUser, getMember, isStaffAccount, fmtRaceDate, getMonth, getRaceRecs, getRaces, kstToday, memberLabel, recRace, type RaceFull } from "@/lib/hub";
+import { driverOf, currentUser, getMember, isStaffAccount, fmtRaceDate, getMonth, getRaceRecs, getEventRecs, getRaces, kstToday, memberLabel, recRace, type RaceFull } from "@/lib/hub";
 import { rankMonth, shiftYm, ymOf } from "@/lib/rank";
 import { greeting } from "@/lib/greeting";
 import { getOrders, listRounds } from "@/lib/db";
@@ -51,7 +51,9 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
     getMember(u.nick),
     liveBrags(),
   ]);
-  const [pts, cfg, gearCaught] = await Promise.all([getMyPoints(u.nick), getPointConfig(), caughtGears(u.nick)]);
+  const [pts, cfg, gearCaught, eventRecs] = await Promise.all([getMyPoints(u.nick), getPointConfig(), caughtGears(u.nick), getEventRecs(u.nick)]);
+  const eventList = Object.entries(eventRecs).sort((a, b) => b[1].start.localeCompare(a[1].start));
+  const md = (d: string) => `${Number(d.slice(5, 7))}.${Number(d.slice(8))}`;
   const tier = tierOf(pts.lv);
   const bragging = new Set(brags.filter((b) => b.nick === u.nick).map((b) => b.key));
 
@@ -202,6 +204,28 @@ export default async function MyPage({ searchParams }: { searchParams: Promise<{
           })}
         </div>
       </section>
+
+      {/* 이벤트 참가 기록: 끝난 이벤트의 성적 */}
+      {eventList.length > 0 && (
+      <section className="grid gap-2">
+        <h2 className="label">이벤트 참가 기록</h2>
+        <ul className="grid gap-2">
+          {eventList.map(([id, e]) => (
+            <li key={id} className="panel" style={{ padding: "12px 14px" }}>
+              <div className="flex items-baseline justify-between gap-2">
+                <b>{e.title}</b>
+                <span className="text-muted text-sm">{md(e.start)}–{md(e.end)}</span>
+              </div>
+              <div className="flex gap-4 pt-1">
+                <span><span className="num font-bold">{e.cells}</span><span className="text-muted">/25칸</span></span>
+                <span><span className="num font-bold">{e.lines}</span><span className="text-muted">줄 빙고</span></span>
+                {e.cells >= 25 && <span className="font-bold">🎉 풀빙고</span>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+      )}
 
       <MyCollection caught={Object.keys(gearCaught).map(Number).sort((a, b) => a - b)} />
       <ActivitySummary stats={activity} />

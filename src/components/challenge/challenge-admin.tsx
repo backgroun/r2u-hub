@@ -46,6 +46,8 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         <div className="grid gap-3 pt-3">
           {cfg.testMode && <p className="text-sm font-bold" style={{ color: "#8a5a00" }}>테스트 모드 켜짐 — 운영진에게만 보여요</p>}
           <p className="text-xs text-muted">켜면 크루원에게는 이 챌린지가 보이지 않고, 운영진만 날짜와 상관없이 전 과정을 써 볼 수 있어요. 단계를 고정하면 기록 기간 밖의 날짜로도 올릴 수 있고, 본인 기록도 직접 승인할 수 있어요. 끝나면 ‘테스트 데이터 모두 지우기’로 정리하세요.</p>
+          <p className="text-xs text-muted">지금 신청 {members.length}명 · 기록 {acts.length}건 · 이의 제기 {appeals.length}건</p>
+          {(members.length > 0 || acts.length > 0 || appeals.length > 0) && <p className="text-xs text-[var(--bad)]">테스트 모드는 신청·기록이 하나도 없을 때만 켜고 끌 수 있어요. 끄려면 먼저 ‘테스트 데이터 모두 지우기’로 지우세요. (단계만 바꾸는 건 켜 둔 채로 가능해요)</p>}
           <ActionForm action={setChallengeTestAction} keep className="flex items-end gap-2 flex-wrap">
             <input type="hidden" name="id" value={block.id} />
             <label className="field"><span className="label">단계</span>
@@ -62,7 +64,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
           {cfg.testMode && (
             <ActionForm action={resetChallengeDataAction} keep className="flex">
               <input type="hidden" name="id" value={block.id} />
-              <ConfirmButton className="btn btn-ghost btn-danger" message={"테스트 데이터를 모두 지울까요? 신청자·기록(캡처)·장소 정리표·이의 제기·처리 기록이 사라지고 되돌릴 수 없어요."}>테스트 데이터 모두 지우기</ConfirmButton>
+              <ConfirmButton className="btn btn-ghost btn-danger" message={`신청 ${members.length}명 · 기록 ${acts.length}건 · 이의 제기 ${appeals.length}건을 모두 지울까요?\n되돌릴 수 없어요.`}>테스트 데이터 모두 지우기</ConfirmButton>
             </ActionForm>
           )}
         </div>

@@ -6,7 +6,7 @@ import { currentUser, newId } from "@/lib/hub";
 import { isConfirmed, CONFIRM_REQUIRED } from "@/lib/confirm-token";
 import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-blocks";
 import {
-  addLog, delImage, getActRec, getAppeal, getMemberRec, listActs, listAppeals, purgeChallenge, putImage, removeActRec, removeMemberRec, saveActRec, saveAppeal, saveMemberRec, setPlaceGroup,
+  addLog, delImage, getActRec, getAppeal, getMemberRec, listActs, listAppeals, listMembers, purgeChallenge, putImage, removeActRec, removeMemberRec, saveActRec, saveAppeal, saveMemberRec, setPlaceGroup,
 } from "@/lib/challenge/store";
 import { IMG_KINDS, RULE, currentPhase, effectiveCfg, nowKst, placeKey, validateActivity, validateConfig, type ActStatus, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
@@ -286,6 +286,13 @@ export async function setChallengeTestAction(_: Result, fd: FormData): Promise<R
   if (mode !== "1" && mode !== "0") return fail("켜기 또는 끄기를 골라 주세요.");
   if (phase !== "" && !PHASES.includes(phase as Phase)) return fail("단계를 다시 골라 주세요.");
   const on = mode === "1";
+  // 켜고 끄는 건 데이터가 하나도 없을 때만: 테스트 데이터가 실서비스로 새거나, 진짜 데이터가 초기화 대상이 되는 일을 막는다
+  if (on !== (b.challenge?.testMode === true)) {
+    const [m, a, p] = await Promise.all([listMembers(b.id), listActs(b.id), listAppeals(b.id)]);
+    if (m.length + a.length + p.length > 0) {
+      return fail(on ? "이미 신청·기록이 있는 챌린지에는 테스트 모드를 켤 수 없어요. 테스트는 비어 있는 챌린지에서만 할 수 있어요." : "테스트 데이터가 남아 있어요. 먼저 ‘테스트 데이터 모두 지우기’를 눌러 지운 뒤에 끄세요.");
+    }
+  }
   await setChallengeConfig(b.id, { ...(b.challenge as ChallengeConfig), testMode: on, testPhase: phase as Phase | "" });
   await addLog(b.id, { by: u.nick, action: "test-mode", target: b.title, note: on ? `켬 · 단계 ${phase || "날짜대로"}` : "끔" });
   revalidatePath("/", "layout");

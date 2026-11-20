@@ -226,6 +226,20 @@ export async function resolveAppealAction(_: Result, fd: FormData): Promise<Resu
   return ok("답변했어요.");
 }
 
+/** 설정 변경 내역을 `필드 이전→이후` 목록으로 만든다(처리 기록용) */
+function configDiff(a: ChallengeConfig, b: ChallengeConfig): string {
+  const out: string[] = [];
+  const cmp = (name: string, x: string | number, y: string | number) => { if (x !== y) out.push(`${name} ${x}→${y}`); };
+  cmp("신청시작", a.signupStart, b.signupStart); cmp("신청마감", a.signupEnd, b.signupEnd);
+  cmp("기록시작", a.start, b.start); cmp("기록종료", a.end, b.end);
+  cmp("업로드마감", a.uploadEnd, b.uploadEnd); cmp("이의제기마감", a.appealEnd, b.appealEnd); cmp("최종확정", a.finalAt, b.finalAt);
+  cmp("회비", a.fee, b.fee);
+  cmp("은행", a.bank.bank, b.bank.bank); cmp("계좌", a.bank.account, b.bank.account); cmp("예금주", a.bank.holder, b.bank.holder);
+  cmp("상품", a.prizes.join(", "), b.prizes.join(", "));
+  if (a.spendNote !== b.spendNote) out.push("회비 사용 내역 변경");
+  return out.length ? out.join(" / ") : "변경 없음";
+}
+
 /** 챌린지 설정 저장(기간·회비·계좌·상품). 규정이 바뀌는 일이라 비밀번호 확인이 필요하고 로그를 남긴다. */
 export async function saveChallengeConfigAction(_: Result, fd: FormData): Promise<Result> {
   const u = await staff();
@@ -242,8 +256,9 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
   };
   const bad = validateConfig(cfg);
   if (bad) return fail(bad);
+  const note = configDiff(b.challenge as ChallengeConfig, cfg);
   await setChallengeConfig(b.id, cfg);
-  await addLog(b.id, { by: u.nick, action: "config", target: b.title });
+  await addLog(b.id, { by: u.nick, action: "config", target: b.title, note });
   revalidatePath("/", "layout");
   return ok("챌린지 설정을 저장했어요.");
 }

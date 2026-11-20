@@ -141,3 +141,67 @@ export function judge(a: Activity, cfg: ChallengeConfig): Judgement {
   if (paceOk && a.place && a.durationSec < RULE.placeMinSec) notes.push("40분 미만이라 장소 부문에서 제외돼요.");
   return { paceSec, paceOk, counts: { distance: paceOk, time: paceOk, cadence, zone2, place, fiveK: paceOk }, notes };
 }
+
+export type RawInput = {
+  startedAt: string;
+  distanceKm: number | null;
+  durationSec: number | null;
+  surface: string;
+  cadence: number | null;
+  avgHr: number | null;
+  zone2Pct: number | null;
+  place: string;
+};
+export type ImgFlags = Record<ImgKind, boolean>;
+export type CleanInput = {
+  startedAt: string; date: string; distanceKm: number; durationSec: number; surface: Surface;
+  cadence: number | null; avgHr: number | null; zone2Pct: number | null; place: string | null;
+};
+type Checked = { ok: true; value: CleanInput } | { ok: false; msg: string };
+
+const bad = (msg: string): Checked => ({ ok: false, msg });
+const inRange = (n: number | null, lo: number, hi: number): n is number => n != null && Number.isFinite(n) && n >= lo && n <= hi;
+
+/** 기록 입력을 확인한다. 통과하면 저장할 값(거리 둘째 자리 반올림, 장소 앞뒤 공백 제거)을 돌려준다. */
+export function validateActivity(i: RawInput, img: ImgFlags, cfg: ChallengeConfig, today: string): Checked {
+  const s = String(i.startedAt ?? "");
+  const d = new Date(`${s}:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 16) !== s) return bad("시작 일시를 다시 골라 주세요.");
+  const date = s.slice(0, 10);
+  if (date < cfg.start || date > cfg.end) return bad(`${fmtDate(cfg.start)}~${fmtDate(cfg.end)} 기간의 활동만 올릴 수 있어요.`);
+  if (date > today) return bad("오늘보다 미래의 활동은 올릴 수 없어요.");
+
+  if (!inRange(i.distanceKm, 0.1, 200)) return bad("거리를 확인해 주세요. (0.1~200km)");
+  const distanceKm = Math.round(i.distanceKm * 100) / 100;
+  if (!inRange(i.durationSec, 60, 86400) || !Number.isInteger(i.durationSec)) return bad("시간을 확인해 주세요. (1분~24시간)");
+  const durationSec = i.durationSec;
+  if (paceSecOf(distanceKm, durationSec) < RULE.suspectPaceSec) return bad("평균 페이스가 너무 빨라요(2:30/km 미만). 거리와 시간을 다시 확인해 주세요.");
+  if (typeof i.surface !== "string" || !Object.hasOwn(SURFACE_LABEL, i.surface)) return bad("로드·트레드밀·트랙 중에서 골라 주세요.");
+  const surface = i.surface as Surface;
+
+  if (!img.summary) return bad("활동 요약 캡처를 올려 주세요. (날짜·거리·시간이 보여야 해요)");
+
+  const cad = i.cadence;
+  if (cad != null && !inRange(cad, 60, 260)) return bad("케이던스를 확인해 주세요. (60~260)");
+  if (cad != null && !img.cadence) return bad("케이던스 캡처를 올려 주세요.");
+  if (cad == null && img.cadence) return bad("케이던스 값을 입력해 주세요.");
+
+  const z = i.zone2Pct, hr = i.avgHr;
+  if (z != null || hr != null || img.zone) {
+    if (z == null) return bad("Zone 2 체류 비율(%)을 입력해 주세요.");
+    if (hr == null) return bad("평균 심박을 입력해 주세요.");
+    if (!img.zone) return bad("심박 구간 캡처를 올려 주세요. (존 번호와 비율이 보여야 해요)");
+    if (!Number.isInteger(z) || z < 0 || z > 100) return bad("Zone 2 비율은 0~100 사이 정수로 입력해 주세요.");
+    if (!inRange(hr, 60, 230)) return bad("평균 심박을 확인해 주세요. (60~230)");
+  }
+
+  const place = (i.place ?? "").trim();
+  if (place || img.map) {
+    if (!place) return bad("장소를 입력해 주세요. (예: 송파구 올림픽공원)");
+    if (!img.map) return bad("지도(경로) 캡처를 올려 주세요.");
+    if (surface === "treadmill") return bad("트레드밀은 다양한 장소 부문에 쓸 수 없어요. 장소와 지도 캡처를 비워 주세요.");
+    if (place.length < 2 || place.length > 40) return bad("장소는 2~40자로 입력해 주세요.");
+  }
+
+  return { ok: true, value: { startedAt: s, date, distanceKm, durationSec, surface, cadence: cad ?? null, avgHr: z != null ? hr : null, zone2Pct: z ?? null, place: place || null } };
+}

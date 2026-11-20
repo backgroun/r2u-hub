@@ -3,12 +3,12 @@ import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { currentUser, kstToday, newId } from "@/lib/hub";
-import { isConfirmed } from "@/lib/confirm-token";
-import { activeChallenge } from "@/lib/event-blocks";
+import { isConfirmed, CONFIRM_REQUIRED } from "@/lib/confirm-token";
+import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-blocks";
 import {
-  addLog, delImage, getActRec, getMemberRec, listActs, listAppeals, putImage, removeActRec, removeMemberRec, saveActRec, saveAppeal, saveMemberRec,
+  addLog, delImage, getActRec, getAppeal, getMemberRec, listActs, listAppeals, putImage, removeActRec, removeMemberRec, saveActRec, saveAppeal, saveMemberRec, setPlaceGroup,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, phaseOf, validateActivity, type Activity, type ImgKind, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, phaseOf, placeKey, validateActivity, validateConfig, type ActStatus, type Activity, type ChallengeConfig, type ImgKind, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -162,4 +162,88 @@ export async function fileAppealAction(_: Result, fd: FormData): Promise<Result>
   await addLog(live.block.id, { by: u.nick, action: "appeal", target: `${u.nick}/${a.id}`, note: reason });
   refresh();
   return ok("이의 제기를 접수했어요. 운영진이 확인하고 답해요.");
+}
+
+/* ====================== 운영진 ====================== */
+async function staff() {
+  const u = await me();
+  if (!u.admin) throw new Error("운영진만 할 수 있어요.");
+  return u;
+}
+async function challengeBlock(id: string) {
+  const b = (await getBlocks()).find((x) => x.id === id && x.type === "challenge" && x.challenge);
+  if (!b) throw new Error("챌린지를 찾을 수 없어요.");
+  return b;
+}
+
+/** 입금 확인·취소 */
+export async function setPaidAction(fd: FormData) {
+  const u = await staff();
+  const blockId = str(fd, "id", 20), nick = str(fd, "nick", 30);
+  const m = await getMemberRec(blockId, nick);
+  if (!m) return;
+  const paid = fd.get("paid") === "1";
+  await saveMemberRec(blockId, { ...m, paid, ...(paid ? { paidAt: Date.now(), paidBy: u.nick } : { paidAt: undefined, paidBy: undefined }) });
+  await addLog(blockId, { by: u.nick, action: paid ? "paid" : "unpaid", target: nick });
+  refresh();
+}
+
+/** 기록 승인·반려. 본인 기록은 다른 운영진이 검수한다. */
+export async function reviewActivityAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  const blockId = str(fd, "id", 20), decision = str(fd, "decision", 10), reason = str(fd, "reason", 200);
+  const a = await getActRec(blockId, str(fd, "actId", 20));
+  if (!a) return fail("기록을 찾을 수 없어요.");
+  if (a.nick === u.nick) return fail("본인 기록은 다른 운영진이 검수해요.");
+  if (decision !== "ok" && decision !== "rejected") return fail("승인 또는 반려를 골라 주세요.");
+  if (decision === "rejected" && reason.length < 2) return fail("반려 사유를 적어 주세요.");
+  await saveActRec(blockId, { ...a, status: decision as ActStatus, rejectReason: decision === "rejected" ? reason : undefined, reviewedBy: u.nick, reviewedAt: Date.now() });
+  await addLog(blockId, { by: u.nick, action: decision === "ok" ? "approve" : "reject", target: `${a.nick}/${a.id}`, note: reason || undefined });
+  refresh();
+  return ok(decision === "ok" ? "승인했어요." : "반려했어요. 참가자 화면에 사유가 보여요.");
+}
+
+/** 장소 정리표: 입력된 장소를 묶음 이름으로 묶는다(비우면 묶음 해제) */
+export async function setPlaceGroupAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  const blockId = str(fd, "id", 20), raw = str(fd, "raw", 60), label = str(fd, "label", 40);
+  if (!raw) return fail("장소를 찾을 수 없어요.");
+  await setPlaceGroup(blockId, placeKey(raw), label || null);
+  await addLog(blockId, { by: u.nick, action: "place-group", target: raw, note: label || "묶음 해제" });
+  refresh();
+  return ok(label ? `‘${raw}’를 ‘${label}’ 장소로 묶었어요.` : "묶음을 풀었어요.");
+}
+
+export async function resolveAppealAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  const blockId = str(fd, "id", 20), answer = str(fd, "answer", 300);
+  const p = await getAppeal(blockId, str(fd, "appealId", 20));
+  if (!p) return fail("이의 제기를 찾을 수 없어요.");
+  if (answer.length < 2) return fail("답변을 적어 주세요.");
+  await saveAppeal(blockId, { ...p, done: true, answer, answeredBy: u.nick, answeredAt: Date.now() });
+  await addLog(blockId, { by: u.nick, action: "appeal-answer", target: `${p.nick}/${p.actId}`, note: answer });
+  refresh();
+  return ok("답변했어요.");
+}
+
+/** 챌린지 설정 저장(기간·회비·계좌·상품). 규정이 바뀌는 일이라 비밀번호 확인이 필요하고 로그를 남긴다. */
+export async function saveChallengeConfigAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  if (!(await isConfirmed(fd.get("confirmToken")))) return fail(CONFIRM_REQUIRED);
+  const b = await challengeBlock(str(fd, "id", 20));
+  const cfg: ChallengeConfig = {
+    fee: Number(str(fd, "fee", 8)),
+    bank: { bank: str(fd, "bank", 20), account: str(fd, "account", 30), holder: str(fd, "holder", 20) },
+    signupStart: str(fd, "signupStart", 10), signupEnd: str(fd, "signupEnd", 10),
+    start: str(fd, "start", 10), end: str(fd, "end", 10),
+    uploadEnd: str(fd, "uploadEnd", 10), appealEnd: str(fd, "appealEnd", 10), finalAt: str(fd, "finalAt", 10),
+    prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
+    spendNote: str(fd, "spendNote", 500),
+  };
+  const bad = validateConfig(cfg);
+  if (bad) return fail(bad);
+  await setChallengeConfig(b.id, cfg);
+  await addLog(b.id, { by: u.nick, action: "config", target: b.title });
+  revalidatePath("/", "layout");
+  return ok("챌린지 설정을 저장했어요.");
 }

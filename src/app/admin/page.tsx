@@ -19,6 +19,7 @@ import LogoutButton from "@/components/logout-button";
 import RaceForm from "@/components/race-form";
 import GroupbuyStaff from "@/components/groupbuy-staff";
 import PasswordInput from "@/components/password-input";
+import ChallengeAdmin from "@/components/challenge/challenge-admin";
 import BingoReviewCard from "@/components/bingo-review-card";
 import RosterSelect from "@/components/roster-select";
 import AdminMemberRow from "@/components/admin-member-row";
@@ -808,6 +809,8 @@ async function Events() {
         </div>
       ))}
 
+      {blocks.filter((b) => b.type === "challenge" && b.challenge).map((b) => <ChallengeAdmin key={b.id} block={b} />)}
+
       {/* 인증 확인: 크루원이 올린 인증(사진)을 날짜별로 보고, 잘못된 건 댓글로 알려 준다 (댓글을 달면 그 사람에게 푸시 알림) */}
       <details id="verify" className="panel p-4" open>
         <summary className="font-bold cursor-pointer">인증 확인 ({review.total}건)</summary>
@@ -847,12 +850,18 @@ async function Events() {
         <ActionForm action={createEventBlock} className="grid gap-3 pt-3" collapse>
           <div className="grid grid-cols-2 gap-3">
             <label className="field"><span className="label">종류</span>
-              <select name="type" className="input" defaultValue="bingo"><option value="bingo">빙고</option><option value="poll">투표·설문</option></select></label>
+              <select name="type" className="input" defaultValue="bingo"><option value="bingo">빙고</option><option value="poll">투표·설문</option><option value="challenge">기록 챌린지</option></select></label>
             <label className="field"><span className="label">월</span><input name="ym" type="month" className="input" defaultValue={nowYm} required /></label>
           </div>
           <label className="field"><span className="label">이벤트 이름</span><input name="title" className="input" maxLength={40} required placeholder="예: 11월 5×5 미션 빙고" /></label>
           <label className="field"><span className="label">투표 질문 (투표·설문일 때)</span><input name="question" className="input" maxLength={100} placeholder="예: 다음 번개런 코스는?" /></label>
           <label className="field"><span className="label">선택지 (투표·설문일 때, 한 줄에 하나·2~8개)</span><textarea name="options" className="input" rows={4} placeholder={"한강 10km\n남산 순환\n탄천 하프"} /></label>
+          <div className="grid grid-cols-3 gap-2">
+            <label className="field"><span className="label">은행 (챌린지일 때)</span><input name="bank" className="input" maxLength={20} /></label>
+            <label className="field"><span className="label">계좌번호</span><input name="account" className="input" maxLength={30} /></label>
+            <label className="field"><span className="label">예금주</span><input name="holder" className="input" maxLength={20} /></label>
+          </div>
+          <label className="field"><span className="label">상품 예정 (챌린지일 때, 한 줄에 하나)</span><textarea name="prizes" className="input" rows={4} defaultValue={"넥워머\n카프슬리브\n오스무브 모자\n데카르트 장갑"} /></label>
           <div><Submit>블록 만들기</Submit></div>
         </ActionForm>
       </details>

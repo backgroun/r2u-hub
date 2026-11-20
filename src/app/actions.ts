@@ -19,6 +19,7 @@ import { MAX_HOME_NOTICES, setHomeNoticeCount, addNotice, adminAbsentNoticeOn, d
 import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
 import { addComment as addBingoComment, allRows as allBingoRows, cleanupOrphanPhotos as cleanupBingoPhotos, getMissions as getBingoMissions, removeComment as removeBingoComment, clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
 import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive } from "@/lib/event-blocks";
+import { DEFAULT_CONFIG } from "@/lib/challenge/rules";
 import { canonCourse } from "@/lib/course";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
@@ -1037,7 +1038,8 @@ export async function setViewMode(fd: FormData) {
 /* ---------- 이벤트 블록 (운영진): 만들어 두고, 월마다 하나를 골라 본문에 세팅 ---------- */
 export async function createEventBlock(_: Result, fd: FormData): Promise<Result> {
   const u = await admin();
-  const type = str(fd, "type", 10) === "poll" ? "poll" : "bingo";
+  const t = str(fd, "type", 10);
+  const type = t === "poll" ? "poll" : t === "challenge" ? "challenge" : "bingo";
   const title = str(fd, "title", 40), ym = str(fd, "ym", 7);
   if (!title) return fail("이벤트 이름을 입력해 주세요.");
   if (!/^\d{4}-\d{2}$/.test(ym)) return fail("월을 골라 주세요.");
@@ -1049,7 +1051,11 @@ export async function createEventBlock(_: Result, fd: FormData): Promise<Result>
     if (options.length < 2 || options.length > 8) return fail("선택지는 줄바꿈으로 2~8개 적어 주세요.");
     poll = { question, options };
   }
-  await createBlock({ type, title, ym, by: u.nick, ...(poll ? { poll } : {}) });
+  const challenge = type === "challenge"
+    ? { ...DEFAULT_CONFIG, bank: { bank: str(fd, "bank", 20), account: str(fd, "account", 30), holder: str(fd, "holder", 20) },
+        prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12) }
+    : undefined;
+  await createBlock({ type, title, ym, by: u.nick, ...(poll ? { poll } : {}), ...(challenge ? { challenge } : {}) });
   revalidatePath("/event"); revalidatePath("/admin");
   return ok("이벤트 블록을 만들었어요. 아래 목록에서 ‘본문에 세팅’을 누르면 이벤트 탭에 보여요.");
 }

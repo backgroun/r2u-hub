@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_CONFIG as cfg, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
+  normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
 } from "../src/lib/challenge/rules.ts";
 
 /** 테스트용 활동 (기본: 12/2 새벽 5km 25분 = 페이스 5:00) */
@@ -31,28 +32,69 @@ test("페이스는 초 단위로 버림해서 8:00 경계를 가른다", () => {
   assert.ok(!judge(act({ durationSec: 2405 }), cfg).paceOk);
 });
 
-test("기간 단계", () => {
+test("기간 단계 (시각까지 본다)", () => {
   const p = (d) => phaseOf(cfg, d);
-  assert.equal(p("2026-11-23"), "soon");
-  assert.equal(p("2026-11-24"), "signup");
-  assert.equal(p("2026-11-30"), "signup");
-  assert.equal(p("2026-12-01"), "running");
-  assert.equal(p("2026-12-18"), "running");
-  assert.equal(p("2026-12-19"), "upload");
-  assert.equal(p("2026-12-20"), "upload");
-  assert.equal(p("2026-12-21"), "appeal");
-  assert.equal(p("2026-12-22"), "appeal");
-  assert.equal(p("2026-12-23"), "closed");
+  assert.equal(p("2026-11-23T23:59"), "soon");
+  assert.equal(p("2026-11-24T08:59"), "soon");
+  assert.equal(p("2026-11-24T09:00"), "signup");
+  assert.equal(p("2026-11-30T23:59"), "signup");
+  assert.equal(p("2026-12-01T00:00"), "running");
+  assert.equal(p("2026-12-18T23:59"), "running");
+  assert.equal(p("2026-12-19T00:00"), "upload");
+  assert.equal(p("2026-12-20T23:59"), "upload");
+  assert.equal(p("2026-12-21T00:00"), "appeal");
+  assert.equal(p("2026-12-22T23:59"), "appeal");
+  assert.equal(p("2026-12-23T00:00"), "closed");
+  const c2 = { ...cfg, end: "2026-12-18T22:00" };
+  assert.equal(phaseOf(c2, "2026-12-18T22:00"), "running");
+  assert.equal(phaseOf(c2, "2026-12-18T22:01"), "upload");
 });
 
 test("날짜 더하기와 설정 검증", () => {
   assert.equal(addDaysYmd("2026-12-23", 30), "2027-01-22");
   assert.equal(validateConfig(cfg), null);
-  assert.match(validateConfig({ ...cfg, signupEnd: "2026-12-01" }), /신청 마감/);
-  assert.match(validateConfig({ ...cfg, uploadEnd: "2026-12-18" }), /업로드 마감/);
-  assert.match(validateConfig({ ...cfg, finalAt: "2026-12-22" }), /확정/);
-  assert.match(validateConfig({ ...cfg, start: "2026-13-01" }), /날짜/);
+  assert.match(validateConfig({ ...cfg, signupEnd: "2026-12-01T00:00" }), /신청 마감/);
+  assert.match(validateConfig({ ...cfg, uploadEnd: "2026-12-18T23:59" }), /업로드 마감/);
+  assert.match(validateConfig({ ...cfg, finalAt: "2026-12-22T23:59" }), /확정/);
+  assert.match(validateConfig({ ...cfg, start: "2026-13-01T00:00" }), /날짜/);
+  assert.match(validateConfig({ ...cfg, start: "2026-12-01T25:00" }), /날짜/);
+  assert.match(validateConfig({ ...cfg, start: "2026-12-01" }), /날짜/); // 시각이 없으면 거절
+  assert.match(validateConfig({ ...cfg, signupStart: "2026-12-01T00:00", signupEnd: "2026-11-30T23:59" }), /신청 시작/);
+  assert.match(validateConfig({ ...cfg, start: "2026-12-19T00:00", end: "2026-12-18T23:59", uploadEnd: "2026-12-20T23:59" }), /기록 시작/);
+  assert.match(validateConfig({ ...cfg, appealEnd: "2026-12-20T23:59" }), /이의 제기/);
+  assert.equal(validateConfig({ ...cfg, end: "2026-12-18T22:00", uploadEnd: "2026-12-18T22:01" }), null);
   assert.match(validateConfig({ ...cfg, fee: -1 }), /회비/);
+});
+
+test("옛 날짜만 있는 설정은 시각을 붙여 읽는다", () => {
+  const legacy = {
+    fee: 5000, bank: { bank: "", account: "", holder: "" },
+    signupStart: "2026-11-24", signupEnd: "2026-11-30", start: "2026-12-01", end: "2026-12-18",
+    uploadEnd: "2026-12-20", appealEnd: "2026-12-22", finalAt: "2026-12-23", prizes: [],
+  };
+  const n = normalizeConfig(legacy);
+  assert.equal(n.signupStart, "2026-11-24T00:00");
+  assert.equal(n.signupEnd, "2026-11-30T23:59");
+  assert.equal(n.start, "2026-12-01T00:00");
+  assert.equal(n.end, "2026-12-18T23:59");
+  assert.equal(n.uploadEnd, "2026-12-20T23:59");
+  assert.equal(n.appealEnd, "2026-12-22T23:59");
+  assert.equal(n.finalAt, "2026-12-23T00:00");
+  assert.equal(n.spendNote, "");
+  assert.equal(validateConfig(n), null);
+  const m = normalizeConfig({ ...legacy, start: "2026-12-01T06:30", spendNote: "메모" });
+  assert.equal(m.start, "2026-12-01T06:30");
+  assert.equal(m.spendNote, "메모");
+  assert.equal(normalizeConfig(cfg).signupStart, "2026-11-24T09:00");
+});
+
+test("시각 표시와 현재 한국 시각", () => {
+  assert.match(nowKst(), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+  assert.equal(nowKst(Date.UTC(2026, 10, 24, 0, 0)), "2026-11-24T09:00"); // UTC 00:00 = KST 09:00
+  assert.equal(nowKst(Date.UTC(2026, 10, 24, 15, 30)), "2026-11-25T00:30");
+  assert.equal(fmtDateTime("2026-11-24T09:00"), "11월 24일 09:00");
+  assert.equal(fmtMdTime("2026-11-24T09:00"), "11/24 09:00");
+  assert.equal(fmtDate("2026-11-24"), "11월 24일");
 });
 
 test("판정: 8분보다 느리면 거리·시간·5km·케이던스·장소에서 제외하고 사유를 알려 준다", () => {
@@ -89,6 +131,11 @@ test("판정: 기간 밖과 반려된 기록은 아무 부문에도 들어가지
     const j = judge(act({ startedAt }), cfg);
     assert.ok(Object.values(j.counts).every((v) => v === false));
   }
+  // 종료 시각 바로 뒤의 같은 날 기록도 밖이다
+  const c2 = { ...cfg, end: "2026-12-18T22:00" };
+  assert.ok(Object.values(judge(act({ startedAt: "2026-12-18T22:01" }), c2).counts).every((v) => v === false));
+  assert.ok(judge(act({ startedAt: "2026-12-18T22:00" }), c2).counts.distance);
+  assert.match(judge(act({ startedAt: "2026-12-18T22:01" }), c2).notes[0], /12월 1일 00:00/);
   const r = judge(act({ status: "rejected", rejectReason: "캡처가 안 보여요" }), cfg);
   assert.ok(Object.values(r.counts).every((v) => v === false));
   assert.ok(r.notes[0].startsWith("반려됨: 캡처가 안 보여요"));
@@ -97,7 +144,7 @@ test("판정: 기간 밖과 반려된 기록은 아무 부문에도 들어가지
 // ---- 입력 검증 ----
 const raw = (o = {}) => ({ startedAt: "2026-12-02T06:00", distanceKm: 5, durationSec: 1500, surface: "road", cadence: null, avgHr: null, zone2Pct: null, place: "", ...o });
 const imgs = (o = {}) => ({ summary: true, cadence: false, zone: false, map: false, ...o });
-const check = (r, i, today = "2026-12-10") => validateActivity(r, i, cfg, today);
+const check = (r, i, now = "2026-12-10T12:00") => validateActivity(r, i, cfg, now);
 
 test("입력: 정상 기록은 통과하고 거리는 소수 둘째 자리로 맞춘다", () => {
   const r = check(raw({ distanceKm: 5.004 }), imgs());
@@ -114,11 +161,25 @@ test("입력: 활동 요약 캡처가 없으면 저장할 수 없다", () => {
 });
 
 test("입력: 기간 밖·미래·잘못된 일시를 막는다", () => {
-  assert.match(check(raw({ startedAt: "2026-11-30T23:59" }), imgs()).msg, /기간/);
-  assert.match(check(raw({ startedAt: "2026-12-19T06:00" }), imgs(), "2026-12-19").msg, /기간/);
-  assert.match(check(raw({ startedAt: "2026-12-11T06:00" }), imgs(), "2026-12-10").msg, /미래/);
+  assert.match(check(raw({ startedAt: "2026-11-30T23:59" }), imgs()).msg, /사이의 활동/);
+  assert.match(check(raw({ startedAt: "2026-12-19T06:00" }), imgs(), "2026-12-19T12:00").msg, /사이의 활동/);
+  assert.match(check(raw({ startedAt: "2026-12-11T06:00" }), imgs(), "2026-12-10T12:00").msg, /미래/);
   assert.match(check(raw({ startedAt: "2026-02-30T06:00" }), imgs()).msg, /일시/);
   assert.match(check(raw({ startedAt: "" }), imgs()).msg, /일시/);
+});
+
+test("입력: 종료·시작 시각과 현재 시각을 분 단위로 가른다", () => {
+  const c2 = { ...cfg, end: "2026-12-18T22:00" };
+  const v = (startedAt, now) => validateActivity(raw({ startedAt }), imgs(), c2, now);
+  assert.equal(v("2026-12-18T22:00", "2026-12-19T09:00").ok, true); // 종료 시각 정각은 인정
+  assert.match(v("2026-12-18T22:01", "2026-12-19T09:00").msg, /사이의 활동/);
+  assert.match(v("2026-12-18T22:01", "2026-12-19T09:00").msg, /12월 1일 00:00/);
+  assert.match(v("2026-12-10T12:01", "2026-12-10T12:00").msg, /미래/); // 한 분 뒤
+  assert.match(v("2026-12-10T18:00", "2026-12-10T12:00").msg, /미래/); // 같은 날 뒤 시각
+  assert.equal(v("2026-12-10T12:00", "2026-12-10T12:00").ok, true);
+  const s2 = { ...cfg, start: "2026-12-01T06:00" };
+  assert.match(validateActivity(raw({ startedAt: "2026-12-01T05:59" }), imgs(), s2, "2026-12-10T12:00").msg, /사이의 활동/);
+  assert.equal(validateActivity(raw({ startedAt: "2026-12-01T06:00" }), imgs(), s2, "2026-12-10T12:00").ok, true);
 });
 
 test("입력: 말이 안 되는 거리·시간·페이스를 막는다", () => {

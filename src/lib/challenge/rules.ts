@@ -54,8 +54,9 @@ export type LogEntry = { at: number; by: string; action: string; target: string;
 export type ChallengeConfig = {
   fee: number;
   bank: { bank: string; account: string; holder: string };
+  // 일정은 모두 "YYYY-MM-DDTHH:mm" (한국 시각, 활동 시작 일시와 같은 형식)
   signupStart: string; signupEnd: string; // 신청·입금 기간
-  start: string; end: string; // 기록 인정 기간
+  start: string; end: string; // 기록 인정 기간 (활동 시작 시각 기준)
   uploadEnd: string; // 업로드·수정 마감
   appealEnd: string; // 이의 제기 마감
   finalAt: string; // 최종 확정·시상 발표
@@ -66,25 +67,40 @@ export type ChallengeConfig = {
 export const DEFAULT_CONFIG: ChallengeConfig = {
   fee: 5000,
   bank: { bank: "", account: "", holder: "" },
-  signupStart: "2026-11-24", signupEnd: "2026-11-30",
-  start: "2026-12-01", end: "2026-12-18",
-  uploadEnd: "2026-12-20", appealEnd: "2026-12-22", finalAt: "2026-12-23",
+  signupStart: "2026-11-24T09:00", signupEnd: "2026-11-30T23:59",
+  start: "2026-12-01T00:00", end: "2026-12-18T23:59",
+  uploadEnd: "2026-12-20T23:59", appealEnd: "2026-12-22T23:59", finalAt: "2026-12-23T00:00",
   prizes: ["넥워머", "카프슬리브", "오스무브 모자", "데카르트 장갑"],
   spendNote: "",
 };
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
+const YMDHM = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+/** "YYYY-MM-DDTHH:mm"가 실제 있는 일시인지 (2월 30일·25시 같은 값을 거른다) */
+const isDateTime = (s: string): boolean => YMDHM.test(s) && !Number.isNaN(new Date(`${s}:00Z`).getTime()) && new Date(`${s}:00Z`).toISOString().slice(0, 16) === s;
+
+/** 예전에 날짜만 저장된 설정을 읽을 때 시각을 붙인다: 시작 성격(신청 시작·기록 시작·최종 확정)은 00:00, 마감 성격은 23:59. 없는 회비 사용 내역은 빈 글로. */
+export function normalizeConfig(c: ChallengeConfig): ChallengeConfig {
+  const fix = (v: string, hm: string) => (typeof v === "string" && v.length === 10 && YMD.test(v) ? `${v}T${hm}` : v);
+  return {
+    ...c,
+    signupStart: fix(c.signupStart, "00:00"), signupEnd: fix(c.signupEnd, "23:59"),
+    start: fix(c.start, "00:00"), end: fix(c.end, "23:59"),
+    uploadEnd: fix(c.uploadEnd, "23:59"), appealEnd: fix(c.appealEnd, "23:59"), finalAt: fix(c.finalAt, "00:00"),
+    spendNote: c.spendNote ?? "",
+  };
+}
 
 /** 설정이 말이 되는지 확인한다. 문제가 있으면 화면에 보여 줄 문구, 없으면 null */
 export function validateConfig(c: ChallengeConfig): string | null {
-  const days = [c.signupStart, c.signupEnd, c.start, c.end, c.uploadEnd, c.appealEnd, c.finalAt];
-  if (!days.every((d) => YMD.test(d) && !Number.isNaN(new Date(`${d}T00:00:00Z`).getTime()) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d)) return "날짜를 다시 골라 주세요.";
-  if (!(c.signupStart <= c.signupEnd)) return "신청 시작일이 신청 마감일보다 늦어요.";
-  if (!(c.signupEnd < c.start)) return "신청 마감은 기록 시작일보다 앞이어야 해요.";
-  if (!(c.start <= c.end)) return "기록 시작일이 종료일보다 늦어요.";
-  if (!(c.end < c.uploadEnd)) return "업로드 마감은 기록 종료일보다 뒤여야 해요.";
+  const times = [c.signupStart, c.signupEnd, c.start, c.end, c.uploadEnd, c.appealEnd, c.finalAt];
+  if (!times.every((t) => typeof t === "string" && isDateTime(t))) return "날짜와 시각을 다시 골라 주세요.";
+  if (!(c.signupStart <= c.signupEnd)) return "신청 시작이 신청 마감보다 늦어요.";
+  if (!(c.signupEnd < c.start)) return "신청 마감은 기록 시작보다 앞이어야 해요.";
+  if (!(c.start <= c.end)) return "기록 시작이 종료보다 늦어요.";
+  if (!(c.end < c.uploadEnd)) return "업로드 마감은 기록 종료보다 뒤여야 해요.";
   if (!(c.uploadEnd < c.appealEnd)) return "이의 제기 마감은 업로드 마감보다 뒤여야 해요.";
-  if (!(c.appealEnd < c.finalAt)) return "최종 확정일은 이의 제기 마감보다 뒤여야 해요.";
+  if (!(c.appealEnd < c.finalAt)) return "최종 확정은 이의 제기 마감보다 뒤여야 해요.";
   if (!Number.isInteger(c.fee) || c.fee < 0) return "회비를 확인해 주세요.";
   return null;
 }
@@ -105,20 +121,26 @@ export function fmtDur(sec: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 export const fmtDate = (ymd: string): string => `${Number(ymd.slice(5, 7))}월 ${Number(ymd.slice(8, 10))}일`;
+/** "2026-11-24T09:00" → "11월 24일 09:00" */
+export const fmtDateTime = (dt: string): string => `${fmtDate(dt)} ${dt.slice(11, 16)}`;
+/** "2026-11-24T09:00" → "11/24 09:00" */
+export const fmtMdTime = (dt: string): string => `${Number(dt.slice(5, 7))}/${Number(dt.slice(8, 10))} ${dt.slice(11, 16)}`;
+/** 지금 한국 시각 "YYYY-MM-DDTHH:mm" (UTC+9) */
+export const nowKst = (ms: number = Date.now()): string => new Date(ms + 9 * 3600e3).toISOString().slice(0, 16);
 
 export type Phase = "soon" | "signup" | "ready" | "running" | "upload" | "appeal" | "closed";
 export const PHASE_LABEL: Record<Phase, string> = {
   soon: "곧 열려요", signup: "신청 중", ready: "시작 전", running: "기록 중", upload: "기록 마감 · 업로드 기간", appeal: "순위 공개 · 이의 제기", closed: "종료",
 };
 
-/** 오늘(한국 날짜)이 어느 단계인가. 단계는 날짜의 마지막 날 23:59까지 이어진다. */
-export function phaseOf(cfg: ChallengeConfig, today: string): Phase {
-  if (today < cfg.signupStart) return "soon";
-  if (today <= cfg.signupEnd) return "signup";
-  if (today < cfg.start) return "ready";
-  if (today <= cfg.end) return "running";
-  if (today <= cfg.uploadEnd) return "upload";
-  if (today <= cfg.appealEnd) return "appeal";
+/** 지금(한국 시각 "YYYY-MM-DDTHH:mm")이 어느 단계인가. 각 마감 시각 그 분까지는 앞 단계다. */
+export function phaseOf(cfg: ChallengeConfig, now: string): Phase {
+  if (now < cfg.signupStart) return "soon";
+  if (now <= cfg.signupEnd) return "signup";
+  if (now < cfg.start) return "ready";
+  if (now <= cfg.end) return "running";
+  if (now <= cfg.uploadEnd) return "upload";
+  if (now <= cfg.appealEnd) return "appeal";
   return "closed";
 }
 
@@ -130,7 +152,7 @@ const NONE: Record<Category, boolean> = { distance: false, time: false, cadence:
 export function judge(a: Activity, cfg: ChallengeConfig): Judgement {
   const paceSec = paceSecOf(a.distanceKm, a.durationSec);
   if (a.status === "rejected") return { paceSec, paceOk: false, counts: { ...NONE }, notes: [`반려됨${a.rejectReason ? `: ${a.rejectReason}` : ""}`] };
-  if (a.date < cfg.start || a.date > cfg.end) return { paceSec, paceOk: false, counts: { ...NONE }, notes: [`이벤트 기간(${fmtDate(cfg.start)}~${fmtDate(cfg.end)}) 밖의 기록이에요.`] };
+  if (a.startedAt < cfg.start || a.startedAt > cfg.end) return { paceSec, paceOk: false, counts: { ...NONE }, notes: [`이벤트 기간(${fmtDateTime(cfg.start)}~${fmtDateTime(cfg.end)}) 밖의 기록이에요.`] };
   const notes: string[] = [];
   const paceOk = paceSec <= RULE.maxPaceSec;
   if (!paceOk) notes.push(`평균 페이스 ${fmtPace(paceSec)}/km → 8:00보다 느려서 거리·시간·5km·케이던스·장소에서 제외돼요.`);
@@ -164,13 +186,13 @@ const bad = (msg: string): Checked => ({ ok: false, msg });
 const inRange = (n: number | null, lo: number, hi: number): n is number => n != null && Number.isFinite(n) && n >= lo && n <= hi;
 
 /** 기록 입력을 확인한다. 통과하면 저장할 값(거리 둘째 자리 반올림, 장소 앞뒤 공백 제거)을 돌려준다. */
-export function validateActivity(i: RawInput, img: ImgFlags, cfg: ChallengeConfig, today: string): Checked {
+export function validateActivity(i: RawInput, img: ImgFlags, cfg: ChallengeConfig, now: string): Checked {
   const s = String(i.startedAt ?? "");
   const d = new Date(`${s}:00Z`);
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 16) !== s) return bad("시작 일시를 다시 골라 주세요.");
   const date = s.slice(0, 10);
-  if (date < cfg.start || date > cfg.end) return bad(`${fmtDate(cfg.start)}~${fmtDate(cfg.end)} 기간의 활동만 올릴 수 있어요.`);
-  if (date > today) return bad("오늘보다 미래의 활동은 올릴 수 없어요.");
+  if (s < cfg.start || s > cfg.end) return bad(`${fmtDateTime(cfg.start)} ~ ${fmtDateTime(cfg.end)} 사이의 활동만 올릴 수 있어요.`);
+  if (s > now) return bad("오늘보다 미래의 활동은 올릴 수 없어요.");
 
   if (!inRange(i.distanceKm, 0.1, 200)) return bad("거리를 확인해 주세요. (0.1~200km)");
   const distanceKm = Math.round(i.distanceKm * 100) / 100;

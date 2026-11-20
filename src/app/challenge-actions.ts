@@ -1,4 +1,5 @@
 "use server";
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { currentUser, kstToday, newId } from "@/lib/hub";
@@ -110,13 +111,21 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   const mine = (await listActs(live.block.id)).filter((a) => a.nick === u.nick);
   if (mine.some((a) => a.startedAt === v.value.startedAt && a.id !== actId)) return fail("같은 시작 시각의 기록을 이미 올렸어요.");
 
-  const id = existing?.id ?? newId();
+  // 새 기록은 (닉네임, 시작 시각)에서 정한 id를 쓴다: 더블탭·재시도로 동시에 두 번 들어와도 한 기록으로 합쳐진다.
+  // 수정으로 시작 시각이 바뀐 옛 기록이 같은 id를 쓰고 있으면 충돌이므로 무작위 id로 돌린다.
+  let id = existing?.id;
+  if (!id) {
+    const det = createHash("sha1").update(`${u.nick}|${v.value.startedAt}`).digest("base64url").slice(0, 10);
+    const clash = await getActRec(live.block.id, det);
+    id = clash && (clash.nick !== u.nick || clash.startedAt !== v.value.startedAt) ? newId() : det;
+  }
   const now = Date.now();
   const imgs: Activity["imgs"] = {};
   for (const kind of IMG_KINDS) if (flags[kind]) imgs[kind] = true;
   for (const kind of IMG_KINDS) if (files[kind]) await putImage(live.block.id, id, kind, files[kind]!);
-  for (const kind of IMG_KINDS) if (existing?.imgs[kind] && !imgs[kind]) await delImage(live.block.id, id, kind);
   await saveActRec(live.block.id, { id, nick: u.nick, ...v.value, imgs, status: "pending", createdAt: existing?.createdAt ?? now, updatedAt: now });
+  // 기록을 먼저 저장한 뒤에 빠진 캡처를 지운다(저장이 실패해도 기록이 지워진 이미지를 가리키지 않게)
+  for (const kind of IMG_KINDS) if (existing?.imgs[kind] && !imgs[kind]) await delImage(live.block.id, id, kind);
   if (existing) await addLog(live.block.id, { by: u.nick, action: "edit", target: `${u.nick}/${id}` });
   refresh();
   return ok(existing ? "수정했어요. 운영진이 다시 확인해요." : "기록을 올렸어요! 운영진이 캡처를 확인해요.");

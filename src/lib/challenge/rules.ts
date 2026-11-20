@@ -62,6 +62,9 @@ export type ChallengeConfig = {
   finalAt: string; // 최종 확정·시상 발표
   prizes: string[]; // 상품 예정 목록 (변경될 수 있음)
   spendNote: string; // 회비 사용 내역 공개 문구
+  // 운영진 전용 테스트 모드: 켜면 운영진에게만 보이고, testPhase가 있으면 날짜와 상관없이 그 단계로 본다
+  testMode: boolean;
+  testPhase: Phase | ""; // "" = 날짜대로
 };
 
 export const DEFAULT_CONFIG: ChallengeConfig = {
@@ -72,6 +75,7 @@ export const DEFAULT_CONFIG: ChallengeConfig = {
   uploadEnd: "2026-12-20T23:59", appealEnd: "2026-12-22T23:59", finalAt: "2026-12-23T00:00",
   prizes: ["넥워머", "카프슬리브", "오스무브 모자", "데카르트 장갑"],
   spendNote: "",
+  testMode: false, testPhase: "",
 };
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -88,6 +92,7 @@ export function normalizeConfig(c: ChallengeConfig): ChallengeConfig {
     start: fix(c.start, "00:00"), end: fix(c.end, "23:59"),
     uploadEnd: fix(c.uploadEnd, "23:59"), appealEnd: fix(c.appealEnd, "23:59"), finalAt: fix(c.finalAt, "00:00"),
     spendNote: c.spendNote ?? "",
+    testMode: c.testMode === true, testPhase: c.testPhase ?? "",
   };
 }
 
@@ -142,6 +147,21 @@ export function phaseOf(cfg: ChallengeConfig, now: string): Phase {
   if (now <= cfg.uploadEnd) return "upload";
   if (now <= cfg.appealEnd) return "appeal";
   return "closed";
+}
+
+/** 화면·동작이 따르는 단계: 테스트 모드에서 단계를 고정해 두었으면 그 단계, 아니면 날짜대로 */
+export function currentPhase(cfg: ChallengeConfig, now: string): Phase {
+  return cfg.testMode && cfg.testPhase ? cfg.testPhase : phaseOf(cfg, now);
+}
+
+/** 기록 기간을 판정·검증하는 곳에 넘기는 설정: 테스트 모드에서는 어느 날짜의 활동이든 인정되도록 기간을 넓힌다. 단계 판단·일정 표시에는 쓰지 않는다. */
+export function effectiveCfg(cfg: ChallengeConfig): ChallengeConfig {
+  return cfg.testMode ? { ...cfg, start: "2000-01-01T00:00", end: "2099-12-31T23:59" } : cfg;
+}
+
+/** 시상 결과를 보여 줄 때인가: 종료 단계이고, 확정 시각이 지났거나 테스트 모드일 때 */
+export function canShowWinners(cfg: ChallengeConfig, now: string, phase: Phase): boolean {
+  return phase === "closed" && (cfg.testMode || now >= cfg.finalAt);
 }
 
 export type Judgement = { paceSec: number; paceOk: boolean; counts: Record<Category, boolean>; notes: string[] };

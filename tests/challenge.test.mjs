@@ -5,6 +5,7 @@ import {
   DEFAULT_CONFIG as cfg, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
+  currentPhase, effectiveCfg, canShowWinners,
 } from "../src/lib/challenge/rules.ts";
 
 /** 테스트용 활동 (기본: 12/2 새벽 5km 25분 = 페이스 5:00) */
@@ -347,4 +348,54 @@ test("표시: 값 형식", () => {
   assert.equal(formatValue("cadence", 182), "182spm");
   assert.equal(formatValue("place", 3), "3곳");
   assert.equal(formatValue("fiveK", 4), "4일");
+});
+
+// ---- 테스트 모드 (운영진 전용) ----
+const T = { ...cfg, testMode: true, testPhase: "running" };
+
+test("테스트 모드: 설정 기본값과 옛 설정 보정", () => {
+  assert.equal(cfg.testMode, false);
+  assert.equal(cfg.testPhase, "");
+  const old = { ...cfg };
+  delete old.testMode; delete old.testPhase;
+  const n = normalizeConfig(old);
+  assert.equal(n.testMode, false);
+  assert.equal(n.testPhase, "");
+  assert.equal(normalizeConfig(T).testMode, true);
+  assert.equal(normalizeConfig(T).testPhase, "running");
+});
+
+test("테스트 모드: 단계 고정 (꺼져 있으면 날짜대로)", () => {
+  const now = "2026-11-25T10:00";
+  assert.equal(currentPhase(cfg, now), phaseOf(cfg, now));
+  assert.equal(currentPhase({ ...cfg, testMode: false, testPhase: "closed" }, now), "signup"); // 꺼져 있으면 단계 고정을 무시
+  assert.equal(currentPhase({ ...cfg, testMode: true, testPhase: "" }, now), "signup"); // 비어 있으면 날짜대로
+  assert.equal(currentPhase(T, now), "running");
+  assert.equal(currentPhase({ ...T, testPhase: "appeal" }, now), "appeal");
+});
+
+test("테스트 모드: 인정 기간을 활짝 넓힌다 (꺼져 있으면 그대로)", () => {
+  assert.equal(effectiveCfg(cfg), cfg);
+  const e = effectiveCfg(T);
+  assert.equal(e.start, "2000-01-01T00:00");
+  assert.equal(e.end, "2099-12-31T23:59");
+  assert.equal(e.signupStart, cfg.signupStart); // 일정 표시는 그대로
+  assert.equal(e.finalAt, cfg.finalAt);
+  // 11/20 활동: 원래 설정으로는 기간 밖, 넓힌 설정으로는 판정·입력 통과
+  const a = act({ startedAt: "2026-11-20T07:00" });
+  assert.ok(Object.values(judge(a, cfg).counts).every((v) => v === false));
+  assert.ok(judge(a, e).counts.distance);
+  const r = raw({ startedAt: "2026-11-20T07:00" });
+  assert.equal(validateActivity(r, imgs(), cfg, "2026-11-20T12:00").ok, false);
+  assert.equal(validateActivity(r, imgs(), e, "2026-11-20T12:00").ok, true);
+  // 미래는 여전히 막는다
+  assert.equal(validateActivity(r, imgs(), e, "2026-11-20T06:00").ok, false);
+});
+
+test("테스트 모드: 시상 공개 조건", () => {
+  assert.equal(canShowWinners(cfg, "2026-12-25T00:00", "closed"), true);
+  assert.equal(canShowWinners(cfg, "2026-12-22T12:00", "closed"), false); // 확정 시각 전
+  assert.equal(canShowWinners(cfg, "2026-12-25T00:00", "appeal"), false);
+  assert.equal(canShowWinners(T, "2026-11-20T10:00", "closed"), true); // 테스트 모드는 날짜와 상관없이
+  assert.equal(canShowWinners(T, "2026-11-20T10:00", "appeal"), false);
 });

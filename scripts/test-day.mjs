@@ -140,7 +140,7 @@ if (PG) {
 /* ---------- next dev ---------- */
 const backendEnv = PG ? { DATA_BACKEND: "postgres", DATABASE_URL: PG_URL, KV_REST_API_URL: "http://127.0.0.1:1", KV_REST_API_TOKEN: "unused" } : { KV_REST_API_URL: `http://localhost:${PORT}`, KV_REST_API_TOKEN: TOKEN, UPSTASH_REDIS_REST_URL: `http://localhost:${PORT}`, UPSTASH_REDIS_REST_TOKEN: TOKEN };
 const env = { ...process.env, ...backendEnv, SESSION_SECRET: "test-day-secret", NODE_ENV: "development", NEXT_DIST_DIR: ".next-test" };
-const child = spawn("npx", ["next", "dev", "-p", String(WEB)], { env, stdio: "inherit" });
+const child = spawn("npx", ["next", "dev", "-p", String(WEB)], { env, stdio: "inherit", shell: process.platform === "win32" });
 console.log(`[test-day] http://localhost:${WEB}/login  ·  운영진 또는 ${crew.join("/")}  ·  비밀번호 ${PW}`);
 child.on("exit", (c) => process.exit(c ?? 0));
 process.on("SIGINT", () => child.kill("SIGINT"));

@@ -205,3 +205,108 @@ export function validateActivity(i: RawInput, img: ImgFlags, cfg: ChallengeConfi
 
   return { ok: true, value: { startedAt: s, date, distanceKm, durationSec, surface, cadence: cad ?? null, avgHr: z != null ? hr : null, zone2Pct: z ?? null, place: place || null } };
 }
+
+/** 장소 입력을 같은 장소끼리 비교하는 키: 공백·대소문자를 없앤다 */
+export const placeKey = (raw: string): string => raw.normalize("NFC").trim().toLowerCase().replace(/\s+/g, "");
+/** 운영진이 정리표로 묶어 둔 장소면 묶음 이름의 키를, 아니면 입력 그대로의 키를 돌려준다 */
+export const placeGroupOf = (raw: string, map: Record<string, string> = {}): string => {
+  const k = placeKey(raw);
+  return map[k] ? placeKey(map[k]) : k;
+};
+
+export type Entry = { nick: string; rank: number; value: number; paceSec: number; lastAt: string; actIds: string[] };
+export type Board = Record<Category, Entry[]>;
+
+type Cand = { value: number; evidence: Activity[] };
+
+const tally = (ev: Activity[]) => {
+  const hundredths = ev.reduce((s, a) => s + Math.round(a.distanceKm * 100), 0);
+  const sec = ev.reduce((s, a) => s + a.durationSec, 0);
+  return { paceSec: hundredths > 0 ? Math.floor(sec / (hundredths / 100)) : Infinity, lastAt: ev.reduce((m, a) => (a.startedAt > m ? a.startedAt : m), "") };
+};
+
+/** 한 사람의 활동에서 부문별 후보(값 + 근거가 되는 활동)를 계산한다 */
+function candidates(list: Activity[], cfg: ChallengeConfig, places: Record<string, string>): Partial<Record<Category, Cand>> {
+  const js = list.map((a) => [a, judge(a, cfg)] as const);
+  const pick = (c: Category) => js.filter(([, j]) => j.counts[c]).map(([a]) => a);
+  const out: Partial<Record<Category, Cand>> = {};
+
+  const dist = pick("distance");
+  if (dist.length) out.distance = { value: dist.reduce((s, a) => s + Math.round(a.distanceKm * 100), 0) / 100, evidence: dist };
+  const time = pick("time");
+  if (time.length) out.time = { value: time.reduce((s, a) => s + a.durationSec, 0), evidence: time };
+
+  const cad = pick("cadence").sort((x, y) => (y.cadence as number) - (x.cadence as number) || paceSecOf(x.distanceKm, x.durationSec) - paceSecOf(y.distanceKm, y.durationSec));
+  if (cad.length) out.cadence = { value: cad[0].cadence as number, evidence: [cad[0]] };
+
+  const z2 = pick("zone2").sort((x, y) => y.distanceKm - x.distanceKm || paceSecOf(x.distanceKm, x.durationSec) - paceSecOf(y.distanceKm, y.durationSec));
+  if (z2.length) out.zone2 = { value: z2[0].distanceKm, evidence: [z2[0]] };
+
+  const groups = new Map<string, Activity>();
+  for (const a of pick("place")) {
+    const g = placeGroupOf(a.place as string, places);
+    const cur = groups.get(g);
+    if (!cur || a.startedAt < cur.startedAt) groups.set(g, a);
+  }
+  if (groups.size) out.place = { value: groups.size, evidence: [...groups.values()] };
+
+  const days = new Map<string, Activity[]>();
+  for (const a of pick("fiveK")) days.set(a.date, [...(days.get(a.date) ?? []), a]);
+  const full = [...days.values()].filter((d) => d.reduce((s, a) => s + Math.round(a.distanceKm * 100), 0) >= RULE.fiveKmHundredths);
+  if (full.length) out.fiveK = { value: full.length, evidence: full.flat() };
+  return out;
+}
+
+/**
+ * 부문별 순위표. paidNicks에 있는 사람만 센다.
+ * verifiedOnly=true면 승인(ok)된 기록만, false면 검수 전(pending) 기록도 센다. 반려된 기록은 항상 뺀다.
+ * 정렬: 값(큰 순) → 근거 활동의 평균 페이스(빠른 순) → 마지막 근거 활동 시작 시각(이른 순). 셋 다 같으면 공동 순위.
+ */
+export function buildBoard(acts: Activity[], paidNicks: string[], cfg: ChallengeConfig, opts: { verifiedOnly: boolean; places?: Record<string, string> }): Board {
+  const paid = new Set(paidNicks);
+  const by = new Map<string, Activity[]>();
+  for (const a of acts) {
+    if (!paid.has(a.nick)) continue;
+    if (opts.verifiedOnly ? a.status !== "ok" : a.status === "rejected") continue;
+    by.set(a.nick, [...(by.get(a.nick) ?? []), a]);
+  }
+  const board = Object.fromEntries(CATEGORIES.map((c) => [c, [] as Entry[]])) as Board;
+  for (const [nick, list] of by) {
+    const cand = candidates(list, cfg, opts.places ?? {});
+    for (const c of CATEGORIES) {
+      const x = cand[c];
+      if (x) board[c].push({ nick, rank: 0, value: x.value, ...tally(x.evidence), actIds: x.evidence.map((a) => a.id) });
+    }
+  }
+  for (const c of CATEGORIES) {
+    board[c].sort((p, q) => q.value - p.value || p.paceSec - q.paceSec || p.lastAt.localeCompare(q.lastAt) || p.nick.localeCompare(q.nick));
+    board[c].forEach((e, i, arr) => { e.rank = i > 0 && same(e, arr[i - 1]) ? arr[i - 1].rank : i + 1; });
+  }
+  return board;
+}
+
+const same = (a: Entry, b: Entry) => a.value === b.value && a.paceSec === b.paceSec && a.lastAt === b.lastAt;
+
+export type Award = { category: Category; winner: string | null; tie: string[] };
+
+/** 시상: 부문을 확정 순서대로 보며, 이미 수상한 사람은 건너뛰고 차순위가 올라온다(1인 1상). 완전 동점이면 winner=null, tie=동점자. */
+export function awardWinners(board: Board): Award[] {
+  const won = new Set<string>();
+  return CATEGORIES.map((category) => {
+    const rest = board[category].filter((e) => !won.has(e.nick));
+    if (!rest.length) return { category, winner: null, tie: [] };
+    const top = rest.filter((e) => same(e, rest[0]));
+    if (top.length > 1) return { category, winner: null, tie: top.map((e) => e.nick).sort() };
+    won.add(top[0].nick);
+    return { category, winner: top[0].nick, tie: [] };
+  });
+}
+
+/** 순위표의 값을 화면에 보여 줄 글자로 */
+export function formatValue(c: Category, v: number): string {
+  if (c === "distance" || c === "zone2") return `${v.toFixed(2)}km`;
+  if (c === "time") return fmtDur(v);
+  if (c === "cadence") return `${v}spm`;
+  if (c === "place") return `${v}곳`;
+  return `${v}일`;
+}

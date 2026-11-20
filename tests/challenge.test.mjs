@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_CONFIG as cfg, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
+  buildBoard, awardWinners, placeKey, formatValue,
 } from "../src/lib/challenge/rules.ts";
 
 /** 테스트용 활동 (기본: 12/2 새벽 5km 25분 = 페이스 5:00) */
@@ -152,4 +153,98 @@ test("입력: 장소는 지도 캡처가 짝이어야 하고 트레드밀은 쓸
   const ok = check(raw({ place: "  송파구 올림픽공원  " }), imgs({ map: true }));
   assert.equal(ok.ok, true);
   assert.equal(ok.value.place, "송파구 올림픽공원");
+});
+
+// ---- 순위·시상 ----
+const mk = (id, nick, startedAt, distanceKm, durationSec, extra = {}) => act({ id, nick, startedAt, distanceKm, durationSec, ...extra });
+const DATA = [
+  mk("a1", "a", "2026-12-02T06:00", 10.5, 3150, { cadence: 182, place: "한강 반포" }),
+  mk("a2", "a", "2026-12-03T06:00", 5, 1500),
+  mk("a3", "a", "2026-12-04T06:00", 6, 4200), // 11:40 → 제외
+  mk("b1", "b", "2026-12-02T06:00", 3, 900),
+  mk("b2", "b", "2026-12-02T19:00", 2.5, 750), // 같은 날 합산 5.5km
+  mk("b3", "b", "2026-12-05T06:00", 15, 6000, { cadence: 176, zone2Pct: 85, avgHr: 140, place: "탄천" }),
+  mk("c1", "c", "2026-12-03T06:00", 4, 1200),
+  mk("c2", "c", "2026-12-04T06:00", 9, 7200, { zone2Pct: 90, avgHr: 130 }), // 느리지만 Zone 2
+  mk("z", "z", "2026-12-02T06:00", 50, 15000), // 입금 확인 안 된 사람
+];
+const PAID = ["a", "b", "c"];
+const names = (list) => list.map((e) => e.nick);
+
+test("순위: 부문별 값과 순서 (입금 확인된 사람만, 검수 전 기록 포함)", () => {
+  const b = buildBoard(DATA, PAID, cfg, { verifiedOnly: false });
+  assert.deepEqual(names(b.distance), ["b", "a", "c"]);
+  assert.deepEqual(b.distance.map((e) => e.value), [20.5, 15.5, 4]);
+  assert.deepEqual(names(b.time), ["b", "a", "c"]);
+  assert.deepEqual(b.time.map((e) => e.value), [7650, 4650, 1200]);
+  assert.deepEqual(names(b.cadence), ["a", "b"]);
+  assert.deepEqual(b.cadence.map((e) => e.value), [182, 176]);
+  assert.deepEqual(names(b.zone2), ["b", "c"]);
+  assert.deepEqual(b.zone2.map((e) => e.value), [15, 9]);
+  assert.deepEqual(names(b.place), ["a", "b"]); // 둘 다 1곳 → 증거 활동의 평균 페이스가 빠른 a
+  assert.deepEqual(b.place.map((e) => e.value), [1, 1]);
+  assert.deepEqual(names(b.fiveK), ["a", "b"]); // 둘 다 2일 → 페이스 300 vs 373
+  assert.deepEqual(b.fiveK.map((e) => e.value), [2, 2]);
+  assert.deepEqual(b.fiveK.map((e) => e.rank), [1, 2]);
+});
+
+test("순위: 검수 완료 기준이면 승인된 기록만 센다", () => {
+  assert.deepEqual(buildBoard(DATA, PAID, cfg, { verifiedOnly: true }).distance, []);
+  const some = DATA.map((x) => (x.id === "a1" ? { ...x, status: "ok" } : x));
+  const b = buildBoard(some, PAID, cfg, { verifiedOnly: true });
+  assert.deepEqual(names(b.distance), ["a"]);
+  assert.equal(b.distance[0].value, 10.5);
+});
+
+test("순위: 반려된 기록은 빠진다", () => {
+  const rej = DATA.map((x) => (x.id === "b3" ? { ...x, status: "rejected", rejectReason: "x" } : x));
+  const b = buildBoard(rej, PAID, cfg, { verifiedOnly: false });
+  assert.equal(b.distance.find((e) => e.nick === "b").value, 5.5);
+  assert.deepEqual(names(b.zone2), ["c"]);
+});
+
+test("시상: 1인 1상, 앞 부문 수상자는 뒤 부문에서 빠진다", () => {
+  const awards = awardWinners(buildBoard(DATA, PAID, cfg, { verifiedOnly: false }));
+  assert.deepEqual(awards.map((x) => x.category), ["distance", "time", "cadence", "zone2", "place", "fiveK"]);
+  assert.deepEqual(awards.map((x) => x.winner), ["b", "a", null, "c", null, null]);
+});
+
+test("시상: 완전 동점이면 우승자를 정하지 않고 동점자를 알려 준다", () => {
+  const tie = [mk("p1", "p", "2026-12-02T06:00", 5, 1500), mk("q1", "q", "2026-12-02T06:00", 5, 1500)];
+  const board = buildBoard(tie, ["p", "q"], cfg, { verifiedOnly: false });
+  assert.deepEqual(board.distance.map((e) => e.rank), [1, 1]);
+  const [first] = awardWinners(board);
+  assert.equal(first.winner, null);
+  assert.deepEqual(first.tie, ["p", "q"]);
+});
+
+test("장소: 공백·대소문자는 같은 장소, 운영진 정리표로 묶을 수 있다", () => {
+  assert.equal(placeKey("  한강 반포 "), placeKey("한강반포"));
+  const d = [
+    mk("d1", "d", "2026-12-02T06:00", 8, 2400, { place: "한강 반포" }),
+    mk("d2", "d", "2026-12-03T06:00", 8, 2400, { place: "한강반포" }),
+    mk("d3", "d", "2026-12-04T06:00", 8, 2400, { place: "뚝섬" }),
+  ];
+  assert.equal(buildBoard(d, ["d"], cfg, { verifiedOnly: false }).place[0].value, 2);
+  const grouped = buildBoard(d, ["d"], cfg, { verifiedOnly: false, places: { [placeKey("뚝섬")]: "한강 반포" } });
+  assert.equal(grouped.place[0].value, 1);
+});
+
+test("5km: 5.00km는 포함, 느린 활동은 날 합계에서 빠진다", () => {
+  const d = [
+    mk("e1", "e", "2026-12-02T06:00", 5, 1500), // 정확히 5.00km → 1일
+    mk("e2", "e", "2026-12-03T06:00", 2.5, 750),
+    mk("e3", "e", "2026-12-03T18:00", 2.49, 747), // 합 4.99km → 아님
+    mk("e4", "e", "2026-12-04T06:00", 3, 900),
+    mk("e5", "e", "2026-12-04T18:00", 2, 3000), // 25:00/km 느림 → 합 3km → 아님
+  ];
+  assert.equal(buildBoard(d, ["e"], cfg, { verifiedOnly: false }).fiveK[0].value, 1);
+});
+
+test("표시: 값 형식", () => {
+  assert.equal(formatValue("distance", 20.5), "20.50km");
+  assert.equal(formatValue("time", 7650), "2:07:30");
+  assert.equal(formatValue("cadence", 182), "182spm");
+  assert.equal(formatValue("place", 3), "3곳");
+  assert.equal(formatValue("fiveK", 4), "4일");
 });

@@ -53,19 +53,26 @@ export async function getActive(): Promise<Record<string, string>> {
 }
 
 /** 지금 이벤트 탭 본문에 보여 줄 블록: 이번 달 활성 블록, 없으면 가장 가까운 앞으로의 달 */
-export async function displayBlock(): Promise<EventBlock | null> {
+export async function displayBlock(opts?: { staff?: boolean }): Promise<EventBlock | null> {
   const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
   const ym = kstToday().slice(0, 7);
   const next = Object.keys(active).filter((m) => m >= ym).sort()[0];
-  return next ? blocks.find((b) => b.id === active[next]) ?? null : null;
+  const b = next ? blocks.find((x) => x.id === active[next]) ?? null : null;
+  // 테스트 모드인 챌린지는 운영진에게만 보인다
+  return b?.challenge?.testMode && !opts?.staff ? null : b;
 }
 
 /** 지금 신청·진행·결과를 보여 줄 챌린지 블록: 월별로 세팅된 챌린지 중 [신청 시작 시각, 확정일+30일] 안에 지금이 든 것.
-    신청 기간이 다른 달 이벤트(빙고)와 겹쳐도 챌린지가 가려지지 않도록 월과 무관하게 찾는다. */
-export async function activeChallenge(now = nowKst()): Promise<EventBlock | null> {
+    신청 기간이 다른 달 이벤트(빙고)와 겹쳐도 챌린지가 가려지지 않도록 월과 무관하게 찾는다.
+    테스트 모드인 블록은 운영진(opts.staff)에게만 돌려주고, 그때는 날짜 범위를 보지 않는다. 사용자를 모르는 곳(닉네임 검사 등)은 opts 없이 불러 테스트 블록을 무시한다. */
+export async function activeChallenge(now = nowKst(), opts?: { staff?: boolean }): Promise<EventBlock | null> {
   const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
   const ids = new Set(Object.values(active));
-  return blocks.find((b) => b.type === "challenge" && b.challenge && ids.has(b.id) && now >= b.challenge.signupStart && now.slice(0, 10) <= addDaysYmd(b.challenge.finalAt.slice(0, 10), 30)) ?? null;
+  return blocks.find((b) => {
+    if (b.type !== "challenge" || !b.challenge || !ids.has(b.id)) return false;
+    if (b.challenge.testMode) return !!opts?.staff;
+    return now >= b.challenge.signupStart && now.slice(0, 10) <= addDaysYmd(b.challenge.finalAt.slice(0, 10), 30);
+  }) ?? null;
 }
 
 export async function setChallengeConfig(blockId: string, challenge: ChallengeConfig) {

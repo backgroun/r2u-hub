@@ -6,9 +6,9 @@ import { currentUser, newId } from "@/lib/hub";
 import { isConfirmed, CONFIRM_REQUIRED } from "@/lib/confirm-token";
 import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-blocks";
 import {
-  addLog, delImage, getActRec, getAppeal, getMemberRec, listActs, listAppeals, putImage, removeActRec, removeMemberRec, saveActRec, saveAppeal, saveMemberRec, setPlaceGroup,
+  addLog, delImage, getActRec, getAppeal, getMemberRec, listActs, listAppeals, purgeChallenge, putImage, removeActRec, removeMemberRec, saveActRec, saveAppeal, saveMemberRec, setPlaceGroup,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, nowKst, phaseOf, placeKey, validateActivity, validateConfig, type ActStatus, type Activity, type ChallengeConfig, type ImgKind, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, currentPhase, effectiveCfg, nowKst, placeKey, validateActivity, validateConfig, type ActStatus, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -27,18 +27,18 @@ async function me() {
 }
 const refresh = () => { revalidatePath("/event"); revalidatePath("/event/challenge"); revalidatePath("/admin"); };
 
-/** 지금 진행 중인 챌린지 블록(폼이 가리키는 것과 같아야 한다) */
-async function liveBlock(fd: FormData) {
-  const block = await activeChallenge();
+/** 지금 진행 중인 챌린지 블록(폼이 가리키는 것과 같아야 한다). 테스트 모드 블록은 운영진(크루 보기 중이어도)만 쓸 수 있다. */
+async function liveBlock(fd: FormData, u: { admin: boolean; realAdmin?: boolean }) {
+  const block = await activeChallenge(undefined, { staff: u.realAdmin ?? u.admin });
   return block?.challenge && block.id === str(fd, "id", 20) ? { block, cfg: block.challenge } : null;
 }
 
 /* ---------- 참가 신청·취소 ---------- */
 export async function joinChallengeAction(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
-  const live = await liveBlock(fd);
+  const live = await liveBlock(fd, u);
   if (!live) return fail("지금 신청을 받는 챌린지가 없어요.");
-  if (phaseOf(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 아니에요.");
+  if (currentPhase(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 아니에요.");
   if (fd.get("agree") !== "on") return fail("규정과 ‘회비 환불 없음’에 동의해 주세요.");
   if (await getMemberRec(live.block.id, u.nick)) return fail("이미 신청했어요.");
   const now = Date.now();
@@ -50,9 +50,9 @@ export async function joinChallengeAction(_: Result, fd: FormData): Promise<Resu
 
 export async function leaveChallengeAction(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
-  const live = await liveBlock(fd);
+  const live = await liveBlock(fd, u);
   if (!live) return fail("지금 신청을 받는 챌린지가 없어요.");
-  if (phaseOf(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 끝나서 취소할 수 없어요.");
+  if (currentPhase(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 끝나서 취소할 수 없어요.");
   if (!(await getMemberRec(live.block.id, u.nick))) return fail("신청 내역이 없어요.");
   await removeMemberRec(live.block.id, u.nick);
   await addLog(live.block.id, { by: u.nick, action: "leave", target: u.nick });
@@ -66,10 +66,10 @@ const IMG_TYPES = ["image/webp", "image/jpeg", "image/png"];
 
 export async function submitActivityAction(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
-  const live = await liveBlock(fd);
+  const live = await liveBlock(fd, u);
   if (!live) return fail("지금 기록을 받는 챌린지가 없어요.");
   const nowStr = nowKst();
-  const phase = phaseOf(live.cfg, nowStr);
+  const phase = currentPhase(live.cfg, nowStr);
   if (phase !== "running" && phase !== "upload") return fail("지금은 기록을 올릴 수 있는 기간이 아니에요.");
   if (!(await getMemberRec(live.block.id, u.nick))) return fail("참가 신청한 사람만 기록을 올릴 수 있어요.");
 
@@ -105,7 +105,7 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
     zone: keep("zone", raw.zone2Pct != null || raw.avgHr != null),
     map: keep("map", raw.place !== ""),
   };
-  const v = validateActivity(raw, flags, live.cfg, nowStr);
+  const v = validateActivity(raw, flags, effectiveCfg(live.cfg), nowStr);
   if (!v.ok) return fail(v.msg);
 
   const mine = (await listActs(live.block.id)).filter((a) => a.nick === u.nick);
@@ -141,9 +141,9 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
 export async function deleteActivityAction(fd: FormData) {
   if (!(await isConfirmed(fd.get("confirmToken")))) return; // 비밀번호 확인 필요
   const u = await me();
-  const live = await liveBlock(fd);
+  const live = await liveBlock(fd, u);
   if (!live) return;
-  const phase = phaseOf(live.cfg, nowKst());
+  const phase = currentPhase(live.cfg, nowKst());
   if (phase !== "running" && phase !== "upload") return;
   const a = await getActRec(live.block.id, str(fd, "actId", 20));
   if (!a || a.nick !== u.nick) return;
@@ -155,9 +155,9 @@ export async function deleteActivityAction(fd: FormData) {
 /* ---------- 이의 제기 ---------- */
 export async function fileAppealAction(_: Result, fd: FormData): Promise<Result> {
   const u = await me();
-  const live = await liveBlock(fd);
+  const live = await liveBlock(fd, u);
   if (!live) return fail("지금 이의 제기를 받는 챌린지가 없어요.");
-  if (phaseOf(live.cfg, nowKst()) !== "appeal") return fail("이의 제기 기간이 아니에요.");
+  if (currentPhase(live.cfg, nowKst()) !== "appeal") return fail("이의 제기 기간이 아니에요.");
   if (!(await getMemberRec(live.block.id, u.nick))) return fail("참가자만 이의 제기를 할 수 있어요.");
   const a = await getActRec(live.block.id, str(fd, "actId", 20));
   if (!a || a.nick !== u.nick) return fail("이의 제기할 기록을 골라 주세요.");
@@ -201,7 +201,8 @@ export async function reviewActivityAction(_: Result, fd: FormData): Promise<Res
   const blockId = str(fd, "blockId", 20), decision = str(fd, "decision", 10), reason = str(fd, "reason", 200);
   const a = await getActRec(blockId, str(fd, "actId", 20));
   if (!a) return fail("기록을 찾을 수 없어요.");
-  if (a.nick === u.nick) return fail("본인 기록은 다른 운영진이 검수해요.");
+  const testMode = !!(await getBlocks()).find((x) => x.id === blockId && x.type === "challenge")?.challenge?.testMode;
+  if (a.nick === u.nick && !testMode) return fail("본인 기록은 다른 운영진이 검수해요.");
   if (String(a.updatedAt) !== str(fd, "v", 20)) return fail("기록이 바뀌었어요. 새로고침 후 다시 확인해 주세요.");
   if (decision !== "ok" && decision !== "rejected") return fail("승인 또는 반려를 골라 주세요.");
   if (decision === "rejected" && reason.length < 2) return fail("반려 사유를 적어 주세요.");
@@ -262,6 +263,8 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
     uploadEnd: str(fd, "uploadEnd", 16), appealEnd: str(fd, "appealEnd", 16), finalAt: str(fd, "finalAt", 16),
     prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
     spendNote: str(fd, "spendNote", 500),
+    // 테스트 모드 설정은 이 폼이 건드리지 않는다
+    testMode: b.challenge?.testMode === true, testPhase: b.challenge?.testPhase ?? "",
   };
   const bad = validateConfig(cfg);
   if (bad) return fail(bad);
@@ -270,4 +273,33 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
   await addLog(b.id, { by: u.nick, action: "config", target: b.title, note });
   revalidatePath("/", "layout");
   return ok("챌린지 설정을 저장했어요.");
+}
+
+/* ---------- 테스트 모드 (운영진 전용) ---------- */
+const PHASES: Phase[] = ["soon", "signup", "ready", "running", "upload", "appeal", "closed"];
+
+/** 테스트 모드 켜기·끄기와 단계 고정. testMode·testPhase 두 값만 바꾼다. */
+export async function setChallengeTestAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  const b = await challengeBlock(str(fd, "id", 20));
+  const mode = str(fd, "testMode", 1), phase = str(fd, "testPhase", 10);
+  if (mode !== "1" && mode !== "0") return fail("켜기 또는 끄기를 골라 주세요.");
+  if (phase !== "" && !PHASES.includes(phase as Phase)) return fail("단계를 다시 골라 주세요.");
+  const on = mode === "1";
+  await setChallengeConfig(b.id, { ...(b.challenge as ChallengeConfig), testMode: on, testPhase: phase as Phase | "" });
+  await addLog(b.id, { by: u.nick, action: "test-mode", target: b.title, note: on ? `켬 · 단계 ${phase || "날짜대로"}` : "끔" });
+  revalidatePath("/", "layout");
+  return ok(on ? "테스트 모드를 켰어요. 운영진에게만 보여요." : "테스트 모드를 껐어요. 날짜대로 돌아가요.");
+}
+
+/** 테스트 데이터 모두 지우기: 테스트 모드가 켜진 챌린지에서만. 블록과 설정은 남기고 신청자·기록(캡처)·장소 정리표·이의 제기·처리 기록을 지운다. */
+export async function resetChallengeDataAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  if (!(await isConfirmed(fd.get("confirmToken")))) return fail(CONFIRM_REQUIRED);
+  const b = await challengeBlock(str(fd, "id", 20));
+  if (!b.challenge?.testMode) return fail("테스트 모드를 켠 상태에서만 지울 수 있어요.");
+  await purgeChallenge(b.id);
+  await addLog(b.id, { by: u.nick, action: "test-reset", target: "테스트 데이터 초기화", note: b.title });
+  revalidatePath("/", "layout");
+  return ok("테스트 데이터를 모두 지웠어요.");
 }

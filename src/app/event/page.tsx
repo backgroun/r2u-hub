@@ -14,7 +14,7 @@ export const metadata = { title: "이벤트" };
 // 운영진이 이번 달 본문에 세팅한 이벤트 블록을 보여 준다. 블록 종류(빙고·투표…)마다 화면이 다르다.
 export default async function EventPage({ searchParams }: { searchParams: Promise<{ staff?: string }> }) {
   const u = await currentUser();
-  const block = await displayBlock();
+  const block = await displayBlock({ staff: !!(u && (u.realAdmin ?? u.admin)) });
   // 운영진이 숨겨 둔 동안 크루원에게는 안내 화면만 보인다 (운영진은 그대로 본다)
   const hidden = await eventHidden();
   if (hidden && !u?.admin) return <Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon />;

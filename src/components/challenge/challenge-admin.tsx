@@ -1,13 +1,14 @@
 import { currentUser } from "@/lib/hub";
 import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
-import { resolveAppealAction, reviewActivityAction, saveChallengeConfigAction, setPaidAction, setPlaceGroupAction } from "@/app/challenge-actions";
+import { resetChallengeDataAction, resolveAppealAction, reviewActivityAction, saveChallengeConfigAction, setChallengeTestAction, setPaidAction, setPlaceGroupAction } from "@/app/challenge-actions";
 import { listActs, listAppeals, listLog, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, fmtDur, fmtPace, judge, nowKst, phaseOf, placeKey,
-  type Activity, type ChallengeConfig,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, currentPhase, effectiveCfg, fmtDur, fmtPace, judge, nowKst, placeKey,
+  type Activity, type ChallengeConfig, type Phase,
 } from "@/lib/challenge/rules";
 
+const TEST_PHASES: Phase[] = ["signup", "ready", "running", "upload", "appeal", "closed"];
 const when = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ");
 const rankOf = (a: Activity, top: Set<string>) => (a.status === "pending" ? (top.has(a.id) ? 0 : 1) : a.status === "ok" ? 2 : 3);
 
@@ -15,10 +16,11 @@ const rankOf = (a: Activity, top: Set<string>) => (a.status === "pending" ? (top
 export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
   const cfg = block.challenge as ChallengeConfig;
   const me = (await currentUser())?.nick ?? "";
-  const phase = phaseOf(cfg, nowKst());
+  const phase = currentPhase(cfg, nowKst());
+  const ecfg = effectiveCfg(cfg); // 기록 기간을 보는 판정·순위에는 테스트 모드에서 넓힌 설정을 쓴다
   const [members, acts, places, appeals, log] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), listAppeals(block.id), listLog(block.id)]);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
-  const liveBoard = buildBoard(acts, paidNicks, cfg, { verifiedOnly: false, places });
+  const liveBoard = buildBoard(acts, paidNicks, ecfg, { verifiedOnly: false, places });
   // 각 부문 상위 3위 후보의 근거 활동은 캡처를 전수 확인한다
   const top = new Set<string>();
   for (const c of CATEGORIES) for (const e of liveBoard[c].filter((x) => x.rank <= 3)) e.actIds.forEach((id) => top.add(id));
@@ -28,15 +30,43 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
   const pending = acts.filter((a) => a.status === "pending").length;
   const placeList = new Map<string, { label: string; n: number }>();
   for (const a of acts) if (a.place) { const k = placeKey(a.place); placeList.set(k, { label: placeList.get(k)?.label ?? a.place, n: (placeList.get(k)?.n ?? 0) + 1 }); }
-  const awards = awardWinners(buildBoard(acts, paidNicks, cfg, { verifiedOnly: true, places }));
+  const awards = awardWinners(buildBoard(acts, paidNicks, ecfg, { verifiedOnly: true, places }));
   const openAppeals = appeals.filter((p) => !p.done);
 
   return (
     <section className="grid gap-3">
       <div className="panel p-4 grid gap-1">
         <h2 className="font-bold">{block.title} <span className="chip chip-open">{PHASE_LABEL[phase]}</span></h2>
+        {cfg.testMode && <p className="text-sm font-bold" style={{ color: "#8a5a00" }}>🧪 테스트 모드 켜짐 — 운영진에게만 보여요</p>}
         <p className="text-sm text-muted">신청 {members.length}명 · 입금 확인 {paidNicks.length}명 · 기록 {acts.length}건(검수 전 {pending}건) · 이의 제기 {openAppeals.length}건 대기</p>
       </div>
+
+      <details className="panel p-4" open={cfg.testMode}>
+        <summary className="font-bold cursor-pointer">🧪 테스트 모드 {cfg.testMode ? "(켜짐)" : "(꺼짐)"}</summary>
+        <div className="grid gap-3 pt-3">
+          {cfg.testMode && <p className="text-sm font-bold" style={{ color: "#8a5a00" }}>테스트 모드 켜짐 — 운영진에게만 보여요</p>}
+          <p className="text-xs text-muted">켜면 크루원에게는 이 챌린지가 보이지 않고, 운영진만 날짜와 상관없이 전 과정을 써 볼 수 있어요. 단계를 고정하면 기록 기간 밖의 날짜로도 올릴 수 있고, 본인 기록도 직접 승인할 수 있어요. 끝나면 ‘테스트 데이터 모두 지우기’로 정리하세요.</p>
+          <ActionForm action={setChallengeTestAction} keep className="flex items-end gap-2 flex-wrap">
+            <input type="hidden" name="id" value={block.id} />
+            <label className="field"><span className="label">단계</span>
+              <select name="testPhase" className="input" defaultValue={cfg.testPhase}>
+                <option value="">날짜대로(자동)</option>
+                {TEST_PHASES.map((p) => <option key={p} value={p}>{PHASE_LABEL[p]}</option>)}
+              </select></label>
+            <label className="field"><span className="label">테스트 모드</span>
+              <select name="testMode" className="input" defaultValue={cfg.testMode ? "1" : "0"}>
+                <option value="1">켜기</option><option value="0">끄기</option>
+              </select></label>
+            <Submit className="btn btn-primary" pendingText="저장 중…">적용</Submit>
+          </ActionForm>
+          {cfg.testMode && (
+            <ActionForm action={resetChallengeDataAction} keep className="flex">
+              <input type="hidden" name="id" value={block.id} />
+              <ConfirmButton className="btn btn-ghost btn-danger" message={"테스트 데이터를 모두 지울까요? 신청자·기록(캡처)·장소 정리표·이의 제기·처리 기록이 사라지고 되돌릴 수 없어요."}>테스트 데이터 모두 지우기</ConfirmButton>
+            </ActionForm>
+          )}
+        </div>
+      </details>
 
       <details className="panel p-4">
         <summary className="font-bold cursor-pointer">설정 (기간·회비·계좌·상품)</summary>
@@ -77,10 +107,10 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
 
       <details className="panel p-4" open>
         <summary className="font-bold cursor-pointer">기록 검수 ({pending}건 대기 / 전체 {acts.length}건)</summary>
-        <p className="text-sm text-muted pt-2">각 부문 상위 3위 후보의 근거 기록은 ‘상위 후보’로 먼저 보여요. 캡처를 열어 날짜·거리·시간이 입력과 같은지 확인하세요. 본인 기록은 검수할 수 없어요.</p>
+        <p className="text-sm text-muted pt-2">각 부문 상위 3위 후보의 근거 기록은 ‘상위 후보’로 먼저 보여요. 캡처를 열어 날짜·거리·시간이 입력과 같은지 확인하세요. {cfg.testMode ? "테스트 모드라서 본인 기록도 검수할 수 있어요." : "본인 기록은 검수할 수 없어요."}</p>
         <div className="grid gap-3 pt-3">
           {queue.map((a) => {
-            const j = judge(a, cfg);
+            const j = judge(a, ecfg);
             const same = dup.get(`${a.startedAt}|${a.distanceKm}|${a.durationSec}`) ?? 0;
             return (
               <div key={a.id} className="grid gap-2 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
@@ -98,7 +128,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
                     <a key={k} href={`/api/challenge/${block.id}/${a.id}/${k}?v=${a.updatedAt}`} target="_blank" rel="noreferrer" className="text-xs underline">{IMG_LABEL[k]} 캡처 열기</a>
                   ))}
                 </div>
-                {a.nick !== me && (
+                {(a.nick !== me || cfg.testMode) && (
                   <ActionForm action={reviewActivityAction} keep hideInline className="flex gap-2 items-center flex-wrap">
                     {/* name="id"는 쓰지 않는다: 폼의 id 속성이 이 입력칸에 가려져 React가 승인·반려 버튼 값을 빠뜨린다 */}
                     <input type="hidden" name="blockId" value={block.id} /><input type="hidden" name="actId" value={a.id} /><input type="hidden" name="v" value={a.updatedAt} />

@@ -4,7 +4,7 @@ import ActivityForm from "@/components/challenge/activity-form";
 import { deleteActivityAction, fileAppealAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { listActs, listAppeals, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDateTime, fmtDur, fmtMdTime, fmtPace, formatValue, judge, nowKst, phaseOf, placeGroupOf, placeKey,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst, placeGroupOf, placeKey,
   type Activity, type Appeal, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -14,18 +14,22 @@ const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 export default async function ChallengeView({ block, nick, staff }: { block: EventBlock; nick: string; staff: boolean }) {
   const cfg = block.challenge as ChallengeConfig;
   const now = nowKst();
-  const phase = phaseOf(cfg, now);
+  const phase = currentPhase(cfg, now);
+  const ecfg = effectiveCfg(cfg); // 기록 기간을 보는 곳(순위·판정·입력)에는 테스트 모드에서 넓힌 설정을 쓴다
   const [members, acts, places, appeals] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), listAppeals(block.id)]);
   const mine = members.find((m) => m.nick === nick);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
   const live = phase === "running" || phase === "upload";
-  const board = buildBoard(acts, paidNicks, cfg, { verifiedOnly: !live, places });
+  const board = buildBoard(acts, paidNicks, ecfg, { verifiedOnly: !live, places });
   const myActs = acts.filter((a) => a.nick === nick);
-  const awards = now >= cfg.finalAt ? awardWinners(buildBoard(acts, paidNicks, cfg, { verifiedOnly: true, places })) : null;
+  const awards = canShowWinners(cfg, now, phase) ? awardWinners(buildBoard(acts, paidNicks, ecfg, { verifiedOnly: true, places })) : null;
   const showBoard = phase === "running" || phase === "upload" || phase === "appeal" || phase === "closed";
 
   return (
     <div className="grid gap-4">
+      {cfg.testMode && (
+        <p className="panel p-3 text-sm font-bold" style={{ background: "#fff4d6", color: "#5a4300" }}>🧪 테스트 모드 · 운영진에게만 보여요 · 단계: {PHASE_LABEL[phase]}</p>
+      )}
       <section className="panel p-4 grid gap-1">
         <p className="text-xs text-muted">{block.title}</p>
         <h1 className="text-lg font-bold">{fmtDateTime(cfg.start)} ~ {fmtDateTime(cfg.end)} 기록 챌린지</h1>
@@ -43,14 +47,14 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
         <section className="panel p-4 grid gap-3">
           <h2 className="font-bold">기록 올리기</h2>
           <p className="text-xs text-muted">{fmtDateTime(cfg.uploadEnd)}까지 올리고 고칠 수 있어요. 올린 캡처는 나와 운영진만 볼 수 있어요.</p>
-          <ActivityForm blockId={block.id} start={cfg.start} end={cfg.end} now={now} />
+          <ActivityForm blockId={block.id} start={ecfg.start} end={ecfg.end} now={now} />
         </section>
       )}
 
       {mine && myActs.length > 0 && (
         <section className="grid gap-2">
           <h2 className="font-bold px-1">내 기록 {myActs.length}건</h2>
-          {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} blockId={block.id} now={now} canEdit={live} />)}
+          {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} ecfg={ecfg} blockId={block.id} now={now} canEdit={live} />)}
         </section>
       )}
 
@@ -112,8 +116,8 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
   return null;
 }
 
-function MyAct({ a, cfg, blockId, now, canEdit }: { a: Activity; cfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean }) {
-  const j = judge(a, cfg);
+function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: ChallengeConfig; ecfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean }) {
+  const j = judge(a, ecfg);
   const chip = a.status === "ok" ? <span className="chip chip-confirmed">인정</span> : a.status === "rejected" ? <span className="chip chip-failed">반려</span> : <span className="chip chip-warn">검수 전</span>;
   return (
     <div className="panel p-3 grid gap-2">
@@ -131,7 +135,7 @@ function MyAct({ a, cfg, blockId, now, canEdit }: { a: Activity; cfg: ChallengeC
       {canEdit && (
         <div className="flex gap-2 items-start">
           <details className="grow"><summary className="btn btn-ghost text-sm cursor-pointer inline-flex">수정</summary>
-            <div className="pt-3"><ActivityForm blockId={blockId} start={cfg.start} end={cfg.end} now={now} initial={a} /></div></details>
+            <div className="pt-3"><ActivityForm blockId={blockId} start={ecfg.start} end={ecfg.end} now={now} initial={a} /></div></details>
           <form action={deleteActivityAction}>
             <input type="hidden" name="id" value={blockId} /><input type="hidden" name="actId" value={a.id} />
             <ConfirmButton message={"이 기록을 삭제할까요?\n되돌릴 수 없어요."}>삭제</ConfirmButton>

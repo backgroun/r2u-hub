@@ -4,6 +4,8 @@ import { currentUser, hasEventPreview } from "@/lib/hub";
 import { displayBlock, getRoster, isJoined, pollResult, type EventBlock } from "@/lib/event-blocks";
 import { ActionForm, Submit } from "@/components/action-form";
 import EventEditToggle from "@/components/event-edit-toggle";
+import ChallengeBanner from "@/components/challenge/challenge-banner";
+import ChallengeView from "@/components/challenge/challenge-view";
 import { joinEvent, leaveEvent, setEventExposure, voteEvent } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
@@ -15,11 +17,16 @@ export default async function EventPage({ searchParams }: { searchParams: Promis
   const block = await displayBlock();
   // 운영진이 숨겨 둔 동안 크루원에게는 안내 화면만 보인다 (운영진은 그대로 본다)
   const hidden = await eventHidden();
-  if (hidden && !u?.admin) return <Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon />;
+  if (hidden && !u?.admin) return <><ChallengeBanner /><Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon /></>;
   // 운영진은 위에 작은 바가 붙는다: 블록 바꾸기 · 참가 신청 · 이벤트 설정으로 가기
   const bar = u?.admin ? await AdminBar({ block, nick: u.nick, hidden }) : null;
-  if (!block) return <>{bar}<Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon /></>;
-  if (block.type === "poll") return <>{bar}<Poll block={block} nick={u?.nick} /></>;
+  if (!block) return <>{bar}<ChallengeBanner /><Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon /></>;
+  // 12월 기록 챌린지가 이벤트 탭 본문으로 세팅돼 있으면 챌린지 화면을 그대로 보여 준다
+  if (block.type === "challenge") {
+    if (!u) redirect("/login");
+    return <>{bar}<main className="hub-wrap"><ChallengeView block={block} nick={u.nick} staff={u.admin} /></main></>;
+  }
+  if (block.type === "poll") return <>{bar}<ChallengeBanner /><Poll block={block} nick={u?.nick} /></>;
 
   // 빙고
   const staff = !!(await searchParams).staff;
@@ -93,6 +100,7 @@ async function Shell({ bar, children, me }: { bar: React.ReactNode; children: Re
   return (
     <div className="event-shell">
       {bar}
+      <ChallengeBanner />
       {children}
       {!started && <section className="event-roster" aria-label="참가 신청한 사람들">
         <h2>참가 신청 <span className="num">{roster.length}</span>명</h2>

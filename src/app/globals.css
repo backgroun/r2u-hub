@@ -1139,6 +1139,8 @@ html.is-app body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px))
 /* 이벤트 탭: 운영진 바 · 크루원 신청 바 — 같은 계열(깊은 먹색 + 절제된 금색) */
 .event-shell { display: flex; flex-direction: column; min-height: calc(100dvh - 64px - env(safe-area-inset-top, 0px)); background: #0b110e; }
 .event-shell > .event-frame { flex: none; height: calc(100dvh - 64px - 64px - env(safe-area-inset-top, 0px)); }
+/* 챌린지 배너(36px)가 빙고판 위에 붙으면 그만큼 빙고판 높이를 줄여 아래가 잘리지 않게 한다 */
+.event-shell > .event-challenge-banner ~ .event-frame { height: calc(100dvh - 64px - 64px - 36px - env(safe-area-inset-top, 0px)); }
 .event-roster { padding: 18px 16px 28px; color: #ebe8df; border-top: 1px solid rgba(255,255,255,.09); }
 .event-roster h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
 .event-roster h2 .num { color: #c9a965; }

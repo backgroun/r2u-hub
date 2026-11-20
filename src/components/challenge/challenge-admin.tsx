@@ -40,7 +40,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
 
       <details className="panel p-4">
         <summary className="font-bold cursor-pointer">설정 (기간·회비·계좌·상품)</summary>
-        <ActionForm action={saveChallengeConfigAction} keep className="grid gap-2 pt-3">
+        <ActionForm action={saveChallengeConfigAction} keep restoreOnError className="grid gap-2 pt-3">
           <input type="hidden" name="id" value={block.id} />
           <p className="text-xs text-muted">규정은 신청 마감 전에 확정하세요. 신청이 시작된 뒤 바꾸면 분쟁이 생길 수 있어서 비밀번호 확인 후 저장되고, 기록으로 남아요.</p>
           <div className="grid grid-cols-2 gap-2">
@@ -100,7 +100,8 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
                 </div>
                 {a.nick !== me && (
                   <ActionForm action={reviewActivityAction} keep hideInline className="flex gap-2 items-center flex-wrap">
-                    <input type="hidden" name="id" value={block.id} /><input type="hidden" name="actId" value={a.id} />
+                    {/* name="id"는 쓰지 않는다: 폼의 id 속성이 이 입력칸에 가려져 React가 승인·반려 버튼 값을 빠뜨린다 */}
+                    <input type="hidden" name="blockId" value={block.id} /><input type="hidden" name="actId" value={a.id} />
                     <input name="reason" className="input grow" placeholder="반려 사유 (반려할 때만)" maxLength={200} />
                     <button name="decision" value="ok" className="btn btn-primary text-sm py-1 px-3">승인</button>
                     <button name="decision" value="rejected" className="btn btn-ghost btn-danger text-sm py-1 px-3">반려</button>

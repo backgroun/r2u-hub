@@ -191,7 +191,7 @@ export async function setPaidAction(fd: FormData) {
 /** 기록 승인·반려. 본인 기록은 다른 운영진이 검수한다. */
 export async function reviewActivityAction(_: Result, fd: FormData): Promise<Result> {
   const u = await staff();
-  const blockId = str(fd, "id", 20), decision = str(fd, "decision", 10), reason = str(fd, "reason", 200);
+  const blockId = str(fd, "blockId", 20), decision = str(fd, "decision", 10), reason = str(fd, "reason", 200);
   const a = await getActRec(blockId, str(fd, "actId", 20));
   if (!a) return fail("기록을 찾을 수 없어요.");
   if (a.nick === u.nick) return fail("본인 기록은 다른 운영진이 검수해요.");

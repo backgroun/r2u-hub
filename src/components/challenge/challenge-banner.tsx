@@ -11,7 +11,7 @@ export default async function ChallengeBanner() {
   const phase = phaseOf(cfg, kstToday());
   const text = phase === "signup" ? `${chal.title} · ${fmtDate(cfg.signupEnd)}까지 신청 받아요` : phase === "running" || phase === "upload" ? `${chal.title} · 기록 올리기` : `${chal.title} · 순위·결과 보기`;
   return (
-    <Link href="/event/challenge" className="flex items-center justify-between gap-2 px-4 py-2 text-sm font-bold" style={{ background: "#c9a965", color: "#17120a" }}>
+    <Link href="/event/challenge" className="event-challenge-banner flex items-center justify-between gap-2 px-4 py-2 text-sm font-bold" style={{ background: "#c9a965", color: "#17120a" }}>
       <span className="truncate">🏃 {text}</span><span aria-hidden>›</span>
     </Link>
   );

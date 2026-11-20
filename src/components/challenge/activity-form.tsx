@@ -11,7 +11,7 @@ export default function ActivityForm({ blockId, start, end, today, initial }: { 
   const max = today < end ? today : end;
   const dur = initial?.durationSec ?? 0;
   return (
-    <ActionForm action={submitActivityAction} keep={!!initial} className="grid gap-3">
+    <ActionForm action={submitActivityAction} keep={!!initial} restoreOnError className="grid gap-3">
       <input type="hidden" name="id" value={blockId} />
       {initial && <input type="hidden" name="actId" value={initial.id} />}
       <label className="field"><span className="label">시작 일시 (한국 시간)</span>

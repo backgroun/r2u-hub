@@ -7,13 +7,15 @@ import { confirmWithPassword } from "@/components/confirm-password";
 
 /** 서버 액션 폼: 결과 메시지를 폼 아래에 보여주고, 성공하면 입력칸을 비운다. */
 export function ActionForm({
-  action, children, className, keep = false, id, collapse = false, alertError = false, hideInline = false,
+  action, children, className, keep = false, id, collapse = false, alertError = false, hideInline = false, restoreOnError = false,
 }: {
   action: (s: Result, fd: FormData) => Promise<Result>;
   children: React.ReactNode;
   className?: string;
   keep?: boolean;
   id?: string;
+  /** 실패하면 방금 입력한 글자·숫자·선택값을 다시 채워 준다 (React가 제출 뒤 폼을 비우기 때문). 파일은 다시 골라야 한다 */
+  restoreOnError?: boolean;
   /** 성공하면 감싸고 있는 <details>(펼침 영역)를 접는다 */
   collapse?: boolean;
   /** 실패 메시지를 폼 안 글씨 대신 알럿 창으로 띄운다 (성공 메시지는 위쪽 알림으로만) */
@@ -21,14 +23,25 @@ export function ActionForm({
   /** 결과 메시지를 폼 아래 글씨로는 안 보이고 위쪽 알림(토스트)으로만 보여 준다 */
   hideInline?: boolean;
 }) {
-  const [state, run] = useActionState(action, null);
+  const sent = useRef<[string, string][]>([]);
+  const [state, run] = useActionState(
+    restoreOnError ? (s: Result, fd: FormData) => { sent.current = [...fd.entries()].filter((e): e is [string, string] => typeof e[1] === "string" && !e[0].startsWith("$ACTION")); return action(s, fd); } : action,
+    null,
+  );
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (state?.msg) { if (alertError && !state.ok) window.alert(state.msg); else showToast(state.msg, state.ok ? "ok" : "err"); }
+    if (state && !state.ok && restoreOnError && ref.current) {
+      for (const [name, value] of sent.current) {
+        const el = ref.current.elements.namedItem(name);
+        if (el instanceof HTMLInputElement) { if (el.type === "checkbox") el.checked = true; else if (el.type !== "hidden" && el.type !== "file") el.value = value; }
+        else if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) el.value = value;
+      }
+    }
     if (!state?.ok) return;
     if (!keep) ref.current?.reset();
     if (collapse) ref.current?.closest("details")?.removeAttribute("open");
-  }, [state, keep, collapse, alertError]);
+  }, [state, keep, collapse, alertError, restoreOnError]);
   return (
     <form ref={ref} id={id} action={run} className={className} data-af="1">
       {children}

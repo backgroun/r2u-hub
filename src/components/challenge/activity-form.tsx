@@ -7,15 +7,15 @@ import { SURFACE_LABEL, type Activity, type Surface } from "@/lib/challenge/rule
 const SECTION = "rounded-lg border border-[var(--line)] p-3";
 
 /** 기록 올리기·수정 폼. 활동 요약 캡처는 필수, 케이던스·Zone 2·장소는 해당할 때만 값과 캡처를 함께 채운다. */
-export default function ActivityForm({ blockId, start, end, today, initial }: { blockId: string; start: string; end: string; today: string; initial?: Activity }) {
-  const max = today < end ? today : end;
+export default function ActivityForm({ blockId, start, end, now, initial }: { blockId: string; start: string; end: string; now: string; initial?: Activity }) {
+  const max = now < end ? now : end; // 기록은 지금보다 미래일 수 없고 종료 시각을 넘을 수 없다
   const dur = initial?.durationSec ?? 0;
   return (
     <ActionForm action={submitActivityAction} keep={!!initial} restoreOnError className="grid gap-3">
       <input type="hidden" name="id" value={blockId} />
       {initial && <input type="hidden" name="actId" value={initial.id} />}
       <label className="field"><span className="label">시작 일시 (한국 시간)</span>
-        <input name="startedAt" type="datetime-local" className="input" required min={`${start}T00:00`} max={`${max}T23:59`} defaultValue={initial?.startedAt ?? `${max}T06:00`} /></label>
+        <input name="startedAt" type="datetime-local" className="input" required min={start} max={max} defaultValue={initial?.startedAt ?? max} /></label>
       <div className="grid grid-cols-2 gap-3">
         <label className="field"><span className="label">거리 (km)</span>
           <input name="distanceKm" inputMode="decimal" className="input" required placeholder="예: 10.05" defaultValue={initial?.distanceKm ?? ""} /></label>

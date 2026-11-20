@@ -2,13 +2,13 @@
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { currentUser, kstToday, newId } from "@/lib/hub";
+import { currentUser, newId } from "@/lib/hub";
 import { isConfirmed, CONFIRM_REQUIRED } from "@/lib/confirm-token";
 import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-blocks";
 import {
   addLog, delImage, getActRec, getAppeal, getMemberRec, listActs, listAppeals, putImage, removeActRec, removeMemberRec, saveActRec, saveAppeal, saveMemberRec, setPlaceGroup,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, phaseOf, placeKey, validateActivity, validateConfig, type ActStatus, type Activity, type ChallengeConfig, type ImgKind, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, nowKst, phaseOf, placeKey, validateActivity, validateConfig, type ActStatus, type Activity, type ChallengeConfig, type ImgKind, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -38,7 +38,7 @@ export async function joinChallengeAction(_: Result, fd: FormData): Promise<Resu
   const u = await me();
   const live = await liveBlock(fd);
   if (!live) return fail("지금 신청을 받는 챌린지가 없어요.");
-  if (phaseOf(live.cfg, kstToday()) !== "signup") return fail("신청 기간이 아니에요.");
+  if (phaseOf(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 아니에요.");
   if (fd.get("agree") !== "on") return fail("규정과 ‘회비 환불 없음’에 동의해 주세요.");
   if (await getMemberRec(live.block.id, u.nick)) return fail("이미 신청했어요.");
   const now = Date.now();
@@ -52,7 +52,7 @@ export async function leaveChallengeAction(_: Result, fd: FormData): Promise<Res
   const u = await me();
   const live = await liveBlock(fd);
   if (!live) return fail("지금 신청을 받는 챌린지가 없어요.");
-  if (phaseOf(live.cfg, kstToday()) !== "signup") return fail("신청 기간이 끝나서 취소할 수 없어요.");
+  if (phaseOf(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 끝나서 취소할 수 없어요.");
   if (!(await getMemberRec(live.block.id, u.nick))) return fail("신청 내역이 없어요.");
   await removeMemberRec(live.block.id, u.nick);
   await addLog(live.block.id, { by: u.nick, action: "leave", target: u.nick });
@@ -68,8 +68,8 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   const u = await me();
   const live = await liveBlock(fd);
   if (!live) return fail("지금 기록을 받는 챌린지가 없어요.");
-  const today = kstToday();
-  const phase = phaseOf(live.cfg, today);
+  const nowStr = nowKst();
+  const phase = phaseOf(live.cfg, nowStr);
   if (phase !== "running" && phase !== "upload") return fail("지금은 기록을 올릴 수 있는 기간이 아니에요.");
   if (!(await getMemberRec(live.block.id, u.nick))) return fail("참가 신청한 사람만 기록을 올릴 수 있어요.");
 
@@ -105,7 +105,7 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
     zone: keep("zone", raw.zone2Pct != null || raw.avgHr != null),
     map: keep("map", raw.place !== ""),
   };
-  const v = validateActivity(raw, flags, live.cfg, today);
+  const v = validateActivity(raw, flags, live.cfg, nowStr);
   if (!v.ok) return fail(v.msg);
 
   const mine = (await listActs(live.block.id)).filter((a) => a.nick === u.nick);
@@ -143,7 +143,7 @@ export async function deleteActivityAction(fd: FormData) {
   const u = await me();
   const live = await liveBlock(fd);
   if (!live) return;
-  const phase = phaseOf(live.cfg, kstToday());
+  const phase = phaseOf(live.cfg, nowKst());
   if (phase !== "running" && phase !== "upload") return;
   const a = await getActRec(live.block.id, str(fd, "actId", 20));
   if (!a || a.nick !== u.nick) return;
@@ -157,7 +157,7 @@ export async function fileAppealAction(_: Result, fd: FormData): Promise<Result>
   const u = await me();
   const live = await liveBlock(fd);
   if (!live) return fail("지금 이의 제기를 받는 챌린지가 없어요.");
-  if (phaseOf(live.cfg, kstToday()) !== "appeal") return fail("이의 제기 기간이 아니에요.");
+  if (phaseOf(live.cfg, nowKst()) !== "appeal") return fail("이의 제기 기간이 아니에요.");
   if (!(await getMemberRec(live.block.id, u.nick))) return fail("참가자만 이의 제기를 할 수 있어요.");
   const a = await getActRec(live.block.id, str(fd, "actId", 20));
   if (!a || a.nick !== u.nick) return fail("이의 제기할 기록을 골라 주세요.");
@@ -237,7 +237,8 @@ export async function resolveAppealAction(_: Result, fd: FormData): Promise<Resu
 /** 설정 변경 내역을 `필드 이전→이후` 목록으로 만든다(처리 기록용) */
 function configDiff(a: ChallengeConfig, b: ChallengeConfig): string {
   const out: string[] = [];
-  const cmp = (name: string, x: string | number, y: string | number) => { if (x !== y) out.push(`${name} ${x}→${y}`); };
+  const show = (v: string | number) => String(v).replace("T", " ");
+  const cmp = (name: string, x: string | number, y: string | number) => { if (x !== y) out.push(`${name} ${show(x)}→${show(y)}`); };
   cmp("신청시작", a.signupStart, b.signupStart); cmp("신청마감", a.signupEnd, b.signupEnd);
   cmp("기록시작", a.start, b.start); cmp("기록종료", a.end, b.end);
   cmp("업로드마감", a.uploadEnd, b.uploadEnd); cmp("이의제기마감", a.appealEnd, b.appealEnd); cmp("최종확정", a.finalAt, b.finalAt);
@@ -256,9 +257,9 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
   const cfg: ChallengeConfig = {
     fee: Number(str(fd, "fee", 8)),
     bank: { bank: str(fd, "bank", 20), account: str(fd, "account", 30), holder: str(fd, "holder", 20) },
-    signupStart: str(fd, "signupStart", 10), signupEnd: str(fd, "signupEnd", 10),
-    start: str(fd, "start", 10), end: str(fd, "end", 10),
-    uploadEnd: str(fd, "uploadEnd", 10), appealEnd: str(fd, "appealEnd", 10), finalAt: str(fd, "finalAt", 10),
+    signupStart: str(fd, "signupStart", 16), signupEnd: str(fd, "signupEnd", 16),
+    start: str(fd, "start", 16), end: str(fd, "end", 16),
+    uploadEnd: str(fd, "uploadEnd", 16), appealEnd: str(fd, "appealEnd", 16), finalAt: str(fd, "finalAt", 16),
     prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
     spendNote: str(fd, "spendNote", 500),
   };

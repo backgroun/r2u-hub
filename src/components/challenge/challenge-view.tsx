@@ -1,11 +1,10 @@
-import { kstToday } from "@/lib/hub";
 import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import ActivityForm from "@/components/challenge/activity-form";
 import { deleteActivityAction, fileAppealAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { listActs, listAppeals, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDur, fmtPace, formatValue, judge, phaseOf, placeGroupOf, placeKey,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDateTime, fmtDur, fmtMdTime, fmtPace, formatValue, judge, nowKst, phaseOf, placeGroupOf, placeKey,
   type Activity, type Appeal, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -14,22 +13,22 @@ const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 /** 참가자용 챌린지 화면: 규정 → 신청 → 내 기록 → 순위 → 시상 → 이의 제기 */
 export default async function ChallengeView({ block, nick, staff }: { block: EventBlock; nick: string; staff: boolean }) {
   const cfg = block.challenge as ChallengeConfig;
-  const today = kstToday();
-  const phase = phaseOf(cfg, today);
+  const now = nowKst();
+  const phase = phaseOf(cfg, now);
   const [members, acts, places, appeals] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), listAppeals(block.id)]);
   const mine = members.find((m) => m.nick === nick);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
   const live = phase === "running" || phase === "upload";
   const board = buildBoard(acts, paidNicks, cfg, { verifiedOnly: !live, places });
   const myActs = acts.filter((a) => a.nick === nick);
-  const awards = today >= cfg.finalAt ? awardWinners(buildBoard(acts, paidNicks, cfg, { verifiedOnly: true, places })) : null;
+  const awards = now >= cfg.finalAt ? awardWinners(buildBoard(acts, paidNicks, cfg, { verifiedOnly: true, places })) : null;
   const showBoard = phase === "running" || phase === "upload" || phase === "appeal" || phase === "closed";
 
   return (
     <div className="grid gap-4">
       <section className="panel p-4 grid gap-1">
         <p className="text-xs text-muted">{block.title}</p>
-        <h1 className="text-lg font-bold">{fmtDate(cfg.start)} ~ {fmtDate(cfg.end)} 기록 챌린지</h1>
+        <h1 className="text-lg font-bold">{fmtDateTime(cfg.start)} ~ {fmtDateTime(cfg.end)} 기록 챌린지</h1>
         <p className="text-sm"><span className="chip chip-open">{PHASE_LABEL[phase]}</span></p>
         {staff && <a href="/admin?tab=bingo" className="text-xs text-muted underline">운영진 관리 화면으로</a>}
       </section>
@@ -43,15 +42,15 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
       {mine && (phase === "running" || phase === "upload") && (
         <section className="panel p-4 grid gap-3">
           <h2 className="font-bold">기록 올리기</h2>
-          <p className="text-xs text-muted">{fmtDate(cfg.uploadEnd)}까지 올리고 고칠 수 있어요. 올린 캡처는 나와 운영진만 볼 수 있어요.</p>
-          <ActivityForm blockId={block.id} start={cfg.start} end={cfg.end} today={today} />
+          <p className="text-xs text-muted">{fmtDateTime(cfg.uploadEnd)}까지 올리고 고칠 수 있어요. 올린 캡처는 나와 운영진만 볼 수 있어요.</p>
+          <ActivityForm blockId={block.id} start={cfg.start} end={cfg.end} now={now} />
         </section>
       )}
 
       {mine && myActs.length > 0 && (
         <section className="grid gap-2">
           <h2 className="font-bold px-1">내 기록 {myActs.length}건</h2>
-          {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} blockId={block.id} today={today} canEdit={live} />)}
+          {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} blockId={block.id} now={now} canEdit={live} />)}
         </section>
       )}
 
@@ -85,7 +84,7 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
   if (phase === "signup" && !mine) {
     return (
       <section className="panel p-4 grid gap-3">
-        <h2 className="font-bold">참가 신청 <span className="text-xs text-muted font-normal">{fmtDate(cfg.signupEnd)} 23:59까지</span></h2>
+        <h2 className="font-bold">참가 신청 <span className="text-xs text-muted font-normal">{fmtDateTime(cfg.signupEnd)}까지</span></h2>
         <p className="text-sm">회비 <b>{won(cfg.fee)}</b> · {bank}</p>
         <p className="text-sm text-[var(--bad)]">회비는 신청을 취소하거나 중간에 그만두어도 환불되지 않아요.</p>
         <ActionForm action={joinChallengeAction} keep alertError className="grid gap-3">
@@ -108,12 +107,12 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
       </section>
     );
   }
-  if (phase === "soon") return <section className="panel p-4 text-sm">{fmtDate(cfg.signupStart)}부터 신청을 받아요.</section>;
+  if (phase === "soon") return <section className="panel p-4 text-sm">{fmtDateTime(cfg.signupStart)}부터 신청을 받아요.</section>;
   if (!mine) return <section className="panel p-4 text-sm">신청 기간이 끝나서 이번 챌린지에는 참가할 수 없어요. 순위는 구경할 수 있어요.</section>;
   return null;
 }
 
-function MyAct({ a, cfg, blockId, today, canEdit }: { a: Activity; cfg: ChallengeConfig; blockId: string; today: string; canEdit: boolean }) {
+function MyAct({ a, cfg, blockId, now, canEdit }: { a: Activity; cfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean }) {
   const j = judge(a, cfg);
   const chip = a.status === "ok" ? <span className="chip chip-confirmed">인정</span> : a.status === "rejected" ? <span className="chip chip-failed">반려</span> : <span className="chip chip-warn">검수 전</span>;
   return (
@@ -132,7 +131,7 @@ function MyAct({ a, cfg, blockId, today, canEdit }: { a: Activity; cfg: Challeng
       {canEdit && (
         <div className="flex gap-2 items-start">
           <details className="grow"><summary className="btn btn-ghost text-sm cursor-pointer inline-flex">수정</summary>
-            <div className="pt-3"><ActivityForm blockId={blockId} start={cfg.start} end={cfg.end} today={today} initial={a} /></div></details>
+            <div className="pt-3"><ActivityForm blockId={blockId} start={cfg.start} end={cfg.end} now={now} initial={a} /></div></details>
           <form action={deleteActivityAction}>
             <input type="hidden" name="id" value={blockId} /><input type="hidden" name="actId" value={a.id} />
             <ConfirmButton message={"이 기록을 삭제할까요?\n되돌릴 수 없어요."}>삭제</ConfirmButton>
@@ -230,34 +229,47 @@ function FeePanel({ cfg, paid }: { cfg: ChallengeConfig; paid: number }) {
 
 function RulesPanel({ cfg, open }: { cfg: ChallengeConfig; open: boolean }) {
   const li = "list-disc ml-5";
+  const h = "font-bold";
   return (
     <details className="panel p-4" open={open}>
-      <summary className="font-bold cursor-pointer">규정 전문</summary>
+      <summary className="font-bold cursor-pointer">규정 한눈에 보기</summary>
       <div className="grid gap-3 pt-3 text-sm">
-        <ul className="grid gap-1">
-          <li className={li}>기간: {fmtDate(cfg.start)} ~ {fmtDate(cfg.end)}. 하루는 활동 <b>시작 시각 기준 한국 날짜</b>예요.</li>
-          <li className={li}>모든 활동에는 <b>활동 요약 캡처가 필수</b>예요. 편집한 캡처는 실격이고, 운영진이 요청하면 원본을 내야 해요.</li>
-          <li className={li}>인정 활동은 <b>평균 페이스가 km당 8:00 이내(8:00 포함, 더 빠른 것)</b>예요. 페이스는 거리와 시간으로 자동 계산하고 초 아래는 버려요. 느린 활동은 거리·시간·5km·케이던스·장소에서 통째로 빠져요(Zone 2만 예외). 로드·트레드밀·트랙 모두 가능해요.</li>
-        </ul>
         <div className="grid gap-1">
-          <b>부문 (1인 1상, 아래 순서로 확정)</b>
+          <b className={h}>📅 기록</b>
+          <ul className="grid gap-1">
+            <li className={li}>기간은 {fmtMdTime(cfg.start)} ~ {fmtMdTime(cfg.end)}예요. 활동 <b>시작 시각</b> 기준이에요.</li>
+            <li className={li}>모든 활동에는 <b>요약 캡처가 필수</b>예요. 편집한 캡처는 실격이고, 요청하면 원본을 내야 해요.</li>
+            <li className={li}>평균 페이스 <b>km당 {fmtPace(RULE.maxPaceSec)} 이내</b>만 인정해요. (Zone 2 부문은 예외)</li>
+            <li className={li}>로드·트레드밀·트랙 모두 가능해요.</li>
+          </ul>
+        </div>
+        <div className="grid gap-1">
+          <b className={h}>🏆 부문 (1인 1상, 아래 순서로 확정)</b>
           <ol className="grid gap-1 list-decimal ml-5">
-            <li>거리: 인정 활동 거리 합계가 가장 긴 사람</li>
-            <li>최장시간: 인정 활동 시간(기록 시간) 합계가 가장 긴 사람</li>
-            <li>케이던스: 10km 이상 활동 1건의 평균 케이던스가 가장 높은 사람(합산 없음, 케이던스 캡처 필수)</li>
-            <li>Zone 2: Zone 2 체류 비율 {RULE.zone2MinPct}% 이상인 활동 1건의 거리가 가장 긴 사람(합산 없음, 8분 규칙 면제, 평균 심박과 심박 구간 캡처 필수)</li>
-            <li>다양한 장소: 40분 이상 활동의 서로 다른 장소 수가 가장 많은 사람(트레드밀 제외, 장소 입력과 지도 캡처 필수). 같은 장소 판단은 운영진이 하고, 묶은 결과(장소 정리표)는 공개해요.</li>
-            <li>5km: 하루 인정 활동 거리 합이 5.00km 이상인 날이 가장 많은 사람(연속 아님, 하루에 나눠 뛰어도 합산)</li>
+            <li><b>거리</b>: 인정 거리 합계가 가장 긴 사람</li>
+            <li><b>최장시간</b>: 인정 시간 합계가 가장 긴 사람</li>
+            <li><b>케이던스</b>: {RULE.cadenceMinKm}km 이상 1건의 평균 케이던스가 가장 높은 사람</li>
+            <li><b>Zone 2</b>: 비율 {RULE.zone2MinPct}% 이상 1건의 거리가 가장 긴 사람</li>
+            <li><b>다양한 장소</b>: {RULE.placeMinSec / 60}분 이상 뛴 서로 다른 장소가 가장 많은 사람 (트레드밀 제외, 장소 정리표를 공개해요)</li>
+            <li><b>5km</b>: 하루 합계 {RULE.fiveKmHundredths / 100}km 이상인 날이 가장 많은 사람</li>
           </ol>
         </div>
-        <ul className="grid gap-1">
-          <li className={li}>동률이면 근거 활동의 평균 페이스가 빠른 사람, 그래도 같으면 마지막 인정 기록의 시작 시각이 빠른 사람이 이겨요. 완전히 같으면 공동으로 표시하고 운영진이 정해요.</li>
-          <li className={li}>한 사람이 여러 부문 1등이면 앞 부문 하나만 받고, 뒤 부문은 차순위가 올라와요. 상품은 확정 순서대로 수상자가 골라요. 순위와 상품은 양도할 수 없어요.</li>
-          <li className={li}>회비 {won(cfg.fee)}은 환불되지 않아요. 순위와 수상에는 입금이 확인된 참가자만 들어가요.</li>
-          <li className={li}>일정: 신청 {fmtDate(cfg.signupStart)}~{fmtDate(cfg.signupEnd)} · 기록 올리기·수정 {fmtDate(cfg.uploadEnd)}까지 · 이의 제기 {fmtDate(cfg.appealEnd)}까지 · 최종 확정 {fmtDate(cfg.finalAt)}</li>
-          <li className={li}>운영진도 참가할 수 있고, 운영진 본인의 기록은 다른 운영진이 검수해요. 모든 판정 변경은 사유와 함께 기록으로 남아요.</li>
-          <li className={li}>규정은 신청 마감 전에 확정하고, 신청하면 동의한 것으로 봐요. 이후에는 오타 외에 바꾸지 않아요.</li>
-        </ul>
+        <div className="grid gap-1">
+          <b className={h}>🎁 수상</b>
+          <ul className="grid gap-1">
+            <li className={li}>동률이면 페이스가 빠른 사람, 그다음엔 먼저 달성한 사람이 이겨요. 완전히 같으면 공동으로 표시하고 운영진이 정해요.</li>
+            <li className={li}>앞 부문 수상자는 뒤 부문에서 빠지고 차순위가 올라와요.</li>
+            <li className={li}>순위와 상품은 양도할 수 없고, 상품은 확정 순서대로 골라요.</li>
+          </ul>
+        </div>
+        <div className="grid gap-1">
+          <b className={h}>💳 참가</b>
+          <ul className="grid gap-1">
+            <li className={li}>회비 {won(cfg.fee)} (환불 없음). 입금이 확인된 분만 순위에 들어가요.</li>
+            <li className={li}>일정: 신청 {fmtMdTime(cfg.signupStart)}~{fmtMdTime(cfg.signupEnd)} · 기록 수정 {fmtMdTime(cfg.uploadEnd)}까지 · 이의 제기 {fmtMdTime(cfg.appealEnd)}까지 · 확정 {fmtMdTime(cfg.finalAt)}</li>
+            <li className={li}>운영진도 참가할 수 있고, 본인 기록은 다른 운영진이 검수해요.</li>
+          </ul>
+        </div>
       </div>
     </details>
   );

@@ -1,7 +1,7 @@
 import "server-only";
 import { redis, newId, kstToday } from "@/lib/hub";
 import { EVENT_NICKS_KEY } from "@/lib/sheet";
-import { addDaysYmd, type ChallengeConfig } from "@/lib/challenge/rules";
+import { addDaysYmd, normalizeConfig, nowKst, type ChallengeConfig } from "@/lib/challenge/rules";
 import { purgeChallenge } from "@/lib/challenge/store";
 
 /* ---------- 이벤트 블록 ----------
@@ -27,10 +27,13 @@ const votesKey = (id: string) => `r2u:pollVotes:${id}`;
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
 const list = (v: unknown): string[] => (Array.isArray(v) ? v : typeof v === "string" ? (JSON.parse(v) as string[]) : []);
 
+/** 챌린지 설정은 여기서 한 번만 정규화한다(옛 날짜만 있는 값에 시각 붙이기) — 읽는 쪽은 늘 일시 형식을 받는다. */
+const normalizeBlock = (b: EventBlock): EventBlock => (b.challenge ? { ...b, challenge: normalizeConfig(b.challenge) } : b);
+
 /** 블록 목록. 처음 쓸 때는 지금 운영 중인 빙고를 첫 블록으로 만들어 이어 간다. */
 export async function getBlocks(): Promise<EventBlock[]> {
   const raw = await redis.get<EventBlock[] | string>(BLOCKS);
-  if (raw) return parse<EventBlock[]>(raw);
+  if (raw) return parse<EventBlock[]>(raw).map(normalizeBlock);
   const { hubPeriod } = await import("@/lib/event");
   const ym = (await hubPeriod())?.start.slice(0, 7) ?? "2026-11";
   const first: EventBlock = { id: newId(), type: "bingo", title: "R2U 5×5 미션 빙고", ym, at: Date.now(), by: "운영진" };
@@ -57,12 +60,12 @@ export async function displayBlock(): Promise<EventBlock | null> {
   return next ? blocks.find((b) => b.id === active[next]) ?? null : null;
 }
 
-/** 지금 신청·진행·결과를 보여 줄 챌린지 블록: 월별로 세팅된 챌린지 중 [신청 시작일, 확정일+30일] 안에 오늘이 든 것.
+/** 지금 신청·진행·결과를 보여 줄 챌린지 블록: 월별로 세팅된 챌린지 중 [신청 시작 시각, 확정일+30일] 안에 지금이 든 것.
     신청 기간이 다른 달 이벤트(빙고)와 겹쳐도 챌린지가 가려지지 않도록 월과 무관하게 찾는다. */
-export async function activeChallenge(today = kstToday()): Promise<EventBlock | null> {
+export async function activeChallenge(now = nowKst()): Promise<EventBlock | null> {
   const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
   const ids = new Set(Object.values(active));
-  return blocks.find((b) => b.type === "challenge" && b.challenge && ids.has(b.id) && today >= b.challenge.signupStart && today <= addDaysYmd(b.challenge.finalAt, 30)) ?? null;
+  return blocks.find((b) => b.type === "challenge" && b.challenge && ids.has(b.id) && now >= b.challenge.signupStart && now.slice(0, 10) <= addDaysYmd(b.challenge.finalAt.slice(0, 10), 30)) ?? null;
 }
 
 export async function setChallengeConfig(blockId: string, challenge: ChallengeConfig) {

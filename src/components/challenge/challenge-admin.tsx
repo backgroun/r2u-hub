@@ -1,10 +1,10 @@
-import { currentUser, kstToday } from "@/lib/hub";
+import { currentUser } from "@/lib/hub";
 import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { resolveAppealAction, reviewActivityAction, saveChallengeConfigAction, setPaidAction, setPlaceGroupAction } from "@/app/challenge-actions";
 import { listActs, listAppeals, listLog, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, fmtDur, fmtPace, judge, phaseOf, placeKey,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, fmtDur, fmtPace, judge, nowKst, phaseOf, placeKey,
   type Activity, type ChallengeConfig,
 } from "@/lib/challenge/rules";
 
@@ -15,7 +15,7 @@ const rankOf = (a: Activity, top: Set<string>) => (a.status === "pending" ? (top
 export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
   const cfg = block.challenge as ChallengeConfig;
   const me = (await currentUser())?.nick ?? "";
-  const phase = phaseOf(cfg, kstToday());
+  const phase = phaseOf(cfg, nowKst());
   const [members, acts, places, appeals, log] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), listAppeals(block.id), listLog(block.id)]);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
   const liveBoard = buildBoard(acts, paidNicks, cfg, { verifiedOnly: false, places });
@@ -42,10 +42,10 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         <summary className="font-bold cursor-pointer">설정 (기간·회비·계좌·상품)</summary>
         <ActionForm action={saveChallengeConfigAction} keep restoreOnError className="grid gap-2 pt-3">
           <input type="hidden" name="id" value={block.id} />
-          <p className="text-xs text-muted">규정은 신청 마감 전에 확정하세요. 신청이 시작된 뒤 바꾸면 분쟁이 생길 수 있어서 비밀번호 확인 후 저장되고, 기록으로 남아요.</p>
+          <p className="text-xs text-muted">일정은 모두 날짜와 시각(한국 시간)으로 정해요. 기록 시작·종료는 활동 시작 시각 기준이고, 각 마감은 그 시각까지 인정돼요. 규정은 신청 마감 전에 확정하세요. 신청이 시작된 뒤 바꾸면 분쟁이 생길 수 있어서 비밀번호 확인 후 저장되고, 기록으로 남아요.</p>
           <div className="grid grid-cols-2 gap-2">
             {([["signupStart", "신청 시작"], ["signupEnd", "신청 마감"], ["start", "기록 시작"], ["end", "기록 종료"], ["uploadEnd", "업로드 마감"], ["appealEnd", "이의 제기 마감"], ["finalAt", "최종 확정"]] as const).map(([k, l]) => (
-              <label key={k} className="field"><span className="label">{l}</span><input name={k} type="date" className="input" defaultValue={cfg[k]} required /></label>
+              <label key={k} className="field"><span className="label">{l}</span><input name={k} type="datetime-local" className="input" defaultValue={cfg[k]} required /></label>
             ))}
             <label className="field"><span className="label">회비(원)</span><input name="fee" type="number" min={0} className="input" defaultValue={cfg.fee} required /></label>
           </div>

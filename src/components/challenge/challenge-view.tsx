@@ -5,7 +5,7 @@ import ActivityForm from "@/components/challenge/activity-form";
 import { deleteActivityAction, fileAppealAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { listActs, listAppeals, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDur, fmtPace, formatValue, judge, phaseOf,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDur, fmtPace, formatValue, judge, phaseOf, placeGroupOf, placeKey,
   type Activity, type Appeal, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -63,7 +63,8 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
           <ul className="grid gap-1 text-sm">
             {awards.map((x) => (
               <li key={x.category} className="flex gap-2"><span className="w-24 text-muted">{CATEGORY_LABEL[x.category]}</span>
-                <b>{x.winner ?? (x.tie.length ? `동점 (${x.tie.join(", ")}) — 운영진이 정해요` : "해당자 없음")}</b></li>
+                <b>{x.winner ?? (x.tie.length ? `동점 (${x.tie.join(", ")}) — 운영진이 정해요` : "해당자 없음")}</b>
+                {x.provisional && <span className="text-xs text-muted">앞 부문 동점 정리 후 확정</span>}</li>
             ))}
           </ul>
           <p className="text-xs text-muted">1인 1상이에요. 상품은 위 순서대로 수상자가 고르고, 순위와 상품은 양도할 수 없어요.</p>
@@ -71,6 +72,7 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
       )}
 
       {showBoard && <BoardPanel board={board} acts={acts} me={nick} verifiedOnly={!live} />}
+      {showBoard && <PlacePanel acts={acts} places={places} />}
 
       <FeePanel cfg={cfg} paid={paidNicks.length} />
       <RulesPanel cfg={cfg} open={phase === "soon" || phase === "signup"} />
@@ -138,6 +140,32 @@ function MyAct({ a, cfg, blockId, today, canEdit }: { a: Activity; cfg: Challeng
         </div>
       )}
     </div>
+  );
+}
+
+/** 장소 정리표(공개): 같은 장소로 묶인 입력과 건수만 보여 준다. 닉네임·캡처는 싣지 않는다. */
+function PlacePanel({ acts, places }: { acts: Activity[]; places: Record<string, string> }) {
+  const groups = new Map<string, { label: string; raws: Map<string, number> }>();
+  for (const a of acts) {
+    if (a.status === "rejected" || !a.place) continue;
+    const g = placeGroupOf(a.place, places);
+    const k = placeKey(a.place);
+    const cur = groups.get(g) ?? { label: Object.hasOwn(places, k) && places[k] ? places[k] : a.place, raws: new Map<string, number>() };
+    if (Object.hasOwn(places, k) && places[k]) cur.label = places[k];
+    cur.raws.set(a.place, (cur.raws.get(a.place) ?? 0) + 1);
+    groups.set(g, cur);
+  }
+  if (groups.size === 0) return null;
+  return (
+    <section className="panel p-4 grid gap-2">
+      <h2 className="font-bold">장소 정리표</h2>
+      <p className="text-xs text-muted">같은 장소로 묶은 입력이에요. 지도 캡처상 출발 지점이 3km 이상 떨어져 있으면 다른 장소예요.</p>
+      <ul className="grid gap-1 text-sm">
+        {[...groups.values()].map((g) => (
+          <li key={g.label}><b>{g.label}</b> <span className="text-muted">{[...g.raws.entries()].map(([r, n]) => `${r} ${n}건`).join(" · ")}</span></li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

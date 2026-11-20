@@ -101,7 +101,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
                 {a.nick !== me && (
                   <ActionForm action={reviewActivityAction} keep hideInline className="flex gap-2 items-center flex-wrap">
                     {/* name="id"는 쓰지 않는다: 폼의 id 속성이 이 입력칸에 가려져 React가 승인·반려 버튼 값을 빠뜨린다 */}
-                    <input type="hidden" name="blockId" value={block.id} /><input type="hidden" name="actId" value={a.id} />
+                    <input type="hidden" name="blockId" value={block.id} /><input type="hidden" name="actId" value={a.id} /><input type="hidden" name="v" value={a.updatedAt} />
                     <input name="reason" className="input grow" placeholder="반려 사유 (반려할 때만)" maxLength={200} />
                     <button name="decision" value="ok" className="btn btn-primary text-sm py-1 px-3">승인</button>
                     <button name="decision" value="rejected" className="btn btn-ghost btn-danger text-sm py-1 px-3">반려</button>
@@ -122,7 +122,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
             <ActionForm key={k} action={setPlaceGroupAction} keep hideInline className="flex items-center gap-2 text-sm">
               <input type="hidden" name="id" value={block.id} /><input type="hidden" name="raw" value={v.label} />
               <span className="truncate">{v.label} <span className="text-muted">({v.n}건)</span></span>
-              <input name="label" className="input ml-auto" style={{ maxWidth: 160 }} placeholder="묶음 이름" maxLength={40} defaultValue={places[k] ?? ""} />
+              <input name="label" className="input ml-auto" style={{ maxWidth: 160 }} placeholder="묶음 이름" maxLength={40} defaultValue={Object.hasOwn(places, k) ? places[k] : ""} />
               <Submit className="btn text-xs py-1 px-2.5" pendingText="…">저장</Submit>
             </ActionForm>
           ))}
@@ -155,7 +155,8 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         <ul className="grid gap-1 pt-3 text-sm">
           {awards.map((x) => (
             <li key={x.category} className="flex gap-2"><span className="w-24 text-muted">{CATEGORY_LABEL[x.category]}</span>
-              <b>{x.winner ?? (x.tie.length ? `동점 (${x.tie.join(", ")}) — 운영진이 정해 주세요` : "해당자 없음")}</b></li>
+              <b>{x.winner ?? (x.tie.length ? `동점 (${x.tie.join(", ")}) — 운영진이 정해 주세요` : "해당자 없음")}</b>
+              {x.provisional && <span className="text-xs text-muted">앞 부문 동점 정리 후 확정</span>}</li>
           ))}
         </ul>
       </details>

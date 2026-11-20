@@ -4,6 +4,8 @@ import { K, getMember, getMembers, isStaffNick, redis, type AfterParty, type Mem
 import { pointKeys } from "@/lib/points";
 import { gearKey } from "@/lib/gear-collect";
 import { renameBingoRecords } from "./bingo-store";
+import { activeChallenge } from "./event-blocks";
+import { getMemberRec } from "./challenge/store";
 import { makeTitle, type StoredOrder, type StoredRound } from "./types";
 
 const REQUESTS = "r2u:nickChangeRequests";
@@ -62,6 +64,9 @@ export async function approveNickChange(oldNick: string, newNick: string): Promi
   try {
     const member = await getMember(oldNick);
     if (!member || !(await nickAvailable(oldNick, newNick))) throw new Error("회원 또는 새 닉네임을 다시 확인해 주세요.");
+    // 챌린지 데이터(참가자·기록·이의 제기)는 닉네임이 키라서 옮기지 않는다 — 참가 중이면 막는다
+    const challenge = await activeChallenge();
+    if (challenge && (await getMemberRec(challenge.id, oldNick))) throw new Error("챌린지 참가 중에는 닉네임을 바꿀 수 없어요. 챌린지가 끝난 뒤에 승인해 주세요.");
     const [racesRaw, monthKeys, vsKeys, vsEndKeys, aliasesRaw, eventRaw, noticesRaw, pushRaw, joinRaw, roundIds, raceRecords, bingoPw] = await Promise.all([
       redis.hgetall<Record<string, unknown>>(K.races),
       redis.keys("r2u:month:*"),

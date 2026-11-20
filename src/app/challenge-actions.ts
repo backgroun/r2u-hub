@@ -122,8 +122,15 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   const now = Date.now();
   const imgs: Activity["imgs"] = {};
   for (const kind of IMG_KINDS) if (flags[kind]) imgs[kind] = true;
-  for (const kind of IMG_KINDS) if (files[kind]) await putImage(live.block.id, id, kind, files[kind]!);
-  await saveActRec(live.block.id, { id, nick: u.nick, ...v.value, imgs, status: "pending", createdAt: existing?.createdAt ?? now, updatedAt: now });
+  const rec: Activity = { id, nick: u.nick, ...v.value, imgs, status: "pending", createdAt: existing?.createdAt ?? now, updatedAt: now };
+  if (existing) {
+    // 수정: 기록(검수 전)을 먼저 저장한 뒤 캡처를 바꾼다. 저장이 실패해도 승인된 기록이 검수 안 된 캡처를 가리키지 않는다.
+    await saveActRec(live.block.id, rec);
+    for (const kind of IMG_KINDS) if (files[kind]) await putImage(live.block.id, id, kind, files[kind]!);
+  } else {
+    for (const kind of IMG_KINDS) if (files[kind]) await putImage(live.block.id, id, kind, files[kind]!);
+    await saveActRec(live.block.id, rec);
+  }
   // 기록을 먼저 저장한 뒤에 빠진 캡처를 지운다(저장이 실패해도 기록이 지워진 이미지를 가리키지 않게)
   for (const kind of IMG_KINDS) if (existing?.imgs[kind] && !imgs[kind]) await delImage(live.block.id, id, kind);
   if (existing) await addLog(live.block.id, { by: u.nick, action: "edit", target: `${u.nick}/${id}` });
@@ -195,6 +202,7 @@ export async function reviewActivityAction(_: Result, fd: FormData): Promise<Res
   const a = await getActRec(blockId, str(fd, "actId", 20));
   if (!a) return fail("기록을 찾을 수 없어요.");
   if (a.nick === u.nick) return fail("본인 기록은 다른 운영진이 검수해요.");
+  if (String(a.updatedAt) !== str(fd, "v", 20)) return fail("기록이 바뀌었어요. 새로고침 후 다시 확인해 주세요.");
   if (decision !== "ok" && decision !== "rejected") return fail("승인 또는 반려를 골라 주세요.");
   if (decision === "rejected" && reason.length < 2) return fail("반려 사유를 적어 주세요.");
   await saveActRec(blockId, { ...a, status: decision as ActStatus, rejectReason: decision === "rejected" ? reason : undefined, reviewedBy: u.nick, reviewedAt: Date.now() });

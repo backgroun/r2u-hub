@@ -17,12 +17,14 @@ export default async function EventPage({ searchParams }: { searchParams: Promis
   const block = await displayBlock();
   // 운영진이 숨겨 둔 동안 크루원에게는 안내 화면만 보인다 (운영진은 그대로 본다)
   const hidden = await eventHidden();
-  if (hidden && !u?.admin) return <><ChallengeBanner /><Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon /></>;
+  if (hidden && !u?.admin) return <Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon />;
   // 운영진은 위에 작은 바가 붙는다: 블록 바꾸기 · 참가 신청 · 이벤트 설정으로 가기
   const bar = u?.admin ? await AdminBar({ block, nick: u.nick, hidden }) : null;
   if (!block) return <>{bar}<ChallengeBanner /><Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon /></>;
   // 12월 기록 챌린지가 이벤트 탭 본문으로 세팅돼 있으면 챌린지 화면을 그대로 보여 준다
   if (block.type === "challenge") {
+    // 설정이 없는 챌린지 블록은 빙고로 흘려보내지 않고 안내 화면만 보인다
+    if (!block.challenge) return <>{bar}<Message emoji="🎁" title="이벤트 기대해주세요" sub="새로운 이벤트가 곧 열려요." soon /></>;
     if (!u) redirect("/login");
     return <>{bar}<main className="hub-wrap"><ChallengeView block={block} nick={u.nick} staff={u.admin} /></main></>;
   }

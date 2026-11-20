@@ -23,6 +23,7 @@ export const K = {
   afterCame: (afterId: string) => `r2u:afterCame:${afterId}`, // 당일 운영진이 체크한 출석 hash nick -> 1
   rsvp: (afterId: string) => `r2u:after:${afterId}`, // hash nick -> "yes" | "no"
   raceRec: (nick: string) => `r2u:racerec:${nick}`, // hash raceId -> RaceRec (내 대회 기록)
+  eventRec: (nick: string) => `r2u:eventrec:${nick}`, // hash eventId -> EventRec (내 이벤트 참가 기록)
   vs: (ym: string) => `r2u:vs:${ym}`, // hash 내 닉네임 -> 이번 달 대결 상대 닉네임
   vsEnd: (ym: string) => `r2u:vsEnd:${ym}`, // hash 종료 요청자 -> 승인할 상대
   month: (ym: string) => `r2u:month:${ym}`, // hash nick -> MonthRec
@@ -47,6 +48,13 @@ export function parseRaceTime(t: string): { sec: number; time: string } | null {
 export async function getRaceRecs(nick: string): Promise<Record<string, RaceRec>> {
   const h = (await redis.hgetall<Record<string, unknown>>(K.raceRec(nick))) ?? {};
   return Object.fromEntries(Object.entries(h).map(([id, v]) => [id, parse<RaceRec>(v)]));
+}
+
+/** 이벤트 참가 기록: 이벤트가 끝난 뒤 남겨 두는 성적 (빙고 이벤트는 칸·줄 수) */
+export type EventRec = { title: string; start: string; end: string; cells: number; lines: number; photos: number; at: number };
+export async function getEventRecs(nick: string): Promise<Record<string, EventRec>> {
+  const h = (await redis.hgetall<Record<string, unknown>>(K.eventRec(nick))) ?? {};
+  return Object.fromEntries(Object.entries(h).map(([id, v]) => [id, parse<EventRec>(v)]));
 }
 
 export type Member = { nick: string; name?: string; role: "admin" | "member"; pw: string | null; manager?: boolean; managerPreviousRole?: "admin" | "member" };

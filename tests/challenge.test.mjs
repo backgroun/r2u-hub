@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_CONFIG as cfg, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
-  buildBoard, awardWinners, placeKey, formatValue,
+  buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
 } from "../src/lib/challenge/rules.ts";
 
 /** 테스트용 활동 (기본: 12/2 새벽 5km 25분 = 페이스 5:00) */
@@ -21,6 +21,7 @@ test("페이스는 초 단위로 버림해서 8:00 경계를 가른다", () => {
   assert.equal(paceSecOf(5, 2400), 480);
   assert.equal(paceSecOf(5, 2404), 480); // 480.8 → 480 (표시도 8:00)
   assert.equal(paceSecOf(5, 2405), 481);
+  assert.equal(paceSecOf(8.15, 3912), 480); // 부동소수 479.999… 방지: 정확히 8:00
   assert.equal(fmtPace(480), "8:00");
   assert.equal(fmtPace(481), "8:01");
   assert.equal(fmtPace(65), "1:05");
@@ -216,6 +217,44 @@ test("시상: 완전 동점이면 우승자를 정하지 않고 동점자를 알
   const [first] = awardWinners(board);
   assert.equal(first.winner, null);
   assert.deepEqual(first.tie, ["p", "q"]);
+});
+
+test("시상: 앞 부문에 동점이 있으면 뒤 부문 수상은 잠정이다", () => {
+  const d = [
+    mk("p1", "p", "2026-12-02T06:00", 10, 3000, { cadence: 180 }),
+    mk("q1", "q", "2026-12-02T06:00", 10, 3000),
+  ];
+  const awards = awardWinners(buildBoard(d, ["p", "q"], cfg, { verifiedOnly: false }));
+  assert.equal(awards[0].provisional, false);
+  assert.deepEqual(awards[0].tie, ["p", "q"]);
+  assert.equal(awards[1].provisional, true);
+  assert.equal(awards[2].winner, "p");
+  assert.equal(awards[2].provisional, true);
+  const clean = awardWinners(buildBoard(DATA, PAID, cfg, { verifiedOnly: false }));
+  assert.equal(clean[0].provisional, false);
+});
+
+test("순위: 동점 뒤 순위는 건너뛴다 (1,1,3)", () => {
+  const d = [
+    mk("p1", "p", "2026-12-02T06:00", 5, 1500),
+    mk("q1", "q", "2026-12-02T06:00", 5, 1500),
+    mk("r1", "r", "2026-12-02T06:00", 3, 900),
+  ];
+  assert.deepEqual(buildBoard(d, ["p", "q", "r"], cfg, { verifiedOnly: false }).distance.map((e) => e.rank), [1, 1, 3]);
+});
+
+test("장소: constructor·__proto__ 같은 입력도 평범한 장소로 센다", () => {
+  const places = { [placeKey("뚝섬")]: "한강 반포" };
+  for (const w of ["constructor", "__proto__", "toString"]) {
+    assert.equal(placeGroupOf(w, places), placeKey(w));
+    assert.equal(placeGroupOf(w), placeKey(w));
+  }
+  const d = [
+    mk("x1", "x", "2026-12-02T06:00", 8, 2400, { place: "constructor" }),
+    mk("x2", "x", "2026-12-03T06:00", 8, 2400, { place: "__proto__" }),
+    mk("x3", "x", "2026-12-04T06:00", 8, 2400, { place: "한강 반포" }),
+  ];
+  assert.equal(buildBoard(d, ["x"], cfg, { verifiedOnly: false, places }).place[0].value, 3);
 });
 
 test("장소: 공백·대소문자는 같은 장소, 운영진 정리표로 묶을 수 있다", () => {

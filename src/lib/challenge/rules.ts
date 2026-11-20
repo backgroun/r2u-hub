@@ -96,7 +96,8 @@ export function addDaysYmd(ymd: string, n: number): string {
 }
 
 /** 평균 페이스(초/km). 초 단위 이하는 버린다 — 화면에 보이는 값과 판정이 항상 같다. */
-export const paceSecOf = (distanceKm: number, durationSec: number): number => (distanceKm > 0 ? Math.floor(durationSec / distanceKm) : Infinity);
+export const paceFromHundredths = (hundredths: number, durationSec: number): number => (hundredths > 0 ? Math.floor((durationSec * 100) / hundredths) : Infinity);
+export const paceSecOf = (distanceKm: number, durationSec: number): number => paceFromHundredths(Math.round(distanceKm * 100), durationSec);
 export const fmtPace = (sec: number): string => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 export function fmtDur(sec: number): string {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
@@ -211,7 +212,7 @@ export const placeKey = (raw: string): string => raw.normalize("NFC").trim().toL
 /** 운영진이 정리표로 묶어 둔 장소면 묶음 이름의 키를, 아니면 입력 그대로의 키를 돌려준다 */
 export const placeGroupOf = (raw: string, map: Record<string, string> = {}): string => {
   const k = placeKey(raw);
-  return map[k] ? placeKey(map[k]) : k;
+  return Object.hasOwn(map, k) && typeof map[k] === "string" && map[k] ? placeKey(map[k]) : k;
 };
 
 export type Entry = { nick: string; rank: number; value: number; paceSec: number; lastAt: string; actIds: string[] };
@@ -222,7 +223,7 @@ type Cand = { value: number; evidence: Activity[] };
 const tally = (ev: Activity[]) => {
   const hundredths = ev.reduce((s, a) => s + Math.round(a.distanceKm * 100), 0);
   const sec = ev.reduce((s, a) => s + a.durationSec, 0);
-  return { paceSec: hundredths > 0 ? Math.floor(sec / (hundredths / 100)) : Infinity, lastAt: ev.reduce((m, a) => (a.startedAt > m ? a.startedAt : m), "") };
+  return { paceSec: paceFromHundredths(hundredths, sec), lastAt: ev.reduce((m, a) => (a.startedAt > m ? a.startedAt : m), "") };
 };
 
 /** 한 사람의 활동에서 부문별 후보(값 + 근거가 되는 활동)를 계산한다 */
@@ -287,18 +288,20 @@ export function buildBoard(acts: Activity[], paidNicks: string[], cfg: Challenge
 
 const same = (a: Entry, b: Entry) => a.value === b.value && a.paceSec === b.paceSec && a.lastAt === b.lastAt;
 
-export type Award = { category: Category; winner: string | null; tie: string[] };
+export type Award = { category: Category; winner: string | null; tie: string[]; provisional: boolean };
 
 /** 시상: 부문을 확정 순서대로 보며, 이미 수상한 사람은 건너뛰고 차순위가 올라온다(1인 1상). 완전 동점이면 winner=null, tie=동점자. */
 export function awardWinners(board: Board): Award[] {
   const won = new Set<string>();
+  let tied = false; // 앞 부문에 동점이 있으면 뒤 부문 수상은 잠정
   return CATEGORIES.map((category) => {
+    const provisional = tied;
     const rest = board[category].filter((e) => !won.has(e.nick));
-    if (!rest.length) return { category, winner: null, tie: [] };
+    if (!rest.length) return { category, winner: null, tie: [], provisional };
     const top = rest.filter((e) => same(e, rest[0]));
-    if (top.length > 1) return { category, winner: null, tie: top.map((e) => e.nick).sort() };
+    if (top.length > 1) { tied = true; return { category, winner: null, tie: top.map((e) => e.nick).sort(), provisional }; }
     won.add(top[0].nick);
-    return { category, winner: top[0].nick, tie: [] };
+    return { category, winner: top[0].nick, tie: [], provisional };
   });
 }
 

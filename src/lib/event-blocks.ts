@@ -1,20 +1,23 @@
 import "server-only";
 import { redis, newId, kstToday } from "@/lib/hub";
 import { EVENT_NICKS_KEY } from "@/lib/sheet";
+import { addDaysYmd, type ChallengeConfig } from "@/lib/challenge/rules";
+import { purgeChallenge } from "@/lib/challenge/store";
 
 /* ---------- 이벤트 블록 ----------
    운영진이 월별로 여러 개의 이벤트 블록(빙고·투표…)을 미리 만들어 두고,
    그중 하나를 골라 이벤트 탭 본문에 세팅한다. 월마다 활성 블록은 하나. */
 export type EventBlock = {
   id: string;
-  type: "bingo" | "poll";
+  type: "bingo" | "poll" | "challenge";
   title: string;
   ym: string; // YYYY-MM (이 블록이 속한 달)
   at: number;
   by: string;
   poll?: { question: string; options: string[] };
+  challenge?: ChallengeConfig;
 };
-export const BLOCK_TYPES = { bingo: "빙고", poll: "투표·설문" } as const;
+export const BLOCK_TYPES = { bingo: "빙고", poll: "투표·설문", challenge: "기록 챌린지" } as const;
 
 const BLOCKS = "r2u:eventBlocks";
 const ACTIVE = "r2u:eventActive"; // { "2026-11": blockId }
@@ -54,6 +57,19 @@ export async function displayBlock(): Promise<EventBlock | null> {
   return next ? blocks.find((b) => b.id === active[next]) ?? null : null;
 }
 
+/** 지금 신청·진행·결과를 보여 줄 챌린지 블록: 월별로 세팅된 챌린지 중 [신청 시작일, 확정일+30일] 안에 오늘이 든 것.
+    신청 기간이 다른 달 이벤트(빙고)와 겹쳐도 챌린지가 가려지지 않도록 월과 무관하게 찾는다. */
+export async function activeChallenge(today = kstToday()): Promise<EventBlock | null> {
+  const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
+  const ids = new Set(Object.values(active));
+  return blocks.find((b) => b.type === "challenge" && b.challenge && ids.has(b.id) && today >= b.challenge.signupStart && today <= addDaysYmd(b.challenge.finalAt, 30)) ?? null;
+}
+
+export async function setChallengeConfig(blockId: string, challenge: ChallengeConfig) {
+  const blocks = await getBlocks();
+  await saveBlocks(blocks.map((b) => (b.id === blockId ? { ...b, challenge } : b)));
+}
+
 export async function createBlock(b: Omit<EventBlock, "id" | "at">) {
   const blocks = await getBlocks();
   const block = { ...b, id: newId(), at: Date.now() };
@@ -87,6 +103,7 @@ export async function setActive(ym: string, blockId: string | null) {
 
 export async function deleteBlock(id: string) {
   const blocks = await getBlocks();
+  if (blocks.find((b) => b.id === id)?.type === "challenge") await purgeChallenge(id);
   const active = await getActive();
   for (const m of Object.keys(active)) if (active[m] === id) delete active[m];
   const tx = redis.multi();

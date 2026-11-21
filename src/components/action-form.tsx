@@ -69,10 +69,10 @@ export function Submit({ children, className = "btn btn-primary", form, confirm,
  * 맞으면 서버가 확인하는 토큰(confirmToken)을 폼에 담아 제출한다 — 서버 동작은 이 토큰이 없으면 실행하지 않는다.
  * message가 없으면 버튼 글자로 문구를 만든다.
  */
-export function ConfirmButton({ children, message, className = "btn btn-ghost btn-danger text-sm py-1.5 px-2.5", label }: { children: React.ReactNode; message?: string; className?: string; label?: string }) {
+export function ConfirmButton({ children, message, className = "btn btn-ghost btn-danger text-sm py-1.5 px-2.5", label, form: formId }: { children: React.ReactNode; message?: string; className?: string; label?: string; form?: string /* 버튼이 폼 밖에 있을 때 그 폼의 id */ }) {
   const text = message ?? (typeof children === "string" ? `[${children}] 정말 진행할까요?\n되돌릴 수 없어요.` : "정말 진행할까요?\n되돌릴 수 없어요.");
   return (
-    <button type="submit" className={className} aria-label={label} onClick={async (e) => {
+    <button type="submit" form={formId} className={className} aria-label={label} onClick={async (e) => {
       const btn = e.currentTarget, form = btn.form;
       if (!form) return;
       e.preventDefault();

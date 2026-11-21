@@ -157,8 +157,16 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         </div>
       </details>
 
+      <ActionForm id={`aw-${block.id}`} action={awardsRec.confirmed ? unconfirmAwardsAction : confirmAwardsAction} keep>
+        <input type="hidden" name="id" value={block.id} />
+      </ActionForm>
       <details className="panel p-4" open>
-        <summary className="font-bold cursor-pointer">수상 결과 (확정·교체)</summary>
+        <summary className="font-bold cursor-pointer">
+          <span className="grow">수상 결과 (확정·교체)</span>
+          {awardsRec.confirmed
+            ? <ConfirmButton form={`aw-${block.id}`} className="btn btn-danger text-xs py-1 px-3" message={"확정을 취소할까요?\n참가자 화면에서 수상 결과가 다시 숨겨져요."}>확정 취소</ConfirmButton>
+            : <ConfirmButton form={`aw-${block.id}`} className="btn btn-primary text-xs py-1 px-3" message={"수상 결과를 확정할까요?\n지금 결과가 고정되어 참가자 화면에 공개돼요."}>수상 결과 확정</ConfirmButton>}
+        </summary>
         <div className="grid gap-3 pt-3">
           <p className="text-sm">
             {awardsRec.confirmed
@@ -195,17 +203,6 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
               );
             })}
           </ul>
-          {awardsRec.confirmed ? (
-            <ActionForm action={unconfirmAwardsAction} keep className="flex">
-              <input type="hidden" name="id" value={block.id} />
-              <ConfirmButton className="btn btn-danger" message={"확정을 취소할까요?\n참가자 화면에서 수상 결과가 다시 숨겨져요."}>확정 취소</ConfirmButton>
-            </ActionForm>
-          ) : (
-            <ActionForm action={confirmAwardsAction} keep className="flex">
-              <input type="hidden" name="id" value={block.id} />
-              <ConfirmButton className="btn btn-primary" message={"수상 결과를 확정할까요?\n지금 결과가 고정되어 참가자 화면에 공개돼요."}>수상 결과 확정</ConfirmButton>
-            </ActionForm>
-          )}
         </div>
       </details>
     </section>

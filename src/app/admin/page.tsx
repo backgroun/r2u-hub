@@ -778,11 +778,11 @@ async function Events() {
   const nowYm = kstToday().slice(0, 7);
   // 본문에 세팅된 달(없으면 블록이 속한 달) 기준으로 묶는다. 보관함: 직접 보낸 것 + 진행이 끝난 것 중 본문에 안 쓰는 것.
   const activeYmOf = (id: string) => Object.keys(active).find((m) => active[m] === id);
-  const archived = blocks.filter((b) => b.archived || (isBlockDone(b, period) && !activeYmOf(b.id))).sort((a, b) => b.ym.localeCompare(a.ym) || b.at - a.at);
+  const archived = blocks.filter((b) => b.archived || isBlockDone(b, period)).sort((a, b) => b.ym.localeCompare(a.ym) || b.at - a.at);
   const archivedIds = new Set(archived.map((b) => b.id));
   const shown = blocks.filter((b) => !archivedIds.has(b.id));
   const monthOf = (b: { id: string; ym: string }) => activeYmOf(b.id) ?? b.ym;
-  const months = [...new Set([...shown.map(monthOf), ...Object.keys(active)])].sort().reverse();
+  const months = [...new Set(shown.map(monthOf))].sort().reverse();
   return (
     <section className="grid gap-3">
       {months.map((ym) => (
@@ -891,13 +891,15 @@ async function Events() {
             {archived.map((b) => (
               <div key={b.id} className="flex items-center gap-2 border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
                 <div className="min-w-0 grid">
-                  <span className="font-bold truncate">{b.title}</span>
+                  <span className="font-bold truncate">{b.title} {activeYmOf(b.id) && <span className="chip chip-confirmed">본문에 세팅됨</span>}</span>
                   <span className="text-xs text-muted truncate">{b.ym.slice(0, 4)}년 {Number(b.ym.slice(5))}월 · {BLOCK_TYPES[b.type]}{b.poll ? ` · ${b.poll.question}` : ""}</span>
                 </div>
                 <div className="ml-auto flex gap-1.5 shrink-0">
                   <form action={activateEventBlock}>
-                    <input type="hidden" name="id" value={b.id} /><input type="hidden" name="ym" value={nowYm} />
-                    <button className="btn text-xs py-1 px-2.5">이번 달 본문에 세팅</button>
+                    <input type="hidden" name="id" value={b.id} />
+                    {activeYmOf(b.id)
+                      ? <><input type="hidden" name="ym" value={activeYmOf(b.id)} /><input type="hidden" name="off" value="1" /><button className="btn text-xs py-1 px-2.5">본문에서 내리기</button></>
+                      : <><input type="hidden" name="ym" value={nowYm} /><button className="btn text-xs py-1 px-2.5">이번 달 본문에 세팅</button></>}
                   </form>
                   {b.archived && <form action={archiveEventBlock}><input type="hidden" name="id" value={b.id} /><input type="hidden" name="restore" value="1" /><button className="btn btn-ghost text-xs py-1 px-2">보관 해제</button></form>}
                   <form action={removeEventBlock}><input type="hidden" name="id" value={b.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>

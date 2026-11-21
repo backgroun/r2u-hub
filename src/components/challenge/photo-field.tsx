@@ -53,12 +53,15 @@ export default function PhotoField({ name, label, hint, have, required, inline }
     <div className={inline ? "flex flex-wrap items-center gap-x-2 gap-y-1" : "field"}>
       <span className={inline ? "label shrink-0 whitespace-nowrap" : "label"}>{label}{required && <b className="text-[var(--bad)]"> *</b>}</span>
       <input ref={out} type="file" name={name} hidden />
-      <input ref={pick} type="file" accept="image/*" className={inline ? "input min-w-0 grow basis-0" : "input"} onChange={onPick} />
+      {/* 기본 파일 선택 문구 대신: 이미 올렸거나 방금 골랐으면 "올린 기록 있음 · 교체하려면 누르세요" */}
+      <label className={`${inline ? "input min-w-0 grow basis-0" : "input"} flex cursor-pointer items-center`} style={{ color: have || preview ? "var(--muted)" : undefined }}>
+        <input ref={pick} type="file" accept="image/*" className="sr-only" onChange={onPick} />
+        <span className="truncate">{have || preview ? "올린 기록 있음 · 교체하려면 누르세요" : "파일 선택"}</span>
+      </label>
       {hint && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>{hint}</span>}
       {preview && <img src={preview} alt={`${label} 미리보기`} className={`mt-1 rounded-lg ${inline ? "basis-0" : ""}`} style={{ maxHeight: 140, maxWidth: "100%", ...(inline ? { flexBasis: "100%", objectFit: "contain", objectPosition: "left" } : {}) }} />}
       {busy && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>줄이는 중…</span>}
       {msg && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>{msg}</span>}
-      {have && !preview && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>올려 둔 캡처가 있어요. 새로 고르면 바뀌어요.</span>}
     </div>
   );
 }

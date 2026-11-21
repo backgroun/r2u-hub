@@ -48,7 +48,7 @@ export type Activity = {
   updatedAt: number;
 };
 
-export type ChallengeMember = { nick: string; appliedAt: number; agreedAt: number; paid: boolean; paidAt?: number; paidBy?: string; paidClaimedAt?: number /* 참가자가 "입금 완료"를 눌러 알린 시각(운영진 확인 전) */ };
+export type ChallengeMember = { nick: string; appliedAt: number; agreedAt: number; paid: boolean; paidAt?: number; paidBy?: string; bib?: number /* 대회 배번(신청할 때 5자리로 발급) */; paidClaimedAt?: number /* 참가자가 "입금 완료"를 눌러 알린 시각(운영진 확인 전) */ };
 export type Appeal = { id: string; nick: string; actId: string; reason: string; at: number; done: boolean; answer?: string; answeredBy?: string; answeredAt?: number };
 export type LogEntry = { at: number; by: string; action: string; target: string; note?: string };
 
@@ -467,3 +467,6 @@ export function drawRaffle(tickets: { ticket: number; nick: string }[], prizes: 
   }
   return out;
 }
+
+/** 대회 배번: 5자리로 채운다 (10001 → "10001") */
+export const fmtBib = (n: number): string => String(n).padStart(5, "0");

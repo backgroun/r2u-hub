@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -464,4 +464,10 @@ test("규정 글: 상품·추첨 상품 자리표시, 추첨 상품이 없으면
   assert.doesNotMatch(b, /경품 추첨|추첨 상품/);
   assert.match(b, /상품\(예정/);
   assert.match(fillRules("{상품}", { ...DEFAULT_CONFIG, prizes: [] }), /곧 안내해요/);
+});
+
+test("대회 배번: 5자리로 표기", () => {
+  assert.equal(fmtBib(10001), "10001");
+  assert.equal(fmtBib(7), "00007");
+  assert.equal(fmtBib(10001).length, 5);
 });

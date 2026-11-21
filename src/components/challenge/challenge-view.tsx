@@ -5,7 +5,7 @@ import ChallengeBoard from "@/components/challenge/challenge-board";
 import { claimPaidAction, deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst, fmtTicket,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst, fmtBib, fmtTicket,
   parseRules, defaultRulesText, fillRules, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -36,9 +36,9 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
       {cfg.testMode && (
         <p className="panel p-3 text-sm font-bold" style={{ background: "#fff4d6", color: "#5a4300" }}>🧪 테스트 모드 · 운영진에게만 보여요 · 단계: {PHASE_LABEL[phase]}</p>
       )}
-      {showBoard && <ChallengeBoard me={nick} tabs={CATEGORIES.map((c) => ({ key: c, label: CATEGORY_LABEL[c], rows: board[c].map((e) => ({ nick: e.nick, rank: e.rank, value: formatValue(c, e.value) })) }))} />}
+      {showBoard && <ChallengeBoard me={nick} tabs={CATEGORIES.map((c) => ({ key: c, label: CATEGORY_LABEL[c], rows: board[c].map((e) => ({ nick: e.nick, rank: e.rank, value: formatValue(c, e.value), pct: board[c][0].value > 0 ? e.value / board[c][0].value : 0 })) }))} />}
 
-      <SignupPanel blockId={block.id} cfg={cfg} phase={phase} mine={mine} />
+      <SignupPanel blockId={block.id} title={block.title} cfg={cfg} phase={phase} mine={mine} />
 
       {mine && phase === "running" && (
         <section className="ch-card">
@@ -102,6 +102,13 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
   );
 }
 
+/** 기록 기간 중 지금까지 지난 비율(0~1) */
+function progressOf(now: string, start: string, end: string) {
+  const t = (v: string) => Date.UTC(Number(v.slice(0, 4)), Number(v.slice(5, 7)) - 1, Number(v.slice(8, 10)), Number(v.slice(11, 13)), Number(v.slice(14, 16)));
+  const total = t(end) - t(start);
+  return total > 0 ? Math.min(1, Math.max(0, (t(now) - t(start)) / total)) : 0;
+}
+
 /** 오늘(now)부터 마감일까지 남은 일수. 0이면 오늘 마감. */
 function daysLeft(now: string, end: string) {
   const d = (v: string) => Date.UTC(Number(v.slice(0, 4)), Number(v.slice(5, 7)) - 1, Number(v.slice(8, 10)));
@@ -110,6 +117,7 @@ function daysLeft(now: string, end: string) {
 
 function Hero({ title, cfg, phase, now }: { title: string; cfg: ChallengeConfig; phase: Phase; now: string }) {
   const left = phase === "running" ? daysLeft(now, cfg.end) : null;
+  const prog = phase === "running" ? progressOf(now, cfg.start, cfg.end) : phase === "closed" ? 1 : null;
   return (
     <section className="ch-hero">
       <div className="ch-line">
@@ -117,11 +125,14 @@ function Hero({ title, cfg, phase, now }: { title: string; cfg: ChallengeConfig;
         <span className="ch-period"><b>{fmtMdTime(cfg.start)}</b> ~ <b>{fmtMdTime(cfg.end)}</b>{left !== null && <span className="ch-dday"> · {left > 0 ? `종료까지 ${left}일` : "오늘 마감"}</span>}</span>
         <span className="ch-pill" data-live={phase === "running" ? "1" : undefined} data-quiet={phase === "closed" || phase === "soon" ? "1" : undefined}>{PHASE_LABEL[phase]}</span>
       </div>
+      {prog !== null && (
+        <div className="ch-prog" role="img" aria-label={`기간의 ${Math.round(prog * 100)}% 지났어요`} style={{ ["--p" as string]: `${Math.round(prog * 100)}%` }}><i /><b /></div>
+      )}
     </section>
   );
 }
 
-function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: ChallengeConfig; phase: Phase; mine?: ChallengeMember }) {
+function SignupPanel({ blockId, title, cfg, phase, mine }: { blockId: string; title: string; cfg: ChallengeConfig; phase: Phase; mine?: ChallengeMember }) {
   const bank = cfg.bank.bank && cfg.bank.account ? `${cfg.bank.bank} ${cfg.bank.account} (${cfg.bank.holder})` : "입금 계좌는 곧 안내해요";
   if (phase === "signup" && !mine) {
     return (
@@ -141,6 +152,13 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
   if (phase === "signup" && mine) {
     return (
       <section className="ch-card">
+        {mine.bib != null && (
+          <div className="ch-bibcard" role="img" aria-label={`내 배번 ${fmtBib(mine.bib)}`}>
+            <div className="ch-bibcard-top"><span>R2U</span><span>{title}</span></div>
+            <div className="ch-bibcard-no">{fmtBib(mine.bib)}</div>
+            <div className="ch-bibcard-who">{mine.nick}</div>
+          </div>
+        )}
         <h2 className="ch-h">신청 완료 <span>{mine.paid ? <span className="chip chip-confirmed">입금 확인됨</span> : <span className="chip chip-warn">입금 확인 전</span>}</span></h2>
         {!mine.paid && <p className="text-sm">회비 <b>{won(cfg.fee)}</b>을 입금해 주세요 · {bank}</p>}
         {mine.paid && <p className="text-sm text-[var(--bad)]">입금이 확인된 뒤에는 신청을 취소해도 회비가 환불되지 않아요.</p>}

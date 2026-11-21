@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-export type BoardRow = { nick: string; rank: number; value: string };
+export type BoardRow = { nick: string; rank: number; value: string; pct: number /* 1위 기록 대비 비율(0~1) */ };
 export type BoardTab = { key: string; label: string; rows: BoardRow[] };
 
 const TOP_N = 5;
@@ -14,7 +14,7 @@ export default function ChallengeBoard({ tabs, me }: { tabs: BoardTab[]; me: str
   useEffect(() => { setStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches); }, []);
   return (
     <section className="ch-card ch-board" aria-label="부문별 순위">
-      <h2 className="ch-h">부문별 순위 <small>줄을 누르면 1~5위</small></h2>
+      <h2 className="ch-h"><span className="ch-live">실시간 순위</span> <small>줄을 누르면 1~5위</small></h2>
       <ul className="ch-rolls">
         {tabs.map((t, i) => (
           <Roll key={t.key} tab={t} me={me} delay={i * 450} open={open === t.key} still={still} onToggle={() => setOpen(open === t.key ? null : t.key)} />
@@ -44,7 +44,7 @@ function Roll({ tab, me, delay, open, still, onToggle }: { tab: BoardTab; me: st
         <span className="ch-roll-v" aria-live="off">
           {!cur ? <span className="ch-roll-none">기록 없음</span> : open ? <span className="ch-roll-none">{list.length}명</span> : (
             <span key={`${tab.key}-${i % list.length}`} className="ch-roll-item" data-me={cur.nick === me ? "1" : undefined}>
-              <span className="ch-roll-r" data-r={cur.rank <= 3 ? cur.rank : undefined}>{cur.rank}위</span>
+              <span className="ch-bib" data-r={cur.rank <= 3 ? cur.rank : undefined}>{cur.rank}</span>
               <span className="ch-roll-n">{cur.nick}{cur.nick === me ? " · 나" : ""}</span>
               <span className="ch-roll-x">{cur.value}</span>
             </span>
@@ -53,11 +53,12 @@ function Roll({ tab, me, delay, open, still, onToggle }: { tab: BoardTab; me: st
       </button>
       {open && (
         <ol className="ch-roll-list">
-          {list.map((r) => (
-            <li key={r.nick} data-me={r.nick === me ? "1" : undefined}>
-              <span className="ch-roll-r" data-r={r.rank <= 3 ? r.rank : undefined}>{r.rank}위</span>
+          {list.map((r, k) => (
+            <li key={r.nick} data-me={r.nick === me ? "1" : undefined} data-r={r.rank <= 3 ? r.rank : undefined}>
+              <span className="ch-bib" data-r={r.rank <= 3 ? r.rank : undefined}>{r.rank}</span>
               <span className="ch-roll-n">{r.nick}{r.nick === me ? " · 나" : ""}</span>
               <span className="ch-roll-x">{r.value}</span>
+              <span className="ch-lane" aria-hidden style={{ ["--p" as string]: `${Math.max(4, Math.round(r.pct * 100))}%`, ["--d" as string]: `${k * 110}ms` }}><i /><b /></span>
             </li>
           ))}
           {list.length === 0 && <li className="ch-roll-none">아직 기록이 없어요.</li>}

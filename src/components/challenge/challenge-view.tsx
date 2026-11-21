@@ -5,7 +5,7 @@ import ChallengeBoard from "@/components/challenge/challenge-board";
 import { claimPaidAction, deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { getAwards, getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst, fmtBib, fmtTicket,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst, bestIds, fmtBib, fmtTicket,
   parseRules, defaultRulesText, fillRules, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -31,6 +31,7 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
     const g = dayGroups.find((x) => x.date === a.date) ?? (dayGroups.push({ date: a.date, acts: [], five: 0 }), dayGroups[dayGroups.length - 1]);
     g.acts.push(a); if (isFive(a)) g.five++;
   }
+  const best = bestIds(myActs, ecfg); // 케이던스·Zone 2 최고기록(기록은 모두 남기고 최고에만 뱃지)
   const fiveTotal = dayGroups.reduce((s, g) => s + g.five, 0);
   const wonTickets = new Set((raffle?.winners ?? []).map((w) => w.ticket)); // 당첨된 번호는 내 기록의 번호 공에 테두리를 둘러 알린다
   const raffleOn = (cfg.raffle?.length ?? 0) > 0;
@@ -82,7 +83,7 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
                 <b>{fmtDate(g.date)}</b>
                 <span className={g.five > 0 ? "chip chip-confirmed" : "text-xs text-muted"}>5km 이상 {g.five}회</span>
               </div>
-              {g.acts.map((a) => <MyAct key={a.id} a={a} cfg={cfg} ecfg={ecfg} blockId={block.id} now={now} canEdit={live} won={a.ticket != null && wonTickets.has(a.ticket)} five={isFive(a)} />)}
+              {g.acts.map((a) => <MyAct key={a.id} a={a} cfg={cfg} ecfg={ecfg} blockId={block.id} now={now} canEdit={live} won={a.ticket != null && wonTickets.has(a.ticket)} five={isFive(a)} bestCad={best.cadence === a.id} bestZ2={best.zone2 === a.id} />)}
             </div>
           ))}
         </section>
@@ -201,7 +202,7 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
   return null;
 }
 
-function MyAct({ a, ecfg, blockId, now, canEdit, won, five }: { a: Activity; cfg: ChallengeConfig; ecfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean; won: boolean; five: boolean }) {
+function MyAct({ a, ecfg, blockId, now, canEdit, won, five, bestCad, bestZ2 }: { a: Activity; cfg: ChallengeConfig; ecfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean; won: boolean; five: boolean; bestCad: boolean; bestZ2: boolean }) {
   const j = judge(a, ecfg);
   const rest = [a.surface !== "road" ? SURFACE_LABEL[a.surface] : null, `${a.distanceKm.toFixed(2)}km`, fmtDur(a.durationSec), `${fmtPace(j.paceSec)}/km`, a.cadence != null ? `${a.cadence}spm` : null, a.zone2Pct != null ? `Z2 ${a.zone2Pct}%` : null, a.place].filter(Boolean).join(" · ");
   return (
@@ -209,7 +210,7 @@ function MyAct({ a, ecfg, blockId, now, canEdit, won, five }: { a: Activity; cfg
       <summary className="cursor-pointer text-sm num">
         <span className="flex min-w-0 items-center gap-2">
           {a.ticket != null && <span className="ch-ball ch-ball-sm" data-c={a.ticket % 5} data-hit={won ? "1" : undefined} aria-label={`행운 번호 ${fmtTicket(a.ticket)}`}>{fmtTicket(a.ticket)}</span>}
-          <span className="min-w-0">{five && <span className="chip chip-confirmed mr-1" style={{ fontSize: 11 }}>5km 이상</span>}<span className="text-muted">{rest}</span>{j.notes.length > 0 && <span className="text-[var(--bad)]"> ⚠</span>}{a.cadence != null && <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>케이던스 최고</span>}{a.zone2Pct != null && a.zone2Pct >= RULE.zone2MinPct && <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>Zone 2 최고</span>}</span>
+          <span className="min-w-0">{five && <span className="chip chip-confirmed mr-1" style={{ fontSize: 11 }}>5km 이상</span>}<span className="text-muted">{rest}</span>{j.notes.length > 0 && <span className="text-[var(--bad)]"> ⚠</span>}{bestCad && <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>케이던스 최고</span>}{bestZ2 && <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>Zone 2 최고</span>}</span>
         </span>
       </summary>
       <div className="grid gap-2 pt-2">

@@ -94,7 +94,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
                 <input name="cadence" inputMode="numeric" className="input min-w-0" placeholder="예: 178" defaultValue={initial?.cadence ?? ""} /></label>
               <PhotoField name="img_cadence" label="케이던스 캡처" have={!!initial?.imgs.cadence} />
             </div>
-            <p className="text-xs text-muted">{RULE.cadenceMinKm}km 이상 활동만 인정 · 더 높은 케이던스로 올리면 이전 케이던스 인증이 교체돼요</p>
+            <p className="text-xs text-muted">{RULE.cadenceMinKm}km 이상 활동만 인정 · 여러 번 올려도 가장 높은 기록 하나만 인정돼요</p>
           </div>
         </details>
       )}
@@ -109,7 +109,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
               <input name="avgHr" inputMode="numeric" className="input min-w-0" placeholder="예: 140" defaultValue={initial?.avgHr ?? ""} /></label>
           </div>
           <PhotoField name="img_zone" label="심박 구간 캡처" have={!!initial?.imgs.zone} />
-          <p className="text-xs" style={run.z2 != null && run.z2 < RULE.zone2MinPct ? { color: "var(--warn)", fontWeight: 700 } : { color: "var(--muted)" }}>{run.z2 != null && run.z2 < RULE.zone2MinPct ? `${RULE.zone2MinPct}% 미만은 인정되지 않아요` : "더 긴 거리의 기록으로 올리면 이전 Zone 2 인증이 교체돼요 · 존 번호·비율이 보이는 캡처"}</p>
+          <p className="text-xs" style={run.z2 != null && run.z2 < RULE.zone2MinPct ? { color: "var(--warn)", fontWeight: 700 } : { color: "var(--muted)" }}>{run.z2 != null && run.z2 < RULE.zone2MinPct ? `${RULE.zone2MinPct}% 미만은 인정되지 않아요` : "여러 번 올려도 가장 긴 거리의 기록 하나만 인정돼요 · 존 번호·비율이 보이는 캡처"}</p>
         </div>
       </details>
 

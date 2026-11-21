@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, sectionsToText, effectiveWinners, awardConflict, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib, pickBib, pickTicket, claimUnique, zone2Plan, cadencePlan,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, sectionsToText, effectiveWinners, awardConflict, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib, pickBib, pickTicket, claimUnique, bestIds,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -544,19 +544,17 @@ test("수상 교체: 직접 정한 값이 자동 시상을 덮고, 1인 1상 충
   assert.equal(awardConflict(o, "cadence", "나"), null); // 자기 부문은 충돌이 아니다
 });
 
-test("Zone 2 교체: 더 긴 기록이면 이전 인증을 비우고, 같거나 짧으면 이번 것은 반영하지 않는다", () => {
-  const o = [{ id: "a", distanceKm: 8, zone2Pct: 85 }, { id: "b", distanceKm: 12, zone2Pct: 90 }, { id: "c", distanceKm: 20, zone2Pct: 60 }, { id: "d", distanceKm: 30, zone2Pct: null }];
-  assert.deepEqual(zone2Plan(15, o), { keep: true, clearIds: ["a", "b"], bestKm: 12 }); // 기준 미달(c)·없음(d)은 비교하지 않는다
-  assert.deepEqual(zone2Plan(12, o), { keep: false, clearIds: [], bestKm: 12 }); // 같은 거리는 먼저 올린 쪽을 유지
-  assert.deepEqual(zone2Plan(10, o), { keep: false, clearIds: [], bestKm: 12 });
-  assert.deepEqual(zone2Plan(5, []), { keep: true, clearIds: [], bestKm: null });
-  assert.deepEqual(zone2Plan(5, [{ id: "x", distanceKm: 3, zone2Pct: 79 }]), { keep: true, clearIds: [], bestKm: null }); // 80% 미만은 대상이 아니다
-});
-
-test("케이던스 교체: 더 높으면 이전 인증을 비우고, 같거나 낮으면 이번 것은 반영하지 않는다", () => {
-  const o = [{ id: "a", distanceKm: 12, cadence: 170 }, { id: "b", distanceKm: 15, cadence: 176 }, { id: "c", distanceKm: 8, cadence: 190 }, { id: "d", distanceKm: 20, cadence: null }];
-  assert.deepEqual(cadencePlan(180, o), { keep: true, clearIds: ["a", "b"], bestCadence: 176 }); // 10km 미만(c)·없음(d)은 비교하지 않는다
-  assert.deepEqual(cadencePlan(176, o), { keep: false, clearIds: [], bestCadence: 176 }); // 같으면 먼저 올린 쪽 유지
-  assert.deepEqual(cadencePlan(170, o), { keep: false, clearIds: [], bestCadence: 176 });
-  assert.deepEqual(cadencePlan(150, []), { keep: true, clearIds: [], bestCadence: null });
+test("최고기록 표시: 케이던스는 가장 높은 것, Zone 2는 가장 긴 거리 — 나머지 기록은 값이 그대로 남는다", () => {
+  const list = [
+    act({ id: "c1", startedAt: "2026-12-02T06:00", distanceKm: 12, durationSec: 3600, cadence: 170, zone2Pct: 85, avgHr: 140 }),
+    act({ id: "c2", startedAt: "2026-12-03T06:00", distanceKm: 11, durationSec: 3300, cadence: 182, zone2Pct: 90, avgHr: 138 }), // 케이던스 최고
+    act({ id: "c3", startedAt: "2026-12-04T06:00", distanceKm: 15, durationSec: 5400, cadence: 176, zone2Pct: 82, avgHr: 142 }), // Zone 2 최고(가장 길다)
+    act({ id: "c4", startedAt: "2026-12-05T06:00", distanceKm: 8, durationSec: 2400, cadence: 195 }), // 10km 미만 → 케이던스에서 제외
+    act({ id: "c5", startedAt: "2026-12-06T06:00", distanceKm: 20, durationSec: 7200, zone2Pct: 60, avgHr: 150 }), // 80% 미만 → Zone 2 에서 제외
+  ];
+  assert.deepEqual(bestIds(list, cfg), { cadence: "c2", zone2: "c3" });
+  assert.deepEqual(bestIds([], cfg), { cadence: null, zone2: null });
+  // 같은 케이던스면 페이스가 빠른 기록이 최고
+  const tie = [act({ id: "t1", distanceKm: 10, durationSec: 3600, cadence: 180 }), act({ id: "t2", startedAt: "2026-12-03T06:00", distanceKm: 10, durationSec: 3000, cadence: 180 })];
+  assert.equal(bestIds(tie, cfg).cadence, "t2");
 });

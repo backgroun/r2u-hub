@@ -539,23 +539,11 @@ export function awardConflict(list: EffectiveAward[], category: Category, nick: 
   return list.find((x) => x.category !== category && x.winner === nick)?.category ?? null;
 }
 
-/** Zone 2 교체 규칙: 한 사람은 가장 긴 거리의 Zone 2 기록 하나만 남긴다.
-    새 기록이 더 길면 이전 Zone 2 인증(들)을 비우고 이번 것으로 바꾸고(clearIds), 이미 같거나 더 긴 기록이 있으면 이번 Zone 2는 반영하지 않는다(keep=false).
-    기준(비율 80% 이상)을 채운 이전 기록만 비교 대상이다. */
-export function zone2Plan(myKm: number, others: { id: string; distanceKm: number; zone2Pct: number | null }[]): { keep: boolean; clearIds: string[]; bestKm: number | null } {
-  const ok = others.filter((o) => o.zone2Pct != null && o.zone2Pct >= RULE.zone2MinPct);
-  if (!ok.length) return { keep: true, clearIds: [], bestKm: null };
-  const best = Math.max(...ok.map((o) => Math.round(o.distanceKm * 100)));
-  if (best >= Math.round(myKm * 100)) return { keep: false, clearIds: [], bestKm: best / 100 };
-  return { keep: true, clearIds: ok.map((o) => o.id), bestKm: best / 100 };
-}
-
-/** 케이던스 교체 규칙: 한 사람은 가장 높은 케이던스(10km 이상 활동) 기록 하나만 남긴다. Zone 2 와 같은 방식이다.
-    더 높은 케이던스를 올리면 이전 케이던스 인증(들)을 비우고(clearIds), 같거나 낮으면 이번 케이던스는 반영하지 않는다(keep=false). */
-export function cadencePlan(myCadence: number, others: { id: string; distanceKm: number; cadence: number | null }[]): { keep: boolean; clearIds: string[]; bestCadence: number | null } {
-  const ok = others.filter((o) => o.cadence != null && o.distanceKm >= RULE.cadenceMinKm);
-  if (!ok.length) return { keep: true, clearIds: [], bestCadence: null };
-  const best = Math.max(...ok.map((o) => o.cadence as number));
-  if (best >= myCadence) return { keep: false, clearIds: [], bestCadence: best };
-  return { keep: true, clearIds: ok.map((o) => o.id), bestCadence: best };
+/** 한 사람의 기록 중 케이던스·Zone 2 "최고기록"인 활동. 순위(candidates)가 쓰는 것과 같은 기준이다.
+    기록은 모두 그대로 남기고, 이 활동에만 최고기록 표시를 붙인다. */
+export function bestIds(list: Activity[], cfg: ChallengeConfig): { cadence: string | null; zone2: string | null } {
+  const ok = (c: "cadence" | "zone2") => list.filter((a) => judge(a, cfg).counts[c]);
+  const cad = ok("cadence").sort((x, y) => (y.cadence as number) - (x.cadence as number) || paceSecOf(x.distanceKm, x.durationSec) - paceSecOf(y.distanceKm, y.durationSec));
+  const z2 = ok("zone2").sort((x, y) => y.distanceKm - x.distanceKm || paceSecOf(x.distanceKm, x.durationSec) - paceSecOf(y.distanceKm, y.durationSec));
+  return { cadence: cad[0]?.id ?? null, zone2: z2[0]?.id ?? null };
 }

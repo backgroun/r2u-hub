@@ -1832,3 +1832,8 @@ button.came-chip { cursor: pointer; }
 .ch-bibcard-no { font-family: var(--font-num); font-size: clamp(46px, 16vw, 64px); font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: .06em; line-height: 1.05; padding-top: 6px; text-indent: .06em; }
 .ch-bibcard-who { font-size: 13px; font-weight: 800; color: color-mix(in srgb, #15212c 70%, #f6f3eb); }
 @media (prefers-reduced-motion: no-preference) { .ch-bibcard { animation: ch-pop .6s cubic-bezier(.22, 1, .36, 1) both; } }
+.ch-bibcard[data-compact="1"] { width: min(100%, 250px); padding-bottom: 8px; }
+.ch-bibcard[data-compact="1"] .ch-bibcard-no { font-size: clamp(34px, 11vw, 44px); padding-top: 3px; }
+.ch-bibcard[data-compact="1"] .ch-bibcard-top { padding: 4px 12px; font-size: 11px; }
+.ch-bibcard[data-compact="1"] .ch-bibcard-who { font-size: 12px; }
+.ch-bibcard[data-compact="1"]::before, .ch-bibcard[data-compact="1"]::after { bottom: 6px; width: 7px; height: 7px; }

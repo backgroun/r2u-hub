@@ -33,12 +33,14 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
     <div className="grid gap-4">
       <Hero title={block.title} cfg={cfg} phase={phase} now={now} />
 
+      {mine?.bib != null && <BibCard title={block.title} nick={mine.nick} bib={mine.bib} compact={phase !== "signup"} />}
+
       {cfg.testMode && (
         <p className="panel p-3 text-sm font-bold" style={{ background: "#fff4d6", color: "#5a4300" }}>🧪 테스트 모드 · 운영진에게만 보여요 · 단계: {PHASE_LABEL[phase]}</p>
       )}
       {showBoard && <ChallengeBoard me={nick} tabs={CATEGORIES.map((c) => ({ key: c, label: CATEGORY_LABEL[c], rows: board[c].map((e) => ({ nick: e.nick, rank: e.rank, value: formatValue(c, e.value), pct: board[c][0].value > 0 ? e.value / board[c][0].value : 0 })) }))} />}
 
-      <SignupPanel blockId={block.id} title={block.title} cfg={cfg} phase={phase} mine={mine} />
+      <SignupPanel blockId={block.id} cfg={cfg} phase={phase} mine={mine} />
 
       {mine && phase === "running" && (
         <section className="ch-card">
@@ -132,7 +134,18 @@ function Hero({ title, cfg, phase, now }: { title: string; cfg: ChallengeConfig;
   );
 }
 
-function SignupPanel({ blockId, title, cfg, phase, mine }: { blockId: string; title: string; cfg: ChallengeConfig; phase: Phase; mine?: ChallengeMember }) {
+/** 내 배번표: 마라톤처럼 신청 때부터 대회가 끝날 때까지 상단에 보인다. 신청 중에는 크게, 기록 중·종료 후에는 작게. */
+function BibCard({ title, nick, bib, compact }: { title: string; nick: string; bib: number; compact: boolean }) {
+  return (
+    <div className="ch-bibcard" data-compact={compact ? "1" : undefined} role="img" aria-label={`내 배번 ${fmtBib(bib)}`}>
+      <div className="ch-bibcard-top"><span>R2U</span><span>{title}</span></div>
+      <div className="ch-bibcard-no">{fmtBib(bib)}</div>
+      <div className="ch-bibcard-who">{nick}</div>
+    </div>
+  );
+}
+
+function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: ChallengeConfig; phase: Phase; mine?: ChallengeMember }) {
   const bank = cfg.bank.bank && cfg.bank.account ? `${cfg.bank.bank} ${cfg.bank.account} (${cfg.bank.holder})` : "입금 계좌는 곧 안내해요";
   if (phase === "signup" && !mine) {
     return (
@@ -152,13 +165,6 @@ function SignupPanel({ blockId, title, cfg, phase, mine }: { blockId: string; ti
   if (phase === "signup" && mine) {
     return (
       <section className="ch-card">
-        {mine.bib != null && (
-          <div className="ch-bibcard" role="img" aria-label={`내 배번 ${fmtBib(mine.bib)}`}>
-            <div className="ch-bibcard-top"><span>R2U</span><span>{title}</span></div>
-            <div className="ch-bibcard-no">{fmtBib(mine.bib)}</div>
-            <div className="ch-bibcard-who">{mine.nick}</div>
-          </div>
-        )}
         <h2 className="ch-h">신청 완료 <span>{mine.paid ? <span className="chip chip-confirmed">입금 확인됨</span> : <span className="chip chip-warn">입금 확인 전</span>}</span></h2>
         {!mine.paid && <p className="text-sm">회비 <b>{won(cfg.fee)}</b>을 입금해 주세요 · {bank}</p>}
         {mine.paid && <p className="text-sm text-[var(--bad)]">입금이 확인된 뒤에는 신청을 취소해도 회비가 환불되지 않아요.</p>}

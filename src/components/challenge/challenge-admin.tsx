@@ -170,21 +170,22 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
               const rest = board[x.category].filter((e) => e.rank >= 2 && e.rank <= 10);
               return (
                 <li key={x.category} className="grid gap-1.5 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <b className="text-sm">{CATEGORY_LABEL[x.category]}</b>
-                    <span className="font-bold">{x.winner ?? (x.tie.length ? `동점 · ${x.tie.join(", ")}` : "해당자 없음")}</span>
-                    {x.overridden && <span className="chip">교체됨</span>}
-                  </div>
-                  {(x.tie.length > 0 || x.overridden) && (
-                    <ActionForm action={replaceAwardAction} keep className="flex items-center gap-2">
+                  <details open={x.tie.length > 0 && !x.overridden}>
+                    <summary className="flex cursor-pointer items-center gap-2 flex-wrap">
+                      <b className="text-sm">{CATEGORY_LABEL[x.category]}</b>
+                      <span className="font-bold">{x.winner ?? (x.tie.length ? `동점 · ${x.tie.join(", ")}` : "해당자 없음")}</span>
+                      {x.overridden && <span className="chip">교체됨</span>}
+                      <span className="btn btn-ghost ml-auto min-h-0 px-3 py-1 text-xs">교체</span>
+                    </summary>
+                    <ActionForm action={replaceAwardAction} keep className="flex items-center gap-2 pt-2">
                       <input type="hidden" name="id" value={block.id} /><input type="hidden" name="category" value={x.category} />
                       <select name="nick" aria-label={`${CATEGORY_LABEL[x.category]} 수상자 교체`} className="input min-w-0 flex-1 py-1.5 text-sm" style={{ width: "auto" }} defaultValue={x.winner ?? ""}>
                         <option value="" disabled>참가자 선택</option>
                         {members.map((m) => <option key={m.nick} value={m.nick}>{m.nick}</option>)}
                       </select>
-                      <Submit className="btn text-sm px-3 py-1.5 shrink-0" pendingText="…">교체</Submit>
+                      <Submit className="btn btn-primary text-sm px-3 py-1.5 shrink-0" pendingText="…">교체</Submit>
                     </ActionForm>
-                  )}
+                  </details>
                   {rest.length > 0 && (
                     <ol className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted" aria-label={`${CATEGORY_LABEL[x.category]} 2~10위`}>
                       {rest.map((e) => <li key={e.nick} className="flex justify-between gap-2"><span className="truncate"><span className="num">{e.rank}위</span> {e.nick}</span><span className="num shrink-0">{formatValue(x.category, e.value)}</span></li>)}

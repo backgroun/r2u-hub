@@ -41,7 +41,6 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
       {mine && phase === "running" && (
         <section className="ch-card">
           <h2 className="ch-h">기록 올리기 <small>{fmtMdTime(cfg.end)}까지</small></h2>
-          <p className="ch-note">올린 캡처는 나와 운영진만 볼 수 있어요. 운영진 확인 없이 바로 인정돼요.</p>
           <ActivityForm blockId={block.id} start={ecfg.start} end={ecfg.end} now={now} />
         </section>
       )}

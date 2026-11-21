@@ -71,15 +71,18 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         </div>
       </div>
 
-      <details className="panel p-4">
-        <summary className="font-bold cursor-pointer">규정 안내</summary>
-        <ActionForm action={saveChallengeRulesAction} keep restoreOnError className="grid gap-3 pt-3">
-          <input type="hidden" name="id" value={block.id} />
-          <p className="text-xs text-muted">참가자 화면의 ‘규정 한눈에 보기’예요. 묶음마다 제목과 내용(한 줄에 하나)을 적으면 돼요. 일자·회비·계좌·상품은 위의 ‘자동 입력’ 버튼으로 넣으면 이벤트 블록 설정에서 정한 값으로 바로 채워져요. 기본 문구 그대로 두면 설정을 바꿀 때 같이 따라가요.</p>
-          <RulesEditor initialText={cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText()} defaultText={defaultRulesText()} />
-          <div><ConfirmButton className="btn btn-primary" message={"규정 안내를 저장할까요?\n참가자 화면에 바로 반영돼요."}>저장</ConfirmButton></div>
-        </ActionForm>
-      </details>
+      <ActionForm action={saveChallengeRulesAction} keep restoreOnError>
+        <input type="hidden" name="id" value={block.id} />
+        <details className="panel p-3">
+          <summary className="font-bold cursor-pointer">
+            <span className="grow">규정 안내</span>
+            <ConfirmButton className="btn btn-primary text-xs py-1 px-3" message={"규정 안내를 저장할까요?\n참가자 화면에 바로 반영돼요."}>저장</ConfirmButton>
+          </summary>
+          <div className="pt-2">
+            <RulesEditor initialText={cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText()} defaultText={defaultRulesText()} />
+          </div>
+        </details>
+      </ActionForm>
 
       <details className="panel p-4" open={paidNicks.length < members.length}>
         <summary className="font-bold cursor-pointer">

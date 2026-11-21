@@ -7,7 +7,8 @@
 //
 // 안전 장치
 //  - 넣기는 "테스트 모드가 켜진 챌린지 블록"에만 한다(테스트 모드는 운영진에게만 보인다). 꺼져 있으면 아무것도 쓰지 않고 멈춘다.
-//  - 더미는 닉네임이 "더미"로 시작하고 기록 id가 "dummy-"로 시작한다. 지울 때는 그것만 지운다(실제 참가자·기록은 건드리지 않는다).
+//  - 더미 신청자는 우리 회원 닉네임을 빌려 쓰되 신청자 기록에 dummy:true 표시를 붙이고(예전 "더미NN" 닉네임도 인식), 기록 id는 "dummy-"로 시작한다.
+//    지울 때는 그 표시가 붙은 것만 지운다(실제 참가자·기록은 건드리지 않는다).
 //  - 번호표(배번)·행운 번호는 앱과 같은 방식(비어 있을 때만 차지)으로 겹치지 않게 확보한다.
 import { Redis } from "@upstash/redis";
 import { createPgRequester } from "../src/lib/kv/pg-requester.ts";
@@ -48,7 +49,8 @@ try {
 
   const members = Object.fromEntries(Object.entries((await redis.hgetall(k(id, "members"))) ?? {}).map(([n, v]) => [n, parse(v)]));
   const acts = Object.fromEntries(Object.entries((await redis.hgetall(k(id, "acts"))) ?? {}).map(([n, v]) => [n, parse(v)]));
-  const dummyNicks = Object.keys(members).filter((n) => n.startsWith("더미"));
+  const isDummyMember = (n) => n.startsWith("더미") || members[n]?.dummy === true;
+  const dummyNicks = Object.keys(members).filter(isDummyMember);
   const dummyActs = Object.values(acts).filter((a) => String(a.id).startsWith("dummy-"));
   console.log(`지금 데이터: 신청자 ${Object.keys(members).length}명(더미 ${dummyNicks.length}) · 기록 ${Object.keys(acts).length}건(더미 ${dummyActs.length})`);
 
@@ -83,12 +85,18 @@ try {
   const svg = (title, lines) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400"><rect width="640" height="400" fill="#f4f1ea"/><rect width="640" height="56" fill="#ff6a33"/><text x="24" y="37" font-family="sans-serif" font-size="22" font-weight="800" fill="#fff">${title}</text>${lines.map((l, i) => `<text x="24" y="${120 + i * 56}" font-family="sans-serif" font-size="${i === 0 ? 40 : 26}" font-weight="${i === 0 ? 800 : 600}" fill="#15212c">${l}</text>`).join("")}<text x="24" y="376" font-family="sans-serif" font-size="16" fill="#8a8f96">테스트용 더미 캡처 (실제 기록이 아니에요)</text></svg>`).toString("base64");
   const claim = async (key, lo, size, owner) => { for (let i = 0; i < 500; i++) { const n = lo + Math.floor(rnd() * size); if ((await redis.hsetnx(key, String(n), owner)) === 1) return n; } throw new Error("번호를 확보하지 못했어요."); };
 
+  // 우리 회원 닉네임에서 고른다: 운영진 계정과 이미 신청한 사람은 빼고, 시드로 섞어서 앞에서부터 쓴다
+  const crew = Object.entries((await redis.hgetall("r2u:members")) ?? {}).map(([nick, v]) => ({ nick, ...parse(v) }));
+  const pool = crew.filter((m) => m.role !== "admin" && !String(m.nick).startsWith("더미") && !String(m.nick).includes("/") && !members[m.nick]).map((m) => m.nick); // 슬래시가 든 닉네임은 중복·비정상 항목이라 뺀다
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const nicks = pool.slice(0, 12);
+  if (nicks.length < 12) console.log(`  (쓸 수 있는 회원 닉네임이 ${nicks.length}개뿐이라 그만큼만 넣어요)`);
   const plan = { members: [], acts: [] };
   const now = Date.now();
-  for (let i = 1; i <= 12; i++) {
-    const nick = `더미${String(i).padStart(2, "0")}`;
+  for (let i = 1; i <= nicks.length; i++) {
+    const nick = nicks[i - 1];
     const appliedAt = now - int(2, 60) * 3600e3;
-    const m = { nick, appliedAt, agreedAt: appliedAt, paid: i <= 8 };
+    const m = { nick, appliedAt, agreedAt: appliedAt, paid: i <= 8, dummy: true };
     if (i <= 8) { m.paidAt = appliedAt + 3600e3; m.paidBy = "더미"; } else if (i <= 10) m.paidClaimedAt = appliedAt + 7200e3;
     plan.members.push(m);
     const used = new Set(); const n = int(2, 6);
@@ -104,7 +112,8 @@ try {
       plan.acts.push({ nick, startedAt, date: startedAt.slice(0, 10), distanceKm, durationSec, surface, cadence, avgHr, zone2Pct, place });
     }
   }
-  console.log(`\n넣을 더미: 신청자 ${plan.members.length}명(입금 확인 8 · 입금 알림 2 · 미입금 2) · 기록 ${plan.acts.length}건`);
+  console.log(`\n넣을 더미: 신청자 ${plan.members.length}명(입금 확인 8 · 입금 알림 2 · 미입금 ${plan.members.length - 10}) · 기록 ${plan.acts.length}건`);
+  console.log(`  닉네임: ${nicks.join(", ")}`);
   console.log(`  5km 이상 ${plan.acts.filter((a) => a.distanceKm >= 5).length}건 · 8:00보다 느린 기록 ${plan.acts.filter((a) => a.durationSec / a.distanceKm > 480).length}건 · 케이던스 ${plan.acts.filter((a) => a.cadence).length}건 · Zone 2 ${plan.acts.filter((a) => a.zone2Pct).length}건 · 장소 ${plan.acts.filter((a) => a.place).length}건 · 트레드밀 ${plan.acts.filter((a) => a.surface === "treadmill").length}건`);
   if (!APPLY) { console.log("\n(확인만 했어요. 실제로 넣으려면 --apply 를 붙여 다시 실행하세요.)"); throw new Error("done"); }
 

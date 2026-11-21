@@ -23,6 +23,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
   const boardNicks = cfg.testMode ? members.map((m) => m.nick) : paidNicks; // 테스트 모드에서는 입금 확인 전 신청자도 순위에 넣는다
   const eligibleTickets = acts.filter((a) => a.ticket != null && (cfg.testMode || paidNicks.includes(a.nick))).length;
   const raffleReady = phase === "closed" || cfg.testMode;
+  const waiting = members.filter((m) => !m.paid && m.paidClaimedAt).length; // 입금했다고 알렸지만 아직 확인 전인 사람
   // 참가자별로 발급된 행운 번호(추첨 대상 여부와 당첨 표시용)
   const ticketsByNick = new Map<string, number[]>();
   for (const a of acts) if (a.ticket != null) ticketsByNick.set(a.nick, [...(ticketsByNick.get(a.nick) ?? []), a.ticket]);
@@ -81,7 +82,13 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
       </details>
 
       <details className="panel p-4" open={paidNicks.length < members.length}>
-        <summary className="font-bold cursor-pointer">참가자·입금 ({paidNicks.length}/{members.length})</summary>
+        <summary className="font-bold cursor-pointer">
+          <span className="grow">참가자·입금 ({paidNicks.length}/{members.length})</span>
+          <span className="flex gap-1.5 text-xs font-normal">
+            <span className="chip chip-confirmed">입금확인 {paidNicks.length}건</span>
+            <span className={`chip ${waiting > 0 ? "chip-warn" : ""}`}>확인대기 {waiting}건</span>
+          </span>
+        </summary>
         <div className="grid gap-2 pt-3">
           {members.length === 0 && <p className="text-sm text-muted">아직 신청한 사람이 없어요.</p>}
           {members.map((m) => (

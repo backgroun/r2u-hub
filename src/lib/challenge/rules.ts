@@ -294,10 +294,9 @@ function candidates(list: Activity[], cfg: ChallengeConfig, places: Record<strin
   }
   if (groups.size) out.place = { value: groups.size, evidence: [...groups.values()] };
 
-  const days = new Map<string, Activity[]>();
-  for (const a of pick("fiveK")) days.set(a.date, [...(days.get(a.date) ?? []), a]);
-  const full = [...days.values()].filter((d) => d.reduce((s, a) => s + Math.round(a.distanceKm * 100), 0) >= RULE.fiveKmHundredths);
-  if (full.length) out.fiveK = { value: full.length, evidence: full.flat() };
+  // 5km: 한 번에 5km 이상 뛴 기록의 횟수(아침·점심·저녁처럼 하루에 여러 번도 모두 센다). 5km보다 짧은 기록은 합쳐도 세지 않는다.
+  const fives = pick("fiveK").filter((a) => Math.round(a.distanceKm * 100) >= RULE.fiveKmHundredths);
+  if (fives.length) out.fiveK = { value: fives.length, evidence: fives };
   return out;
 }
 
@@ -354,7 +353,7 @@ export function formatValue(c: Category, v: number): string {
   if (c === "time") return fmtDur(v);
   if (c === "cadence") return `${v}spm`;
   if (c === "place") return `${v}곳`;
-  return `${v}일`;
+  return `${v}회`;
 }
 
 /* ---------- 규정 안내 글 ----------
@@ -393,7 +392,7 @@ export function defaultRulesText(): string {
     `3. **케이던스**: ${RULE.cadenceMinKm}km 이상 1건의 평균 케이던스가 가장 높은 사람`,
     `4. **Zone 2**: 비율 ${RULE.zone2MinPct}% 이상 1건의 거리가 가장 긴 사람`,
     `5. **다양한 장소**: ${RULE.placeMinSec / 60}분 이상 뛴 서로 다른 장소가 가장 많은 사람 (트레드밀 제외, 같은 장소는 한 번만 세요)`,
-    `6. **5km**: 하루 합계 ${RULE.fiveKmHundredths / 100}km 이상인 날이 가장 많은 사람`,
+    `6. **5km**: 한 번에 ${RULE.fiveKmHundredths / 100}km 이상 뛴 횟수가 가장 많은 사람 (하루에 아침·점심·저녁으로 여러 번 뛰어도 모두 세고, ${RULE.fiveKmHundredths / 100}km 미만 기록은 합쳐도 세지 않아요)`,
     "## 🎁 수상",
     "동률이면 페이스가 빠른 사람, 그다음엔 먼저 달성한 사람이 이겨요. 완전히 같으면 공동으로 표시하고 운영진이 정해요.",
     "앞 부문 수상자는 뒤 부문에서 빠지고 차순위가 올라와요.",

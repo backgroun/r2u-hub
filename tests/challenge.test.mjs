@@ -242,8 +242,8 @@ test("순위: 부문별 값과 순서 (입금 확인된 사람만, 검수 전 �
   assert.deepEqual(b.zone2.map((e) => e.value), [15, 9]);
   assert.deepEqual(names(b.place), ["a", "b"]); // 둘 다 1곳 → 증거 활동의 평균 페이스가 빠른 a
   assert.deepEqual(b.place.map((e) => e.value), [1, 1]);
-  assert.deepEqual(names(b.fiveK), ["a", "b"]); // 둘 다 2일 → 페이스 300 vs 373
-  assert.deepEqual(b.fiveK.map((e) => e.value), [2, 2]);
+  assert.deepEqual(names(b.fiveK), ["a", "b"]); // 한 번에 5km 이상 뛴 횟수: a 2회(10.5km·5km), b 1회(15km) — b의 3+2.5km는 합쳐도 세지 않는다
+  assert.deepEqual(b.fiveK.map((e) => e.value), [2, 1]);
   assert.deepEqual(b.fiveK.map((e) => e.rank), [1, 2]);
 });
 
@@ -327,15 +327,20 @@ test("장소: 공백·대소문자는 같은 장소, 운영진 정리표로 묶�
   assert.equal(grouped.place[0].value, 1);
 });
 
-test("5km: 5.00km는 포함, 느린 활동은 날 합계에서 빠진다", () => {
+test("5km: 한 번에 5.00km 이상이면 횟수로 센다(하루 여러 번 가능), 5km 미만은 합쳐도 안 센다, 느린 활동은 뺀다", () => {
   const d = [
-    mk("e1", "e", "2026-12-02T06:00", 5, 1500), // 정확히 5.00km → 1일
+    mk("e1", "e", "2026-12-02T06:00", 5, 1500), // 정확히 5.00km → 1회
+    mk("e1b", "e", "2026-12-02T12:00", 5.2, 1560), // 같은 날 점심에 또 5km 이상 → 1회 더
+    mk("e1c", "e", "2026-12-02T19:00", 6, 1800), // 저녁에도 → 1회 더
     mk("e2", "e", "2026-12-03T06:00", 2.5, 750),
-    mk("e3", "e", "2026-12-03T18:00", 2.49, 747), // 합 4.99km → 아님
+    mk("e3", "e", "2026-12-03T18:00", 2.49, 747), // 5km 미만은 합쳐도(4.99km) 세지 않는다
     mk("e4", "e", "2026-12-04T06:00", 3, 900),
-    mk("e5", "e", "2026-12-04T18:00", 2, 3000), // 25:00/km 느림 → 합 3km → 아님
+    mk("e5", "e", "2026-12-04T18:00", 8, 12000), // 25:00/km 느림 → 5km 이상이어도 뺀다
+    mk("e6", "e", "2026-12-05T06:00", 4.99, 1497), // 4.99km → 세지 않는다
   ];
-  assert.equal(buildBoard(d, ["e"], cfg, { verifiedOnly: false }).fiveK[0].value, 1);
+  const r = buildBoard(d, ["e"], cfg, { verifiedOnly: false }).fiveK[0];
+  assert.equal(r.value, 3);
+  assert.deepEqual(r.actIds.sort(), ["e1", "e1b", "e1c"]);
 });
 
 test("표시: 값 형식", () => {
@@ -343,7 +348,7 @@ test("표시: 값 형식", () => {
   assert.equal(formatValue("time", 7650), "2:07:30");
   assert.equal(formatValue("cadence", 182), "182spm");
   assert.equal(formatValue("place", 3), "3곳");
-  assert.equal(formatValue("fiveK", 4), "4일");
+  assert.equal(formatValue("fiveK", 4), "4회");
 });
 
 // ---- 테스트 모드 (운영진 전용) ----

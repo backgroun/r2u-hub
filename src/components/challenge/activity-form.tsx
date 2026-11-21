@@ -8,7 +8,9 @@ import { RULE, SURFACE_LABEL, fmtPace, paceSecOf, type Activity, type Surface } 
 
 const SECTION = "rounded-lg border border-[var(--line)] p-3";
 /** 케이던스·Zone 2 는 가장 좋은 기록 한 번만 인증한다는 표시 */
-const BEST = <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>최고기록 1회 인증</span>;
+const BEST = <span className="chip chip-open shrink-0" style={{ fontSize: 11 }}>최고기록 1회 인증</span>;
+/** 섹션 제목: 뱃지를 제목 앞에 둔다 */
+const Title = ({ children }: { children: React.ReactNode }) => <span className="flex flex-wrap items-center gap-x-2 gap-y-1">{BEST}<span>{children}</span></span>;
 
 const SLOW = 600, FAST = 180; // 게이지 범위: km당 10:00(느림) ~ 3:00(빠름)
 
@@ -46,12 +48,14 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
   // 입력 중인 거리·시간·종류·Zone 2 비율: 평균 페이스를 보여 주고, 기준에 못 미치는 선택 부문을 비활성으로 만든다
   const [run, setRun] = useState<{ km: number | null; sec: number; surface: string; z2: number | null }>({ km: initial?.distanceKm ?? null, sec: dur, surface: initial?.surface ?? "road", z2: initial?.zone2Pct ?? null });
   const onAny = (e: React.FormEvent<HTMLDivElement>) => {
-    const q = (n: string) => (e.currentTarget.querySelector(`[name="${n}"]`) as HTMLInputElement | HTMLSelectElement | null)?.value;
-    const km = parseFloat((q("distanceKm") ?? "").replace(",", ".")), z2 = parseFloat(q("zone2Pct") ?? "");
-    setRun((r) => ({
-      km: km > 0 ? km : null, sec: (Number(q("durH")) || 0) * 3600 + (Number(q("durM")) || 0) * 60,
-      surface: q("surface") ?? r.surface, z2: q("zone2Pct") !== undefined ? (Number.isFinite(z2) ? z2 : null) : r.z2,
-    }));
+    // 이벤트 대상(currentTarget)은 이 함수가 끝나면 사라지므로, 값은 여기서 바로 읽어 둔다(상태 갱신 함수 안에서 읽으면 null 이 된다)
+    const root = e.currentTarget;
+    const q = (n: string) => (root.querySelector(`[name="${n}"]`) as HTMLInputElement | HTMLSelectElement | null)?.value;
+    const km = parseFloat((q("distanceKm") ?? "").replace(",", "."));
+    const sec = (Number(q("durH")) || 0) * 3600 + (Number(q("durM")) || 0) * 60;
+    const surface = q("surface");
+    const z2Raw = q("zone2Pct"), z2 = parseFloat(z2Raw ?? "");
+    setRun((r) => ({ km: km > 0 ? km : null, sec, surface: surface ?? r.surface, z2: z2Raw !== undefined ? (Number.isFinite(z2) ? z2 : null) : r.z2 }));
   };
   const pace = run.km && run.sec >= 60 ? paceSecOf(run.km, run.sec) : null;
   const cadenceOff = run.km != null && run.km < RULE.cadenceMinKm; // 거리를 적었는데 10km보다 짧으면
@@ -81,9 +85,9 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       </div>
       <PhotoField name="img_summary" label="활동 요약 캡처" required inline have={!!initial?.imgs.summary} />
 
-      {cadenceOff ? <Locked title={<>케이던스 부문{BEST}</>} reason={`${RULE.cadenceMinKm}km 이상 달린 기록만 입력할 수 있어요`} /> : (
+      {cadenceOff ? <Locked title={<Title>케이던스 부문</Title>} reason={`${RULE.cadenceMinKm}km 이상 달린 기록만 입력할 수 있어요`} /> : (
         <details className={SECTION} open={initial?.cadence != null}>
-          <summary className="font-bold cursor-pointer text-sm">케이던스 부문 (10km 이상 활동){BEST}</summary>
+          <summary className="font-bold cursor-pointer text-sm"><Title>케이던스 부문 (10km 이상 활동)</Title></summary>
           <div className="grid gap-2 pt-2">
             <div className="grid grid-cols-2 items-start gap-3">
               <label className="field"><span className="label">평균 케이던스 (spm)</span>
@@ -96,7 +100,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       )}
 
       <details className={SECTION} open={initial?.zone2Pct != null}>
-        <summary className="font-bold cursor-pointer text-sm">Zone 2 부문 (80% 이상){BEST}</summary>
+        <summary className="font-bold cursor-pointer text-sm"><Title>Zone 2 부문 (80% 이상)</Title></summary>
         <div className="grid gap-2 pt-2">
           <div className="grid grid-cols-2 items-start gap-3">
             <label className="field"><span className="label">Zone 2 체류 비율 (%)</span>

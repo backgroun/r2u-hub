@@ -211,7 +211,7 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
   };
   // 규정 안내 글: 기본 글과 같으면 비워 둔다(그래야 기간·회비를 바꿀 때 기본 글이 같이 바뀐다)
   const rulesInput = String(fd.get("rulesText") ?? "").replace(/\r\n?/g, "\n").trim().slice(0, 4000);
-  cfg.rulesText = rulesInput === defaultRulesText(cfg) ? "" : rulesInput;
+  cfg.rulesText = rulesInput === defaultRulesText() ? "" : rulesInput;
   const bad = validateConfig(cfg);
   if (bad) return fail(bad);
   const note = configDiff(b.challenge as ChallengeConfig, cfg);

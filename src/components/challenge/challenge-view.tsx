@@ -5,7 +5,7 @@ import { deleteActivityAction, joinChallengeAction, leaveChallengeAction } from 
 import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
   CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
-  parseRules, defaultRulesText, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
+  parseRules, defaultRulesText, fillRules, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -178,7 +178,7 @@ function Rich({ text }: { text: string }) {
 }
 
 function RulesPanel({ cfg, open }: { cfg: ChallengeConfig; open: boolean }) {
-  const sections = parseRules(cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText(cfg));
+  const sections = parseRules(fillRules(cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText(), cfg));
   return (
     <details className="panel p-4" open={open}>
       <summary className="font-bold cursor-pointer">규정 한눈에 보기</summary>

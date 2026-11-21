@@ -356,12 +356,25 @@ export function formatValue(c: Category, v: number): string {
    형식: "## 제목" 줄이 새 묶음, "1. " 로 시작하면 번호 목록, 나머지 줄은 점 목록("- " 는 있어도 없어도 됨). **굵게** 표시를 쓸 수 있다. */
 export type RulesSection = { title: string; ordered: boolean; items: string[] };
 
-/** 설정 값(기간·페이스·회비)이 들어간 기본 규정 글. 운영진이 고치지 않으면 이 글을 보여 준다. */
-export function defaultRulesText(cfg: ChallengeConfig): string {
-  const won = `${cfg.fee.toLocaleString("ko-KR")}원`;
+/** 규정 글 안에서 쓰는 자리표시: 보여 줄 때 설정에서 정한 값으로 채워진다 */
+export const RULES_TOKENS = ["{신청시작}", "{신청마감}", "{기록시작}", "{기록종료}", "{회비}", "{입금계좌}"] as const;
+
+/** 자리표시를 설정 값으로 바꾼다. 입금 계좌가 비어 있으면 "곧 안내해요". */
+export function fillRules(text: string, cfg: ChallengeConfig): string {
+  const bank = cfg.bank.bank && cfg.bank.account ? `${cfg.bank.bank} ${cfg.bank.account}${cfg.bank.holder ? ` (${cfg.bank.holder})` : ""}` : "곧 안내해요";
+  const map: Record<string, string> = {
+    "{신청시작}": fmtMdTime(cfg.signupStart), "{신청마감}": fmtMdTime(cfg.signupEnd),
+    "{기록시작}": fmtMdTime(cfg.start), "{기록종료}": fmtMdTime(cfg.end),
+    "{회비}": `${cfg.fee.toLocaleString("ko-KR")}원`, "{입금계좌}": bank,
+  };
+  return text.replace(/\{[^{}]+\}/g, (t) => map[t] ?? t);
+}
+
+/** 기본 규정 글. 일자·회비·계좌는 자리표시로 두어 설정을 바꾸면 따라가고, 고치면 그 글이 고정된다. */
+export function defaultRulesText(): string {
   return [
     "## 📅 기록",
-    `기간은 ${fmtMdTime(cfg.start)} ~ ${fmtMdTime(cfg.end)}예요. 활동 **시작 시각** 기준이에요.`,
+    "기간은 {기록시작} ~ {기록종료}예요. 활동 **시작 시각** 기준이에요.",
     "모든 활동에는 **요약 캡처가 필수**예요. 편집한 캡처는 실격이고, 요청하면 원본을 내야 해요.",
     `평균 페이스 **km당 ${fmtPace(RULE.maxPaceSec)} 이내**만 인정해요. (Zone 2 부문은 예외)`,
     "로드·트레드밀·트랙 모두 가능해요.",
@@ -377,8 +390,9 @@ export function defaultRulesText(cfg: ChallengeConfig): string {
     "앞 부문 수상자는 뒤 부문에서 빠지고 차순위가 올라와요.",
     "순위와 상품은 양도할 수 없고, 상품은 확정 순서대로 골라요.",
     "## 💳 참가",
-    `회비 ${won} (환불 없음). 입금이 확인된 분만 순위에 들어가요.`,
-    `일정: 신청 ${fmtMdTime(cfg.signupStart)}~${fmtMdTime(cfg.signupEnd)} · 기록 ${fmtMdTime(cfg.start)}~${fmtMdTime(cfg.end)}`,
+    "회비 {회비} (환불 없음). 입금이 확인된 분만 순위에 들어가요.",
+    "입금 계좌: {입금계좌}",
+    "일정: 신청 {신청시작} ~ {신청마감} · 기록 {기록시작} ~ {기록종료}",
   ].join("\n");
 }
 

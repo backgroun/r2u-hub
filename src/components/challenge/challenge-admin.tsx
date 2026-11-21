@@ -4,7 +4,7 @@ import MoneyInput from "@/components/money-input";
 import { resetChallengeDataAction, saveChallengeConfigAction, setChallengeTestAction, setPaidAction } from "@/app/challenge-actions";
 import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, currentPhase, defaultRulesText, effectiveCfg, fmtDur, fmtPace, judge, nowKst,
+  CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, currentPhase, RULES_TOKENS, defaultRulesText, effectiveCfg, fmtDur, fmtPace, judge, nowKst,
   type ChallengeConfig, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -68,8 +68,8 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
             <label className="field min-w-0"><span className="label">예금주</span><input name="holder" className="input min-w-0" defaultValue={cfg.bank.holder} /></label>
           </div>
           <label className="field"><span className="label">규정 안내 (참가자 화면의 ‘규정 한눈에 보기’)</span>
-            <textarea name="rulesText" className="input" rows={14} defaultValue={cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText(cfg)} />
-            <span className="text-xs text-muted">“## 제목” 줄이 묶음 제목, “1. ” 로 시작하면 번호 목록, 나머지 줄은 점 목록이에요. **굵게** 표시를 쓸 수 있어요. 기본 문구 그대로 두면 기간·회비를 바꿀 때 자동으로 따라가요.</span></label>
+            <textarea name="rulesText" className="input" rows={14} defaultValue={cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText()} />
+            <span className="text-xs text-muted">“## 제목” 줄이 묶음 제목, “1. ” 로 시작하면 번호 목록, 나머지 줄은 점 목록이에요. **굵게** 표시를 쓸 수 있어요. 일자·회비·계좌는 {RULES_TOKENS.join(" ")} 로 적으면 위에서 정한 값으로 자동 채워져요.</span></label>
           <label className="field"><span className="label">상품 예정 (한 줄에 하나)</span><textarea name="prizes" className="input" rows={5} defaultValue={cfg.prizes.join("\n")} /></label>
           <div><ConfirmButton className="btn btn-primary" message={"챌린지 설정을 저장할까요?\n기간·회비·상품이 참가자 화면에 바로 반영돼요."}>저장</ConfirmButton></div>
         </ActionForm>

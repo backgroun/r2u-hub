@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -402,10 +402,15 @@ test("기본 설정: 업로드·최종 확정은 기록 종료와 같아 종료 
 });
 
 test("규정 안내 글: 기본 글에 설정 값이 들어가고, 묶음·번호·점 목록으로 읽힌다", () => {
-  const text = defaultRulesText(DEFAULT_CONFIG);
-  assert.match(text, /12\/1 00:00 ~ 12\/18 23:59/);
-  assert.match(text, /5,000원/);
-  const secs = parseRules(text);
+  const text = defaultRulesText();
+  assert.match(text, /\{기록시작\}/); // 일자·회비는 자리표시로 두고
+  const filled = fillRules(text, { ...DEFAULT_CONFIG, bank: { bank: "토스뱅크", account: "1000-1", holder: "홍길동" } });
+  assert.match(filled, /12\/1 00:00 ~ 12\/18 23:59/); // 보여 줄 때 설정값으로 채운다
+  assert.match(filled, /5,000원/);
+  assert.match(filled, /토스뱅크 1000-1 \(홍길동\)/);
+  assert.match(fillRules("{입금계좌}", DEFAULT_CONFIG), /곧 안내해요/);
+  assert.equal(fillRules("{모르는값}", DEFAULT_CONFIG), "{모르는값}");
+  const secs = parseRules(filled);
   assert.deepEqual(secs.map((x) => x.title), ["📅 기록", "🏆 부문 (1인 1상, 아래 순서로 확정)", "🎁 수상", "💳 참가"]);
   assert.equal(secs[1].ordered, true);
   assert.equal(secs[1].items.length, 6);

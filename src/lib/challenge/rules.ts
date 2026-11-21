@@ -38,6 +38,7 @@ export type Activity = {
   avgHr: number | null;
   zone2Pct: number | null; // 캡처에 보이는 Zone 2 체류 비율(%)
   place: string | null; // 입력한 그대로
+  ticket?: number; // 경품 추첨용 행운 번호(새 기록을 올릴 때 한 장 발급, 수정해도 그대로)
   imgs: Partial<Record<ImgKind, boolean>>; // 올려 둔 캡처 종류
   status: ActStatus;
   rejectReason?: string;
@@ -60,6 +61,7 @@ export type ChallengeConfig = {
   finalAt: string; // 최종 확정·시상 발표
   prizes: string[]; // 상품 예정 목록 (변경될 수 있음)
   spendNote: string; // 회비 사용 내역 공개 문구
+  raffle?: string[]; // 경품 추첨 상품 목록(비어 있으면 추첨을 하지 않는다)
   rulesText?: string; // 운영진이 고친 규정 안내 글. 비어 있으면 defaultRulesText 를 쓴다
   // 운영진 전용 테스트 모드: 켜면 운영진에게만 보이고, testPhase가 있으면 날짜와 상관없이 그 단계로 본다
   testMode: boolean;
@@ -92,6 +94,7 @@ export function normalizeConfig(c: ChallengeConfig): ChallengeConfig {
     finalAt: fix(c.finalAt, "00:00"),
     spendNote: c.spendNote ?? "",
     rulesText: c.rulesText ?? "",
+    raffle: Array.isArray(c.raffle) ? c.raffle : [],
     testMode: c.testMode === true, testPhase: ["appeal", "upload"].includes(c.testPhase as string) ? "closed" : c.testPhase ?? "", // 없어진 업로드·이의 제기 단계로 고정돼 있던 값은 종료로
   };
 }
@@ -434,4 +437,27 @@ export function parseDuration(text: string): number | null {
 export function durationInput(sec: number): string {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
   return `${h}:${String(m).padStart(2, "0")}${s ? `:${String(s).padStart(2, "0")}` : ""}`;
+}
+
+/* ---------- 경품 추첨(행운 번호) ---------- */
+export type RaffleWinner = { prize: string; ticket: number; nick: string };
+export type Raffle = { at: number; by: string; ticketCount: number; winners: RaffleWinner[] };
+
+/** 행운 번호 표기: 4자리로 채운다 (7 → "0007") */
+export const fmtTicket = (n: number): string => String(n).padStart(4, "0");
+
+/** 추첨: 번호를 무작위로 섞은 뒤 상품 순서대로 한 장씩 고른다. 한 사람은 한 번만 당첨되고, 번호가 모자라면 남은 상품은 비워 둔다. randInt(n)은 0~n-1 정수. */
+export function drawRaffle(tickets: { ticket: number; nick: string }[], prizes: string[], randInt: (n: number) => number): RaffleWinner[] {
+  const pool = [...tickets];
+  for (let i = pool.length - 1; i > 0; i--) { const j = randInt(i + 1); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const won = new Set<string>();
+  const out: RaffleWinner[] = [];
+  for (const prize of prizes) {
+    const t = pool.find((x) => !won.has(x.nick));
+    if (!t) break;
+    won.add(t.nick);
+    pool.splice(pool.indexOf(t), 1);
+    out.push({ prize, ticket: t.ticket, nick: t.nick });
+  }
+  return out;
 }

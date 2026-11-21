@@ -3,9 +3,9 @@ import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import ActivityForm from "@/components/challenge/activity-form";
 import ChallengeBoard from "@/components/challenge/challenge-board";
 import { deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
-import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
+import { getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst, fmtTicket,
   parseRules, defaultRulesText, fillRules, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -17,13 +17,15 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
   const now = nowKst();
   const phase = currentPhase(cfg, now);
   const ecfg = effectiveCfg(cfg); // 기록 기간을 보는 곳(순위·판정·입력)에는 테스트 모드에서 넓힌 설정을 쓴다
-  const [members, acts, places] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id)]);
+  const [members, acts, places, raffle] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), getRaffle(block.id)]);
   const mine = members.find((m) => m.nick === nick);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
   const boardNicks = cfg.testMode ? members.map((m) => m.nick) : paidNicks; // 테스트 모드에서는 입금 확인 전 신청자도 순위에 넣는다
   const live = phase === "running";
   const board = buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places });
   const myActs = acts.filter((a) => a.nick === nick);
+  const myTickets = myActs.filter((a) => a.ticket != null).map((a) => a.ticket as number).sort((x, y) => x - y);
+  const raffleOn = (cfg.raffle?.length ?? 0) > 0;
   const awards = canShowWinners(cfg, now, phase) ? awardWinners(buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places })) : null;
   const showBoard = phase === "running" || phase === "closed";
 
@@ -42,6 +44,33 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
         <section className="ch-card">
           <h2 className="ch-h">기록 올리기 <small>{fmtMdTime(cfg.end)}까지</small></h2>
           <ActivityForm blockId={block.id} start={ecfg.start} end={ecfg.end} now={now} />
+        </section>
+      )}
+
+      {raffleOn && mine && (
+        <section className="ch-card">
+          <h2 className="ch-h">행운 번호 <small>{myTickets.length}장</small></h2>
+          <p className="ch-prizes">기록을 올릴 때마다 번호가 한 장씩 발급돼요. 마감 뒤 추첨으로 <b>{(cfg.raffle ?? []).join(" · ")}</b>의 주인공을 뽑아요.</p>
+          {myTickets.length > 0 ? (
+            <ul className="ch-balls" aria-label="내 행운 번호">
+              {myTickets.map((n) => <li key={n} className="ch-ball" data-c={n % 5} data-hit={raffle?.winners.some((w) => w.ticket === n) ? "1" : undefined}>{fmtTicket(n)}</li>)}
+            </ul>
+          ) : <p className="ch-note">아직 번호가 없어요. 기록을 올리면 바로 발급돼요.</p>}
+        </section>
+      )}
+
+      {raffle && raffle.winners.length > 0 && (
+        <section className="ch-card">
+          <h2 className="ch-h">경품 추첨 결과 <small>번호 {raffle.ticketCount}장 중</small></h2>
+          {raffle.winners.some((w) => w.nick === nick) && <p className="ch-win-me">축하해요! {raffle.winners.filter((w) => w.nick === nick).map((w) => w.prize).join(", ")} 당첨이에요.</p>}
+          <ol className="ch-draw">
+            {raffle.winners.map((w, i) => (
+              <li key={`${w.prize}-${w.ticket}`} style={{ ["--i" as string]: i }} data-me={w.nick === nick ? "1" : undefined}>
+                <span className="ch-ball" data-c={w.ticket % 5}>{fmtTicket(w.ticket)}</span>
+                <span className="grid"><span className="ch-draw-prize">{w.prize}</span><span className="ch-draw-who">{w.nick}{w.nick === nick ? " · 나" : ""}</span></span>
+              </li>
+            ))}
+          </ol>
         </section>
       )}
 

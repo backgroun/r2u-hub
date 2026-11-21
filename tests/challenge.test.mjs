@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -434,4 +434,23 @@ test("달린 시간 한 칸 입력: 시:분 · 한글 · 분만", () => {
   assert.equal(durationInput(2700), "0:45");
   assert.equal(durationInput(5415), "1:30:15");
   assert.equal(parseDuration(durationInput(3723)), 3723);
+});
+
+test("경품 추첨: 상품 순서대로 한 사람 한 번만 당첨, 번호가 모자라면 남는 상품은 비움", () => {
+  const tickets = [{ ticket: 1, nick: "가" }, { ticket: 2, nick: "가" }, { ticket: 3, nick: "나" }, { ticket: 4, nick: "다" }];
+  const seq = (vals) => { let i = 0; return () => vals[i++ % vals.length]; };
+  // randInt 가 항상 0이면 섞은 결과가 정해진다 → 같은 입력은 같은 결과
+  const a = drawRaffle(tickets, ["A", "B", "C"], () => 0);
+  const b = drawRaffle(tickets, ["A", "B", "C"], () => 0);
+  assert.deepEqual(a, b);
+  assert.equal(a.length, 3);
+  assert.equal(new Set(a.map((w) => w.nick)).size, 3); // 한 사람은 한 번만
+  assert.deepEqual(a.map((w) => w.prize), ["A", "B", "C"]);
+  // 번호보다 상품이 많으면(사람 수 3명, 상품 5개) 3개만 나눠 준다
+  assert.equal(drawRaffle(tickets, ["1", "2", "3", "4", "5"], seq([0, 1, 2])).length, 3);
+  assert.deepEqual(drawRaffle([], ["A"], () => 0), []);
+  assert.equal(fmtTicket(7), "0007");
+  assert.equal(fmtTicket(12345), "12345");
+  // 입력 배열은 바꾸지 않는다
+  assert.equal(tickets.length, 4);
 });

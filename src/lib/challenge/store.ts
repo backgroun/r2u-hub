@@ -1,6 +1,6 @@
 import "server-only";
 import { redis } from "@/lib/hub";
-import { IMG_KINDS, type Activity, type Appeal, type ChallengeMember, type ImgKind, type LogEntry } from "@/lib/challenge/rules";
+import { IMG_KINDS, type Activity, type Appeal, type ChallengeMember, type ImgKind, type LogEntry, type Raffle } from "@/lib/challenge/rules";
 
 /* 챌린지 저장소: 블록 하나당 r2u:chal:{blockId}:* 키들. 해시 하나에 항목을 JSON으로 넣는 기존 방식과 같다. */
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
@@ -59,6 +59,14 @@ export async function getAppeal(blockId: string, id: string) {
 }
 export const saveAppeal = (blockId: string, a: Appeal) => redis.hset(k(blockId, APPEALS), { [a.id]: JSON.stringify(a) });
 
+/* ---------- 경품 추첨: 행운 번호(블록별 1부터 이어지는 번호)와 추첨 결과 ---------- */
+export const nextTicket = (blockId: string) => redis.incr(k(blockId, "ticket-seq"));
+export async function getRaffle(blockId: string) {
+  const v = await redis.get(k(blockId, "raffle"));
+  return v ? parse<Raffle>(v) : null;
+}
+export const saveRaffle = (blockId: string, r: Raffle) => redis.set(k(blockId, "raffle"), JSON.stringify(r));
+
 /* ---------- 판정·처리 로그 (지우지 않는다) ---------- */
 export async function addLog(blockId: string, e: Omit<LogEntry, "at">) {
   const at = Date.now();
@@ -71,6 +79,6 @@ export async function purgeChallenge(blockId: string) {
   const acts = await all<Activity>(k(blockId, ACTS));
   const tx = redis.multi();
   for (const a of acts) for (const kind of IMG_KINDS) tx.del(imgKey(blockId, a.id, kind));
-  tx.del(k(blockId, MEMBERS), k(blockId, ACTS), k(blockId, PLACES), k(blockId, APPEALS), k(blockId, LOG));
+  tx.del(k(blockId, MEMBERS), k(blockId, ACTS), k(blockId, PLACES), k(blockId, APPEALS), k(blockId, LOG), k(blockId, "ticket-seq"), k(blockId, "raffle"));
   await tx.exec();
 }

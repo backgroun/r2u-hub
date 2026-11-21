@@ -1,14 +1,14 @@
 "use server";
-import { createHash } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { currentUser, newId } from "@/lib/hub";
 import { isConfirmed, CONFIRM_REQUIRED } from "@/lib/confirm-token";
 import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-blocks";
 import {
-  addLog, delImage, getActRec, getMemberRec, listActs, purgeChallenge, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
+  addLog, delImage, getActRec, getMemberRec, listActs, listMembers, nextTicket, purgeChallenge, saveRaffle, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, nowKst, parseDuration, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, drawRaffle, fmtTicket, nowKst, parseDuration, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -137,6 +137,9 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   const rec: Activity = { id, nick: u.nick, ...v.value, imgs, status: "pending", createdAt: existing?.createdAt ?? now, updatedAt: now };
   // 검수 없이 바로 인정된 기록으로 등록한다
   Object.assign(rec, { status: "ok", reviewedBy: "자동", reviewedAt: now });
+  // 경품 추첨용 행운 번호: 새 기록에만 한 장 발급하고, 수정해도 그대로 둔다
+  if (existing?.ticket != null) rec.ticket = existing.ticket;
+  else if (!existing) rec.ticket = await nextTicket(live.block.id);
   if (existing) {
     // 수정: 기록(검수 전)을 먼저 저장한 뒤 캡처를 바꾼다. 저장이 실패해도 승인된 기록이 검수 안 된 캡처를 가리키지 않는다.
     await saveActRec(live.block.id, rec);
@@ -149,7 +152,7 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   for (const kind of IMG_KINDS) if (existing?.imgs[kind] && !imgs[kind]) await delImage(live.block.id, id, kind);
   if (existing) await addLog(live.block.id, { by: u.nick, action: "edit", target: `${u.nick}/${id}` });
   refresh();
-  return ok(existing ? "수정했어요." : "기록을 올렸어요!");
+  return ok(existing ? "수정했어요." : `기록을 올렸어요! 행운 번호 ${fmtTicket(rec.ticket as number)}번이 발급됐어요.`);
 }
 
 export async function deleteActivityAction(fd: FormData) {
@@ -201,6 +204,7 @@ function configDiff(a: ChallengeConfig, b: ChallengeConfig): string {
   if ((a.rulesText ?? "") !== (b.rulesText ?? "")) out.push("규정 안내 글 변경");
   cmp("은행", a.bank.bank, b.bank.bank); cmp("계좌", a.bank.account, b.bank.account); cmp("예금주", a.bank.holder, b.bank.holder);
   cmp("상품", a.prizes.join(", "), b.prizes.join(", "));
+  cmp("추첨상품", (a.raffle ?? []).join(", "), (b.raffle ?? []).join(", "));
   return out.length ? out.join(" / ") : "변경 없음";
 }
 
@@ -217,6 +221,7 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
     finalAt: str(fd, "end", 16), // 기록 종료가 지나면 바로 종료·시상
     prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
     spendNote: "", // 회비 사용 내역은 더 이상 입력하지 않는다
+    raffle: String(fd.get("raffle") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 20),
     rulesText: "", // 아래에서 기본 글과 비교해 채운다
     // 테스트 모드 설정은 이 폼이 건드리지 않는다
     testMode: b.challenge?.testMode === true, testPhase: b.challenge?.testPhase ?? "",
@@ -260,4 +265,24 @@ export async function resetChallengeDataAction(_: Result, fd: FormData): Promise
   await addLog(b.id, { by: u.nick, action: "test-reset", target: "테스트 데이터 초기화", note: b.title });
   revalidatePath("/", "layout");
   return ok("테스트 데이터를 모두 지웠어요.");
+}
+
+/** 경품 추첨: 기록 시간이 끝난 뒤(테스트 모드는 언제든) 행운 번호를 무작위로 뽑아 상품 순서대로 당첨자를 정한다. 한 사람은 한 번만 당첨되고, 다시 뽑으면 이전 결과를 덮어쓴다. */
+export async function drawRaffleAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  if (!(await isConfirmed(fd.get("confirmToken")))) return fail(CONFIRM_REQUIRED);
+  const b = await challengeBlock(str(fd, "id", 20));
+  const cfg = b.challenge as ChallengeConfig;
+  if (currentPhase(cfg, nowKst()) !== "closed" && !cfg.testMode) return fail("기록이 끝난 뒤에 추첨할 수 있어요.");
+  const prizes = cfg.raffle ?? [];
+  if (!prizes.length) return fail("추첨 상품을 설정에 먼저 적어 주세요.");
+  const [members, acts] = await Promise.all([listMembers(b.id), listActs(b.id)]);
+  const eligible = new Set((cfg.testMode ? members : members.filter((m) => m.paid)).map((m) => m.nick)); // 순위와 같은 기준: 입금 확인된 참가자(테스트 모드는 전원)
+  const tickets = acts.filter((a) => a.ticket != null && eligible.has(a.nick)).map((a) => ({ ticket: a.ticket as number, nick: a.nick }));
+  if (!tickets.length) return fail("추첨할 행운 번호가 없어요.");
+  const winners = drawRaffle(tickets, prizes, (n) => randomInt(n));
+  await saveRaffle(b.id, { at: Date.now(), by: u.nick, ticketCount: tickets.length, winners });
+  await addLog(b.id, { by: u.nick, action: "raffle", target: `번호 ${tickets.length}장`, note: winners.map((w) => `${w.prize}→${w.nick}(${fmtTicket(w.ticket)})`).join(" / ") });
+  revalidatePath("/", "layout");
+  return ok(`추첨했어요! 당첨 ${winners.length}명`);
 }

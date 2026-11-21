@@ -1733,3 +1733,27 @@ button.came-chip { cursor: pointer; }
 .ch-lead-n { grid-area: n; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
 .ch-lead-none { color: var(--muted); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .ch-lead { transition: none; } }
+
+/* ---------- 행운 번호 · 경품 추첨 ---------- */
+.ch-balls { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ch-ball { --bc: var(--bib); display: inline-grid; place-items: center; min-width: 54px; height: 54px; padding-inline: 8px; border-radius: 999px; font-family: var(--font-num); font-size: 15px; font-weight: 800;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em; color: #fff;
+  background: radial-gradient(circle at 32% 26%, color-mix(in srgb, #fff 55%, var(--bc)) 0, var(--bc) 46%, color-mix(in srgb, #000 38%, var(--bc)) 100%);
+  box-shadow: 0 6px 12px -6px color-mix(in srgb, var(--bc) 70%, transparent), inset 0 -3px 5px color-mix(in srgb, #000 22%, transparent); text-shadow: 0 1px 2px color-mix(in srgb, #000 40%, transparent); }
+.ch-ball[data-c="1"] { --bc: var(--lane); }
+.ch-ball[data-c="2"] { --bc: #d9485a; }
+.ch-ball[data-c="3"] { --bc: #7a8794; }
+.ch-ball[data-c="4"] { --bc: #2f9e5b; }
+.ch-ball[data-hit="1"] { outline: 3px solid color-mix(in srgb, var(--bib) 70%, transparent); outline-offset: 3px; }
+.ch-prizes { font-size: 13px; color: var(--muted); }
+.ch-prizes b { color: var(--ink); }
+.ch-draw { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ch-draw li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; background: color-mix(in srgb, var(--ink) 5%, transparent);
+  animation: ch-pop .55s cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--i, 0) * 120ms); }
+.ch-draw li[data-me="1"] { background: color-mix(in srgb, var(--bib) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bib) 55%, transparent); }
+.ch-draw .ch-ball { min-width: 48px; height: 48px; font-size: 14px; }
+.ch-draw-prize { font-size: 12px; font-weight: 700; color: var(--muted); }
+.ch-draw-who { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+@keyframes ch-pop { 0% { opacity: 0; transform: translateY(10px) scale(.94); } 100% { opacity: 1; transform: none; } }
+.ch-win-me { padding: 12px 14px; border-radius: 14px; font-weight: 800; background: var(--bib); color: var(--bib-ink); }
+@media (prefers-reduced-motion: reduce) { .ch-draw li { animation: none; } }

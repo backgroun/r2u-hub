@@ -823,6 +823,8 @@ async function Events() {
 
     </>
   );
+  // 이전 챌린지에서 쓴 입금 계좌(중복 제거, 최근 것 먼저): 블록 만들기에서 골라 쓴다
+  const savedAccounts = [...new Map([...blocks].sort((x, y) => y.at - x.at).flatMap((b) => (b.challenge?.bank.account ? [b.challenge.bank] : [])).map((k) => [`${k.bank}|${k.account}`, k] as const)).values()];
   const bingoOwnerId = hasBingo ? undefined : archived.find((x) => x.type === "bingo")?.id;
   return (
     <section className="grid gap-3">
@@ -861,7 +863,7 @@ async function Events() {
       <details className="panel p-4">
         <summary className="font-bold cursor-pointer">+ 이벤트 블록 만들기</summary>
         <ActionForm action={createEventBlock} className="grid gap-3 pt-3" collapse>
-          <EventBlockFields nowYm={nowYm} />
+          <EventBlockFields nowYm={nowYm} accounts={savedAccounts} />
           <div><Submit>블록 만들기</Submit></div>
         </ActionForm>
         {/* 빙고 운영: 안내 제목·오픈/종료일·하루 인증 횟수 */}

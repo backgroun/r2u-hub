@@ -83,7 +83,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
         </div>
         <PaceGauge pace={pace} />
       </div>
-      <PhotoField name="img_summary" label="러닝 기록 등록" required inline have={!!initial?.imgs.summary}  existingSrc={initial ? `/api/challenge/${blockId}/${initial.id}/summary?v=${initial.updatedAt}` : undefined} />
+      <PhotoField name="img_summary" label="러닝 기록 등록" required inline have={!!initial?.imgs.summary} />
 
       {cadenceOff ? <Locked title={<Title>케이던스 부문</Title>} reason={`${RULE.cadenceMinKm}km 이상 달린 기록만 입력할 수 있어요`} /> : (
         <details className={SECTION} open={initial?.cadence != null}>

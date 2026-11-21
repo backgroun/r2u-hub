@@ -1,17 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import ImageLightbox from "@/components/image-lightbox";
 
 const MAX = 450 * 1024; // rules.ts 의 RULE.imageMaxBytes 와 같은 값
 
 /** 캡처 1장 고르기: 브라우저에서 긴 변 1600px로 줄여 올린다(글씨가 읽히도록 사진 올리기보다 크게). 폼이 초기화되면 미리보기도 비운다. */
-export default function PhotoField({ name, label, hint, have, required, inline, existingSrc }: { name: string; label: string; hint?: string; have?: boolean; required?: boolean; inline?: boolean /* 제목과 파일 선택을 한 줄에 */; existingSrc?: string /* 이미 올려 둔 캡처 주소(수정할 때 미리보기) */ }) {
+export default function PhotoField({ name, label, hint, have, required, inline }: { name: string; label: string; hint?: string; have?: boolean; required?: boolean; inline?: boolean /* 제목과 파일 선택을 한 줄에 */ }) {
   const pick = useRef<HTMLInputElement>(null);
   const out = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const [zoom, setZoom] = useState(false); // 올려 둔 캡처를 팝업으로 크게 보는 중
 
   useEffect(() => {
     const form = out.current?.form;
@@ -61,13 +59,6 @@ export default function PhotoField({ name, label, hint, have, required, inline, 
       {busy && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>줄이는 중…</span>}
       {msg && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>{msg}</span>}
       {have && !preview && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>올려 둔 캡처가 있어요. 새로 고르면 바뀌어요.</span>}
-      {have && !preview && existingSrc && (
-        <button type="button" className={`block ${inline ? "basis-full" : ""} text-left`} onClick={() => setZoom(true)} aria-label={`올려 둔 ${label} 크게 보기`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={existingSrc} alt={`올려 둔 ${label}`} loading="lazy" className="rounded-lg border border-[var(--line)] bg-black/20" style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain" }} />
-        </button>
-      )}
-      {zoom && existingSrc && <ImageLightbox images={[{ src: existingSrc, alt: `올려 둔 ${label}` }]} index={0} onIndex={() => {}} onClose={() => setZoom(false)} />}
     </div>
   );
 }

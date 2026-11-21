@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import ImageLightbox from "@/components/image-lightbox";
 
 const MAX = 450 * 1024; // rules.ts 의 RULE.imageMaxBytes 와 같은 값
 
@@ -10,6 +11,7 @@ export default function PhotoField({ name, label, hint, have, required, inline, 
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [zoom, setZoom] = useState(false); // 올려 둔 캡처를 팝업으로 크게 보는 중
 
   useEffect(() => {
     const form = out.current?.form;
@@ -60,11 +62,12 @@ export default function PhotoField({ name, label, hint, have, required, inline, 
       {msg && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>{msg}</span>}
       {have && !preview && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>올려 둔 캡처가 있어요. 새로 고르면 바뀌어요.</span>}
       {have && !preview && existingSrc && (
-        <a href={existingSrc} target="_blank" rel="noreferrer" className={`block ${inline ? "basis-full" : ""}`} title="누르면 원본이 새 탭에서 열려요">
+        <button type="button" className={`block ${inline ? "basis-full" : ""} text-left`} onClick={() => setZoom(true)} aria-label={`올려 둔 ${label} 크게 보기`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={existingSrc} alt={`올려 둔 ${label}`} loading="lazy" className="rounded-lg border border-[var(--line)] bg-black/20" style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain" }} />
-        </a>
+        </button>
       )}
+      {zoom && existingSrc && <ImageLightbox images={[{ src: existingSrc, alt: `올려 둔 ${label}` }]} index={0} onIndex={() => {}} onClose={() => setZoom(false)} />}
     </div>
   );
 }

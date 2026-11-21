@@ -2,6 +2,7 @@ import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import ActivityForm from "@/components/challenge/activity-form";
 import ChallengeBoard from "@/components/challenge/challenge-board";
+import CaptureGallery from "@/components/challenge/capture-gallery";
 import { claimPaidAction, deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { getAwards, getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
@@ -228,18 +229,7 @@ function MyAct({ a, ecfg, blockId, now, canEdit, won, five, bestCad, bestZ2 }: {
       </summary>
       <div className="grid gap-2 pt-2">
         {j.notes.map((n) => <p key={n} className="text-xs text-[var(--bad)]">{n}</p>)}
-        <div className="grid grid-cols-2 gap-2">
-          {IMG_KINDS.filter((k) => a.imgs[k]).map((k) => {
-            const src = `/api/challenge/${blockId}/${a.id}/${k}?v=${a.updatedAt}`;
-            return (
-              <a key={k} href={src} target="_blank" rel="noreferrer" className="grid gap-1" title="누르면 원본이 새 탭에서 열려요">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt={`${IMG_LABEL[k]} 캡처`} loading="lazy" className="w-full rounded-lg border border-[var(--line)] bg-black/20 object-contain" style={{ maxHeight: 150 }} />
-                <span className="text-xs text-muted">{IMG_LABEL[k]} 캡처</span>
-              </a>
-            );
-          })}
-        </div>
+        <CaptureGallery images={IMG_KINDS.filter((k) => a.imgs[k]).map((k) => ({ src: `/api/challenge/${blockId}/${a.id}/${k}?v=${a.updatedAt}`, alt: `${IMG_LABEL[k]} 캡처`, label: `${IMG_LABEL[k]} 캡처` }))} />
         {canEdit && (
           <>
             <ActivityForm blockId={blockId} start={ecfg.start} end={ecfg.end} now={now} initial={a} />

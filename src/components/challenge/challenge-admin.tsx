@@ -2,6 +2,7 @@ import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import MoneyInput from "@/components/money-input";
 import RecordSlider from "@/components/challenge/record-slider";
+import CaptureGallery from "@/components/challenge/capture-gallery";
 import RulesEditor from "@/components/challenge/rules-editor";
 import { confirmAwardsAction, drawRaffleAction, replaceAwardAction, unconfirmAwardsAction, resetChallengeDataAction, saveChallengeRulesAction, setChallengeTestAction, setPaidAction } from "@/app/challenge-actions";
 import { getAwards, getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
@@ -147,18 +148,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
                 <div className="flex items-center gap-2 flex-wrap"><b>{a.nick}</b><span className="num text-sm">{fmtDate(a.date)}</span>{a.ticket != null && <span className="ch-ball ch-ball-sm ml-auto" data-c={a.ticket % 5} aria-label={`행운 번호 ${fmtTicket(a.ticket)}`}>{fmtTicket(a.ticket)}</span>}</div>
                 <p className="text-sm num">{a.distanceKm.toFixed(2)}km · {fmtDur(a.durationSec)} · 평균 {fmtPace(j.paceSec)}/km · {SURFACE_LABEL[a.surface]}{a.cadence != null ? ` · ${a.cadence}spm` : ""}{a.zone2Pct != null ? ` · Zone 2 ${a.zone2Pct}% · 심박 ${a.avgHr}` : ""}{a.place ? ` · ${a.place}` : ""}</p>
                 {j.notes.map((n) => <p key={n} className="text-xs text-[var(--bad)]">{n}</p>)}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {IMG_KINDS.filter((k) => a.imgs[k]).map((k) => {
-                    const src = `/api/challenge/${block.id}/${a.id}/${k}?v=${a.updatedAt}`;
-                    return (
-                      <a key={k} href={src} target="_blank" rel="noreferrer" className="grid gap-1" title="누르면 원본이 새 탭에서 열려요">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={src} alt={`${IMG_LABEL[k]} 캡처`} loading="lazy" className="w-full max-h-72 object-contain rounded-lg border border-[var(--line)] bg-black/20" />
-                        <span className="text-xs text-muted">{IMG_LABEL[k]} 캡처</span>
-                      </a>
-                    );
-                  })}
-                </div>
+                <CaptureGallery maxHeight={240} className="grid grid-cols-2 gap-2" images={IMG_KINDS.filter((k) => a.imgs[k]).map((k) => ({ src: `/api/challenge/${block.id}/${a.id}/${k}?v=${a.updatedAt}`, alt: `${IMG_LABEL[k]} 캡처`, label: `${IMG_LABEL[k]} 캡처` }))} />
               </div>
             );
           })}

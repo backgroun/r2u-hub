@@ -32,19 +32,25 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         <div className="flex items-start gap-2 border-t border-[var(--line)] pt-2">
           <details className="grow min-w-0">
             <summary className="cursor-pointer text-sm font-bold py-1" style={cfg.testMode ? { color: "#8a5a00" } : undefined}>🧪 테스트 {cfg.testMode ? "켜짐 · 운영진에게만 보여요" : "꺼짐"}</summary>
-            <ActionForm action={setChallengeTestAction} keep className="flex flex-wrap items-center gap-2 pt-2">
-              <input type="hidden" name="id" value={block.id} />
-              <div className="ch-radios" role="radiogroup" aria-label="테스트 단계">
-                {TEST_PHASES.map((p) => (
-                  <label key={p} className="ch-radio">
-                    <input type="radio" name="testPhase" value={p} defaultChecked={p === (TEST_PHASES.includes(cfg.testPhase as Phase) ? cfg.testPhase : "running")} />
-                    <span>{PHASE_LABEL[p]}</span>
-                  </label>
-                ))}
-              </div>
-              <button type="submit" name="testMode" value="1" className="btn btn-primary shrink-0 text-sm px-4">{cfg.testMode ? "적용" : "테스트 시작"}</button>
-              {cfg.testMode && <button type="submit" name="testMode" value="0" className="btn shrink-0 text-sm px-4">테스트 끄기</button>}
-            </ActionForm>
+            {/* 켜기/끄기는 한 버튼으로 번갈아 누른다. 켜진 동안에는 단계 버튼을 눌러 단계를 바꾼다(버튼마다 자기 값을 숨은 칸에 담아 보낸다). */}
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              {cfg.testMode && (
+                <div className="ch-radios" role="group" aria-label="테스트 단계">
+                  {TEST_PHASES.map((p) => (
+                    <ActionForm key={p} action={setChallengeTestAction} keep className="flex-1">
+                      <input type="hidden" name="id" value={block.id} /><input type="hidden" name="testMode" value="1" /><input type="hidden" name="testPhase" value={p} />
+                      <button type="submit" className="ch-phase" aria-pressed={cfg.testPhase === p} data-on={cfg.testPhase === p ? "1" : undefined}>{PHASE_LABEL[p]}</button>
+                    </ActionForm>
+                  ))}
+                </div>
+              )}
+              <ActionForm action={setChallengeTestAction} keep className="shrink-0">
+                <input type="hidden" name="id" value={block.id} />
+                <input type="hidden" name="testMode" value={cfg.testMode ? "0" : "1"} />
+                <input type="hidden" name="testPhase" value={TEST_PHASES.includes(cfg.testPhase as Phase) ? cfg.testPhase : "running"} />
+                <Submit className={cfg.testMode ? "btn text-sm px-4" : "btn btn-primary text-sm px-4"} pendingText="…">{cfg.testMode ? "테스트 끄기" : "테스트 켜기"}</Submit>
+              </ActionForm>
+            </div>
           </details>
           {cfg.testMode && (
             <ActionForm action={resetChallengeDataAction} keep className="shrink-0">

@@ -24,7 +24,7 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
   const live = phase === "running";
   const board = buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places });
   const myActs = acts.filter((a) => a.nick === nick);
-  const myTickets = myActs.filter((a) => a.ticket != null).map((a) => a.ticket as number).sort((x, y) => x - y);
+  const wonTickets = new Set((raffle?.winners ?? []).map((w) => w.ticket)); // 당첨된 번호는 내 기록의 번호 공에 테두리를 둘러 알린다
   const raffleOn = (cfg.raffle?.length ?? 0) > 0;
   const awards = canShowWinners(cfg, now, phase) ? awardWinners(buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places })) : null;
   const showBoard = phase === "running" || phase === "closed";
@@ -49,18 +49,6 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
         </section>
       )}
 
-      {raffleOn && mine && (
-        <section className="ch-card">
-          <h2 className="ch-h">행운 번호 <small>{myTickets.length}장</small></h2>
-          <p className="ch-prizes">기록을 올릴 때마다 번호가 한 장씩 발급돼요. 마감 뒤 추첨으로 <b>{(cfg.raffle ?? []).join(" · ")}</b>의 주인공을 뽑아요.</p>
-          {myTickets.length > 0 ? (
-            <ul className="ch-balls" aria-label="내 행운 번호">
-              {myTickets.map((n) => <li key={n} className="ch-ball" data-c={n % 5} data-hit={raffle?.winners.some((w) => w.ticket === n) ? "1" : undefined}>{fmtTicket(n)}</li>)}
-            </ul>
-          ) : <p className="ch-note">아직 번호가 없어요. 기록을 올리면 바로 발급돼요.</p>}
-        </section>
-      )}
-
       {raffle && raffle.winners.length > 0 && (
         <section className="ch-card">
           <h2 className="ch-h">경품 추첨 결과 <small>번호 {raffle.ticketCount}장 중</small></h2>
@@ -79,9 +67,11 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
       {mine && myActs.length > 0 && (
         <section className="grid gap-1.5">
           <h2 className="ch-h px-1"><span className="flex items-center gap-2">내 기록 {mine.bib != null && phase !== "running" && <BibMini bib={mine.bib} />}</span> <small>{myActs.length}건</small></h2>
-          {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} ecfg={ecfg} blockId={block.id} now={now} canEdit={live} />)}
+          {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} ecfg={ecfg} blockId={block.id} now={now} canEdit={live} won={a.ticket != null && wonTickets.has(a.ticket)} />)}
         </section>
       )}
+
+      {raffleOn && mine && <p className="ch-note px-1">기록을 올릴 때마다 행운 번호가 한 장씩 발급돼요. 마감 뒤 추첨으로 <b>{(cfg.raffle ?? []).join(" · ")}</b>의 주인공을 뽑아요.</p>}
 
       {awards && (
         <section className="ch-card">
@@ -195,14 +185,14 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
   return null;
 }
 
-function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: ChallengeConfig; ecfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean }) {
+function MyAct({ a, ecfg, blockId, now, canEdit, won }: { a: Activity; cfg: ChallengeConfig; ecfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean; won: boolean }) {
   const j = judge(a, ecfg);
   const rest = [a.surface !== "road" ? SURFACE_LABEL[a.surface] : null, `${a.distanceKm.toFixed(2)}km`, fmtDur(a.durationSec), `${fmtPace(j.paceSec)}/km`, a.cadence != null ? `${a.cadence}spm` : null, a.zone2Pct != null ? `Z2 ${a.zone2Pct}%` : null, a.place].filter(Boolean).join(" · ");
   return (
     <details className="panel ch-act px-3 py-2">
       <summary className="cursor-pointer text-sm num">
         <span className="flex min-w-0 items-center gap-2">
-          {a.ticket != null && <span className="ch-ball ch-ball-sm" data-c={a.ticket % 5} aria-label={`행운 번호 ${fmtTicket(a.ticket)}`}>{fmtTicket(a.ticket)}</span>}
+          {a.ticket != null && <span className="ch-ball ch-ball-sm" data-c={a.ticket % 5} data-hit={won ? "1" : undefined} aria-label={`행운 번호 ${fmtTicket(a.ticket)}`}>{fmtTicket(a.ticket)}</span>}
           <span className="min-w-0"><b>{fmtDate(a.date)}</b> <span className="text-muted">· {rest}</span>{j.notes.length > 0 && <span className="text-[var(--bad)]"> ⚠</span>}</span>
         </span>
       </summary>

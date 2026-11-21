@@ -1860,3 +1860,8 @@ button.came-chip { cursor: pointer; }
 .ch-cell-ph small { font-size: 12px; font-weight: 600; color: var(--muted); }
 .ch-cell-panel .ch-roll-list { padding: 0; }
 @media (prefers-reduced-motion: reduce) { .ch-cell-item, .ch-cell-panel { animation: none; } .ch-cell { transition: none; } }
+
+.ch-bibmini { position: relative; display: inline-block; flex: none; padding: 1px 12px 0; border-top: 4px solid var(--bib); border-radius: 4px; background: #f6f3eb; color: #15212c; font-family: var(--font-num); font-size: 14px; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: .1em; line-height: 22px;
+  box-shadow: 0 2px 0 color-mix(in srgb, #000 30%, transparent); transform: rotate(-1.5deg); }
+.ch-bibmini::before, .ch-bibmini::after { content: ""; position: absolute; bottom: 3px; width: 3px; height: 3px; border-radius: 50%; background: color-mix(in srgb, #15212c 30%, #f6f3eb); }
+.ch-bibmini::before { left: 3px; } .ch-bibmini::after { right: 3px; }

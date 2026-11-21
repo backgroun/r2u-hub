@@ -33,7 +33,7 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
     <div className="grid gap-4">
       <Hero title={block.title} cfg={cfg} phase={phase} now={now} />
 
-      {mine?.bib != null && <BibCard title={block.title} nick={mine.nick} bib={mine.bib} compact={phase !== "signup"} />}
+      {mine?.bib != null && phase === "signup" && <BibCard title={block.title} nick={mine.nick} bib={mine.bib} compact={false} />}
 
       {cfg.testMode && (
         <p className="panel p-3 text-sm font-bold" style={{ background: "#fff4d6", color: "#5a4300" }}>🧪 테스트 모드 · 운영진에게만 보여요 · 단계: {PHASE_LABEL[phase]}</p>
@@ -44,7 +44,7 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
 
       {mine && phase === "running" && (
         <section className="ch-card">
-          <h2 className="ch-h">기록 올리기 <small>{fmtMdTime(cfg.end)}까지</small></h2>
+          <h2 className="ch-h"><span className="flex items-center gap-2">기록 올리기 {mine.bib != null && <BibMini bib={mine.bib} />}</span> <small>{fmtMdTime(cfg.end)}까지</small></h2>
           <ActivityForm blockId={block.id} start={ecfg.start} end={ecfg.end} now={now} />
         </section>
       )}
@@ -78,7 +78,7 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
 
       {mine && myActs.length > 0 && (
         <section className="grid gap-1.5">
-          <h2 className="ch-h px-1">내 기록 <small>{myActs.length}건</small></h2>
+          <h2 className="ch-h px-1"><span className="flex items-center gap-2">내 기록 {mine.bib != null && phase !== "running" && <BibMini bib={mine.bib} />}</span> <small>{myActs.length}건</small></h2>
           {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} ecfg={ecfg} blockId={block.id} now={now} canEdit={live} />)}
         </section>
       )}
@@ -132,6 +132,11 @@ function Hero({ title, cfg, phase, now }: { title: string; cfg: ChallengeConfig;
       )}
     </section>
   );
+}
+
+/** 작은 배번표: 제목 줄 옆에 붙는 한 줄짜리 번호표 */
+function BibMini({ bib }: { bib: number }) {
+  return <span className="ch-bibmini" role="img" aria-label={`내 배번 ${fmtBib(bib)}`}>{fmtBib(bib)}</span>;
 }
 
 /** 내 배번표: 마라톤처럼 신청 때부터 대회가 끝날 때까지 상단에 보인다. 신청 중에는 크게, 기록 중·종료 후에는 작게. */

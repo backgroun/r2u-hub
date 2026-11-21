@@ -782,6 +782,7 @@ async function Events() {
   const archivedIds = new Set(archived.map((b) => b.id));
   const shown = blocks.filter((b) => !archivedIds.has(b.id));
   const monthOf = (b: { id: string; ym: string }) => activeYmOf(b.id) ?? b.ym;
+  const hasBingo = shown.some((b) => b.type === "bingo"); // 빙고 전용 패널(인증 확인·명단·기간)은 보관함 밖에 빙고 블록이 있을 때만 보인다
   const months = [...new Set(shown.map(monthOf))].sort().reverse();
   return (
     <section className="grid gap-3">
@@ -814,6 +815,8 @@ async function Events() {
 
       {shown.filter((b) => b.type === "challenge" && b.challenge).map((b) => <ChallengeAdmin key={b.id} block={b} />)}
 
+      {hasBingo && (
+        <>
       {/* 인증 확인: 크루원이 올린 인증(사진)을 날짜별로 보고, 잘못된 건 댓글로 알려 준다 (댓글을 달면 그 사람에게 푸시 알림) */}
       <details id="verify" className="panel p-4" open>
         <summary className="font-bold cursor-pointer">인증 확인 ({review.total}건)</summary>
@@ -846,6 +849,8 @@ async function Events() {
           </ActionForm>
         </div>
       </details>
+        </>
+      )}
 
       {/* 평소에는 접어 두고, 새 블록을 만들 때만 펼친다 (만들면 자동으로 다시 접힌다) */}
       <details className="panel p-4">
@@ -869,6 +874,8 @@ async function Events() {
         </ActionForm>
       </details>
 
+      {hasBingo && (
+        <>
       {/* 빙고 운영: 예전에는 빙고 화면 안의 ‘운영진 모드’에서만 가능했던 설정을 허브에서 바로 */}
       <details className="panel p-4">
         <summary className="font-bold cursor-pointer">이벤트 안내/기간/인증 횟수</summary>
@@ -882,6 +889,8 @@ async function Events() {
           </div>
         </ActionForm>
       </details>
+        </>
+      )}
 
       {archived.length > 0 && (
         <details className="panel p-4">

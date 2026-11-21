@@ -4,7 +4,7 @@ import MoneyInput from "@/components/money-input";
 import { resetChallengeDataAction, saveChallengeConfigAction, setChallengeTestAction, setPaidAction } from "@/app/challenge-actions";
 import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, currentPhase, RULES_TOKENS, defaultRulesText, effectiveCfg, fmtDur, fmtPace, judge, nowKst,
+  CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, currentPhase, RULES_TOKENS, defaultRulesText, effectiveCfg, fmtDate, fmtDur, fmtPace, judge, nowKst,
   type ChallengeConfig, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -97,7 +97,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
             const j = judge(a, ecfg);
             return (
               <div key={a.id} className="grid gap-2 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
-                <div className="flex items-center gap-2 flex-wrap"><b>{a.nick}</b><span className="num text-sm">{a.startedAt.replace("T", " ")}</span></div>
+                <div className="flex items-center gap-2 flex-wrap"><b>{a.nick}</b><span className="num text-sm">{fmtDate(a.date)}</span></div>
                 <p className="text-sm num">{a.distanceKm.toFixed(2)}km · {fmtDur(a.durationSec)} · 평균 {fmtPace(j.paceSec)}/km · {SURFACE_LABEL[a.surface]}{a.cadence != null ? ` · ${a.cadence}spm` : ""}{a.zone2Pct != null ? ` · Zone 2 ${a.zone2Pct}% · 심박 ${a.avgHr}` : ""}{a.place ? ` · ${a.place}` : ""}</p>
                 {j.notes.map((n) => <p key={n} className="text-xs text-[var(--bad)]">{n}</p>)}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

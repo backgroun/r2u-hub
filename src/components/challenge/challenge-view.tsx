@@ -4,7 +4,7 @@ import ActivityForm from "@/components/challenge/activity-form";
 import { deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
   parseRules, defaultRulesText, fillRules, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -115,7 +115,7 @@ function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: Challenge
   return (
     <div className="panel p-3 grid gap-2">
       <div className="flex items-center gap-2">
-        <b className="num">{a.startedAt.replace("T", " ")}</b>
+        <b className="num">{fmtDate(a.date)}</b>
         <span className="ml-auto text-xs text-muted">{SURFACE_LABEL[a.surface]}</span>
       </div>
       <p className="text-sm num">{a.distanceKm.toFixed(2)}km · {fmtDur(a.durationSec)} · 평균 {fmtPace(j.paceSec)}/km{a.cadence != null ? ` · ${a.cadence}spm` : ""}{a.zone2Pct != null ? ` · Zone 2 ${a.zone2Pct}%` : ""}{a.place ? ` · ${a.place}` : ""}</p>

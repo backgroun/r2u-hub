@@ -15,8 +15,10 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
     <ActionForm action={submitActivityAction} keep={!!initial} restoreOnError className="grid gap-3">
       <input type="hidden" name="id" value={blockId} />
       {initial && <input type="hidden" name="actId" value={initial.id} />}
-      <label className="field"><span className="label">시작 일시 (한국 시간)</span>
-        <input name="startedAt" type="datetime-local" className="input" required min={start} max={max} defaultValue={initial?.startedAt ?? max} /></label>
+      <div className="flex items-center gap-2">
+        <label htmlFor="run-date" className="label shrink-0 whitespace-nowrap">러닝 일자</label>
+        <input id="run-date" name="runDate" type="date" className="input grow min-w-0" required min={start.slice(0, 10)} max={max.slice(0, 10)} defaultValue={initial?.date ?? max.slice(0, 10)} />
+      </div>
       <input type="hidden" name="surface" value={initial?.surface ?? "road"} />
       <div className="field">
         <div className="grid grid-cols-[1.4fr_1fr_1fr] gap-2">

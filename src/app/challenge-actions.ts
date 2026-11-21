@@ -86,9 +86,22 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
     files[kind] = { type: f.type, data: Buffer.from(await f.arrayBuffer()).toString("base64") };
   }
 
+  // 러닝 일자만 받는다. 하루에 여러 번 달린 기록을 구분하도록 내부 시각은 자동으로 붙인다(수정 때 날짜가 같으면 기존 값을 유지).
+  const runDate = str(fd, "runDate", 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(runDate)) return fail("러닝 일자를 골라 주세요.");
+  let startedAt = existing && existing.startedAt.slice(0, 10) === runDate ? existing.startedAt : "";
+  if (!startedAt) {
+    const used = new Set((await listActs(live.block.id)).filter((a) => a.nick === u.nick && a.id !== actId && a.date === runDate).map((a) => a.startedAt.slice(11, 16)));
+    const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    const nowHm = nowStr.slice(11, 16);
+    let m = runDate === nowStr.slice(0, 10) && nowHm < "12:00" ? Number(nowHm.slice(0, 2)) * 60 + Number(nowHm.slice(3)) : 12 * 60; // 오늘이면 지금보다 늦은 시각이 되지 않게
+    while (m >= 0 && used.has(hm(m))) m--;
+    if (m < 0) return fail("하루에 올릴 수 있는 기록 수를 넘었어요.");
+    startedAt = `${runDate}T${hm(m)}`;
+  }
   const dur = [num(fd, "durH"), num(fd, "durM"), num(fd, "durS")].map((n) => n ?? 0);
   const raw: RawInput = {
-    startedAt: str(fd, "startedAt", 16),
+    startedAt,
     distanceKm: num(fd, "distanceKm"),
     durationSec: dur.every((n) => Number.isFinite(n) && n >= 0) ? Math.round(dur[0] * 3600 + dur[1] * 60 + dur[2]) : null,
     surface: str(fd, "surface", 10),

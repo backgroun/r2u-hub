@@ -24,7 +24,7 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
   const board = buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places });
   const myActs = acts.filter((a) => a.nick === nick);
   const awards = canShowWinners(cfg, now, phase) ? awardWinners(buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places })) : null;
-  const showBoard = phase === "running" || phase === "upload" || phase === "appeal" || phase === "closed";
+  const showBoard = phase === "running" || phase === "upload" || phase === "closed";
 
   return (
     <div className="grid gap-4">

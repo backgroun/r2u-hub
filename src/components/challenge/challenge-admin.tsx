@@ -8,7 +8,7 @@ import {
   type ChallengeConfig, type Phase,
 } from "@/lib/challenge/rules";
 
-const TEST_PHASES: Phase[] = ["signup", "ready", "running", "upload", "appeal", "closed"];
+const TEST_PHASES: Phase[] = ["signup", "ready", "running", "upload", "closed"];
 const when = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ");
 
 /** 운영진용 챌린지 관리: 설정 → 입금 → 올라온 기록 → 결과 미리보기 */

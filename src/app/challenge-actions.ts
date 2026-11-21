@@ -202,7 +202,7 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
     bank: { bank: str(fd, "bank", 20), account: str(fd, "account", 30), holder: str(fd, "holder", 20) },
     signupStart: str(fd, "signupStart", 16), signupEnd: str(fd, "signupEnd", 16),
     start: str(fd, "start", 16), end: str(fd, "end", 16),
-    uploadEnd: str(fd, "uploadEnd", 16), appealEnd: str(fd, "uploadEnd", 16), finalAt: str(fd, "uploadEnd", 16), // 업로드 마감이 지나면 바로 종료·시상
+    uploadEnd: str(fd, "uploadEnd", 16), finalAt: str(fd, "uploadEnd", 16), // 업로드 마감이 지나면 바로 종료·시상
     prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
     spendNote: "", // 회비 사용 내역은 더 이상 입력하지 않는다
     // 테스트 모드 설정은 이 폼이 건드리지 않는다
@@ -218,7 +218,7 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
 }
 
 /* ---------- 테스트 모드 (운영진 전용) ---------- */
-const PHASES: Phase[] = ["soon", "signup", "ready", "running", "upload", "appeal", "closed"];
+const PHASES: Phase[] = ["soon", "signup", "ready", "running", "upload", "closed"];
 
 /** 테스트 모드 켜기·끄기와 단계 고정. testMode·testPhase 두 값만 바꾼다. */
 export async function setChallengeTestAction(_: Result, fd: FormData): Promise<Result> {

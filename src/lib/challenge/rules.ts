@@ -58,7 +58,6 @@ export type ChallengeConfig = {
   signupStart: string; signupEnd: string; // 신청·입금 기간
   start: string; end: string; // 기록 인정 기간 (활동 시작 시각 기준)
   uploadEnd: string; // 업로드·수정 마감
-  appealEnd: string; // 이의 제기 마감
   finalAt: string; // 최종 확정·시상 발표
   prizes: string[]; // 상품 예정 목록 (변경될 수 있음)
   spendNote: string; // 회비 사용 내역 공개 문구
@@ -72,7 +71,7 @@ export const DEFAULT_CONFIG: ChallengeConfig = {
   bank: { bank: "", account: "", holder: "" },
   signupStart: "2026-11-24T09:00", signupEnd: "2026-11-30T23:59",
   start: "2026-12-01T00:00", end: "2026-12-18T23:59",
-  uploadEnd: "2026-12-20T23:59", appealEnd: "2026-12-20T23:59", finalAt: "2026-12-20T23:59", // 이의 제기·최종 확정은 따로 두지 않고 업로드 마감과 같게 둔다
+  uploadEnd: "2026-12-20T23:59", finalAt: "2026-12-20T23:59", // 최종 확정은 따로 두지 않고 업로드 마감과 같게 둔다
   prizes: ["넥워머", "카프슬리브", "오스무브 모자", "데카르트 장갑"],
   spendNote: "",
   testMode: false, testPhase: "",
@@ -90,22 +89,21 @@ export function normalizeConfig(c: ChallengeConfig): ChallengeConfig {
     ...c,
     signupStart: fix(c.signupStart, "00:00"), signupEnd: fix(c.signupEnd, "23:59"),
     start: fix(c.start, "00:00"), end: fix(c.end, "23:59"),
-    uploadEnd: fix(c.uploadEnd, "23:59"), appealEnd: fix(c.appealEnd, "23:59"), finalAt: fix(c.finalAt, "00:00"),
+    uploadEnd: fix(c.uploadEnd, "23:59"), finalAt: fix(c.finalAt, "00:00"),
     spendNote: c.spendNote ?? "",
-    testMode: c.testMode === true, testPhase: c.testPhase ?? "",
+    testMode: c.testMode === true, testPhase: (c.testPhase as string) === "appeal" ? "closed" : c.testPhase ?? "", // 없어진 이의 제기 단계로 고정돼 있던 값은 종료로
   };
 }
 
 /** 설정이 말이 되는지 확인한다. 문제가 있으면 화면에 보여 줄 문구, 없으면 null */
 export function validateConfig(c: ChallengeConfig): string | null {
-  const times = [c.signupStart, c.signupEnd, c.start, c.end, c.uploadEnd, c.appealEnd, c.finalAt];
+  const times = [c.signupStart, c.signupEnd, c.start, c.end, c.uploadEnd, c.finalAt];
   if (!times.every((t) => typeof t === "string" && isDateTime(t))) return "날짜와 시각을 다시 골라 주세요.";
   if (!(c.signupStart <= c.signupEnd)) return "신청 시작이 신청 마감보다 늦어요.";
   if (!(c.signupEnd < c.start)) return "신청 마감은 기록 시작보다 앞이어야 해요.";
   if (!(c.start <= c.end)) return "기록 시작이 종료보다 늦어요.";
   if (!(c.end < c.uploadEnd)) return "업로드 마감은 기록 종료보다 뒤여야 해요.";
-  if (!(c.uploadEnd <= c.appealEnd)) return "이의 제기 마감은 업로드 마감보다 뒤여야 해요.";
-  if (!(c.appealEnd <= c.finalAt)) return "최종 확정은 이의 제기 마감보다 뒤여야 해요.";
+  if (!(c.uploadEnd <= c.finalAt)) return "최종 확정은 업로드 마감보다 뒤여야 해요.";
   if (!Number.isInteger(c.fee) || c.fee < 0) return "회비를 확인해 주세요.";
   return null;
 }
@@ -133,9 +131,9 @@ export const fmtMdTime = (dt: string): string => `${Number(dt.slice(5, 7))}/${Nu
 /** 지금 한국 시각 "YYYY-MM-DDTHH:mm" (UTC+9) */
 export const nowKst = (ms: number = Date.now()): string => new Date(ms + 9 * 3600e3).toISOString().slice(0, 16);
 
-export type Phase = "soon" | "signup" | "ready" | "running" | "upload" | "appeal" | "closed";
+export type Phase = "soon" | "signup" | "ready" | "running" | "upload" | "closed";
 export const PHASE_LABEL: Record<Phase, string> = {
-  soon: "곧 열려요", signup: "신청 중", ready: "시작 전", running: "기록 중", upload: "기록 마감 · 업로드 기간", appeal: "순위 공개 · 이의 제기", closed: "종료",
+  soon: "곧 열려요", signup: "신청 중", ready: "시작 전", running: "기록 중", upload: "기록 마감 · 업로드 기간", closed: "종료",
 };
 
 /** 지금(한국 시각 "YYYY-MM-DDTHH:mm")이 어느 단계인가. 각 마감 시각 그 분까지는 앞 단계다. */
@@ -145,7 +143,6 @@ export function phaseOf(cfg: ChallengeConfig, now: string): Phase {
   if (now < cfg.start) return "ready";
   if (now <= cfg.end) return "running";
   if (now <= cfg.uploadEnd) return "upload";
-  if (now <= cfg.appealEnd) return "appeal";
   return "closed";
 }
 

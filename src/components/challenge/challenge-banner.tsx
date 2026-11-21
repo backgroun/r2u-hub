@@ -6,7 +6,7 @@ import { PHASE_LABEL, currentPhase, fmtDateTime, nowKst } from "@/lib/challenge/
 /** 이벤트 탭 위에 붙는 챌린지 안내 띠. 이벤트 탭 본문이 이미 챌린지이면 보이지 않는다. */
 export default async function ChallengeBanner() {
   const u = await currentUser();
-  const opts = { staff: !!(u && (u.realAdmin ?? u.admin)) };
+  const opts = { staff: !!u?.admin};
   const [chal, shown] = await Promise.all([activeChallenge(undefined, opts), displayBlock(opts)]);
   if (!chal?.challenge || shown?.id === chal.id) return null;
   const cfg = chal.challenge;

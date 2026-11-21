@@ -4,8 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 
 type Place = { id: string; name: string; address: string; url: string };
 
-export default function KakaoPlaceField({ label = "장소", placeholder, place = "", address = "", placeUrl = "" }: {
-  label?: string; placeholder?: string; place?: string; address?: string; placeUrl?: string;
+export default function KakaoPlaceField({ label = "장소", placeholder, place = "", address = "", placeUrl = "", allowUndecided = true }: {
+  label?: string; placeholder?: string; place?: string; address?: string; placeUrl?: string; allowUndecided?: boolean; // allowUndecided=false면 ‘미정’ 체크를 숨긴다
 }) {
   const [query, setQuery] = useState(place === "미정" ? "" : place);
   const [undecided, setUndecided] = useState(place === "미정");
@@ -49,9 +49,9 @@ export default function KakaoPlaceField({ label = "장소", placeholder, place =
     }}>
       <div className="flex items-center justify-between gap-2">
         <label className="label" htmlFor={id}>{label}</label>
-        <label className="text-xs text-muted inline-flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={undecided} onChange={(e) => {
+        {allowUndecided && <label className="text-xs text-muted inline-flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={undecided} onChange={(e) => {
           setUndecided(e.target.checked); setSelected({ address: "", url: "" }); setResults([]); setTouched(false); setError(""); setSearching(false); setSearched(false); setActive(-1);
-        }} /> 미정</label>
+        }} /> 미정</label>}
       </div>
       <div className="kakao-place-input-wrap">
         <input ref={inputRef} id={id} className="input" value={undecided ? "" : query} disabled={undecided} maxLength={60} placeholder={undecided ? "미정" : placeholder || "장소 이름 검색"} autoComplete="off"

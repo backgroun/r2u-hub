@@ -1,8 +1,9 @@
 "use client";
 import { ActionForm, Submit } from "@/components/action-form";
 import PhotoField from "@/components/challenge/photo-field";
+import KakaoPlaceField from "@/components/kakao-place-field";
 import { submitActivityAction } from "@/app/challenge-actions";
-import { SURFACE_LABEL, type Activity, type Surface } from "@/lib/challenge/rules";
+import type { Activity } from "@/lib/challenge/rules";
 
 const SECTION = "rounded-lg border border-[var(--line)] p-3";
 
@@ -16,19 +17,15 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       {initial && <input type="hidden" name="actId" value={initial.id} />}
       <label className="field"><span className="label">시작 일시 (한국 시간)</span>
         <input name="startedAt" type="datetime-local" className="input" required min={start} max={max} defaultValue={initial?.startedAt ?? max} /></label>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="field"><span className="label">거리 (km)</span>
-          <input name="distanceKm" inputMode="decimal" className="input" required placeholder="예: 10.05" defaultValue={initial?.distanceKm ?? ""} /></label>
-        <label className="field"><span className="label">종류</span>
-          <select name="surface" className="input" defaultValue={initial?.surface ?? "road"}>
-            {(Object.keys(SURFACE_LABEL) as Surface[]).map((s) => <option key={s} value={s}>{SURFACE_LABEL[s]}</option>)}
-          </select></label>
-      </div>
-      <div className="field"><span className="label">시간</span>
-        <div className="grid grid-cols-3 gap-2">
-          <input name="durH" type="number" min={0} max={23} inputMode="numeric" className="input" placeholder="시" defaultValue={dur ? Math.floor(dur / 3600) : ""} aria-label="시" />
-          <input name="durM" type="number" min={0} max={59} inputMode="numeric" className="input" placeholder="분" defaultValue={dur ? Math.floor((dur % 3600) / 60) : ""} aria-label="분" />
-          <input name="durS" type="number" min={0} max={59} inputMode="numeric" className="input" placeholder="초" defaultValue={dur ? dur % 60 : ""} aria-label="초" />
+      <input type="hidden" name="surface" value={initial?.surface ?? "road"} />
+      <div className="field">
+        <div className="grid grid-cols-[1.4fr_1fr_1fr] gap-2">
+          <label className="field"><span className="label">거리 (km)</span>
+            <input name="distanceKm" inputMode="decimal" className="input min-w-0" required placeholder="예: 10.05" defaultValue={initial?.distanceKm ?? ""} /></label>
+          <label className="field"><span className="label">시간 (시)</span>
+            <input name="durH" type="number" min={0} max={23} inputMode="numeric" className="input min-w-0" placeholder="시" defaultValue={dur ? Math.floor(dur / 3600) : ""} /></label>
+          <label className="field"><span className="label">시간 (분)</span>
+            <input name="durM" type="number" min={0} max={59} inputMode="numeric" className="input min-w-0" placeholder="분" defaultValue={dur ? Math.floor((dur % 3600) / 60) : ""} /></label>
         </div>
         <span className="text-xs text-muted">평균 페이스는 거리와 시간으로 자동 계산돼요.</span>
       </div>
@@ -59,8 +56,9 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       <details className={SECTION} open={!!initial?.place}>
         <summary className="font-bold cursor-pointer text-sm">다양한 장소 부문 (40분 이상 · 트레드밀 제외)</summary>
         <div className="grid gap-2 pt-2">
-          <label className="field"><span className="label">장소 (구 + 공원·코스명)</span>
-            <input name="place" className="input" maxLength={40} placeholder="예: 송파구 올림픽공원" defaultValue={initial?.place ?? ""} /></label>
+          {/* 카카오 장소 검색으로 고르고, 검색이 안 되면 같은 칸에 직접 입력한다. 같은 장소는 이름이 같아야 한 곳으로 세어지므로 가능하면 검색 결과를 골라 주세요. */}
+          <KakaoPlaceField label="장소 (검색해서 고르거나 직접 입력)" placeholder="예: 올림픽공원" place={initial?.place ?? ""} allowUndecided={false} />
+          <p className="text-xs text-muted">같은 장소를 여러 번 올려도 한 곳으로만 세어요. 검색에서 고르면 이름이 똑같이 맞춰져요.</p>
           <PhotoField name="img_map" label="지도(경로) 캡처" hint="출발 지점이 보이는 지도 화면이에요." have={!!initial?.imgs.map} />
         </div>
       </details>

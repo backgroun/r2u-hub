@@ -2,12 +2,13 @@ import Link from "next/link";
 import { CrownIcon, GearIcon, LevelBadge } from "@/components/crown";
 import { redirect } from "next/navigation";
 import { currentUser, isManagerUser, isStaffAccount, isStaffNick, fmtRaceDate, getAllVs, getLastSeen, getLinks, getMembers, getMenu, getMonth, getRaces, getSheets, kstToday, MENU_DEFAULTS, type Link as HubLink, type MenuKey, type RaceFull } from "@/lib/hub";
-import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, bingoCleanupPhotos, normalizeRaceCourses, activateEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
+import { setAdminAbsentNoticeAction, addCheer, setDay, setGoal, deleteAfter, deleteRace, joinRace, leaveRace, removeRsvp, resetMemberPassword, resetMonthRecord, toggleCheer, updateAfter, addMembers, cancelVersusByAdmin, changePassword, decideNickChange, linkAction, postNotice, editNotice, setHomeNoticeCountAction, editScheduledNotice, removeNotice, decideJoin, bingoInfo, bingoCleanupPhotos, normalizeRaceCourses, activateEventBlock, archiveEventBlock, createEventBlock, removeEventBlock, saveLink, saveMenu, setMemberRole, syncMembersAction, saveGearLinks, generateGearLinks, saveGearLink, deleteGearSuggestion, clearLinkEditBy } from "@/app/actions";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { bingoReview, bingoView } from "@/lib/bingo-admin";
 import { canonCourse } from "@/lib/course";
 import { photoUsage } from "@/lib/bingo-store";
-import { BLOCK_TYPES, getActive, getBlocks } from "@/lib/event-blocks";
+import { BLOCK_TYPES, getActive, getBlocks, isBlockDone } from "@/lib/event-blocks";
+import { hubPeriod } from "@/lib/event";
 import { listJoins, pendingJoinCount } from "@/lib/join";
 import { listNickChangeRequests } from "@/lib/nickname";
 import NoticeMedia from "@/components/notice-media";
@@ -770,23 +771,24 @@ function Groupbuy() {
 async function Events() {
   const members = await getMembers();
   const names = Object.fromEntries(members.map((member) => [member.nick, member.name || "없음"]));
-  const [blocks, active] = await Promise.all([getBlocks(), getActive()]);
+  const [blocks, active, period] = await Promise.all([getBlocks(), getActive(), hubPeriod()]);
   const [view, review, usage] = await Promise.all([bingoView(), bingoReview(), photoUsage()]);
   const missionOf = new Map(review.missions.map((m) => [m.no, m]));
   const start = view.info.start, end = view.info.end;
   const nowYm = kstToday().slice(0, 7);
-  const months = [...new Set([...blocks.map((b) => b.ym), ...Object.keys(active)])].sort().reverse();
+  // 본문에 세팅된 달(없으면 블록이 속한 달) 기준으로 묶는다. 보관함: 직접 보낸 것 + 진행이 끝난 것 중 본문에 안 쓰는 것.
+  const activeYmOf = (id: string) => Object.keys(active).find((m) => active[m] === id);
+  const archived = blocks.filter((b) => b.archived || (isBlockDone(b, period) && !activeYmOf(b.id))).sort((a, b) => b.ym.localeCompare(a.ym) || b.at - a.at);
+  const archivedIds = new Set(archived.map((b) => b.id));
+  const shown = blocks.filter((b) => !archivedIds.has(b.id));
+  const monthOf = (b: { id: string; ym: string }) => activeYmOf(b.id) ?? b.ym;
+  const months = [...new Set([...shown.map(monthOf), ...Object.keys(active)])].sort().reverse();
   return (
     <section className="grid gap-3">
-      <div className="panel p-4 grid gap-1">
-        <h2 className="font-bold">이벤트 블록</h2>
-        <p className="text-sm text-muted">이벤트를 블록으로 미리 만들어 두고, 달마다 하나를 골라 ‘본문에 세팅’하면 이벤트 탭에 보여요. 같은 달에 다른 블록을 세팅하면 이전 것은 자동으로 내려가요.</p>
-      </div>
-
       {months.map((ym) => (
         <div key={ym} className="panel p-4 grid gap-2">
           <h3 className="font-bold">{ym.slice(0, 4)}년 {Number(ym.slice(5))}월 {ym === nowYm && <span className="chip chip-open">이번 달</span>}</h3>
-          {blocks.filter((b) => b.ym === ym).map((b) => {
+          {shown.filter((b) => monthOf(b) === ym).map((b) => {
             const on = active[ym] === b.id;
             return (
               <div key={b.id} className="grid gap-2 border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
@@ -800,6 +802,7 @@ async function Events() {
                     <input type="hidden" name="id" value={b.id} /><input type="hidden" name="ym" value={ym} />
                     {on ? <><input type="hidden" name="off" value="1" /><button className="btn text-xs py-1 px-2.5">내리기</button></> : <button className="btn btn-primary text-xs py-1 px-2.5">본문에 세팅</button>}
                   </form>
+                  <form action={archiveEventBlock}><input type="hidden" name="id" value={b.id} /><button className="btn btn-ghost text-xs py-1 px-2">보관함으로</button></form>
                   <form action={removeEventBlock}><input type="hidden" name="id" value={b.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
                 </div>
               </div>
@@ -809,7 +812,7 @@ async function Events() {
         </div>
       ))}
 
-      {blocks.filter((b) => b.type === "challenge" && b.challenge).map((b) => <ChallengeAdmin key={b.id} block={b} />)}
+      {shown.filter((b) => b.type === "challenge" && b.challenge).map((b) => <ChallengeAdmin key={b.id} block={b} />)}
 
       {/* 인증 확인: 크루원이 올린 인증(사진)을 날짜별로 보고, 잘못된 건 댓글로 알려 준다 (댓글을 달면 그 사람에게 푸시 알림) */}
       <details id="verify" className="panel p-4" open>
@@ -871,7 +874,7 @@ async function Events() {
         <summary className="font-bold cursor-pointer">이벤트 안내/기간/인증 횟수</summary>
         <ActionForm action={bingoInfo} keep className="event-info-form grid gap-2 pt-2">
           <label className="field"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
-          <label className="field"><span className="label">하루 최대 인증 횟수 (1~25)</span><input name="maxPerDay" type="number" min={1} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>
+          <label className="field"><span className="label">하루 최대 인증 횟수 (0 = 제한 없음, 최대 25)</span><input name="maxPerDay" type="number" min={0} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>
           <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
             <label className="field"><span className="label">오픈일</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
             <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>
@@ -879,6 +882,31 @@ async function Events() {
           </div>
         </ActionForm>
       </details>
+
+      {archived.length > 0 && (
+        <details className="panel p-4">
+          <summary className="font-bold cursor-pointer">보관함 ({archived.length}) <span className="text-sm text-muted font-normal">· 끝난 이벤트</span></summary>
+          <p className="text-sm text-muted pt-2">진행이 끝난 이벤트와 직접 보관한 이벤트를 모아 둬요. 다시 쓰려면 ‘이번 달 본문에 세팅’을 누르세요.</p>
+          <div className="grid gap-2 pt-2">
+            {archived.map((b) => (
+              <div key={b.id} className="flex items-center gap-2 border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
+                <div className="min-w-0 grid">
+                  <span className="font-bold truncate">{b.title}</span>
+                  <span className="text-xs text-muted truncate">{b.ym.slice(0, 4)}년 {Number(b.ym.slice(5))}월 · {BLOCK_TYPES[b.type]}{b.poll ? ` · ${b.poll.question}` : ""}</span>
+                </div>
+                <div className="ml-auto flex gap-1.5 shrink-0">
+                  <form action={activateEventBlock}>
+                    <input type="hidden" name="id" value={b.id} /><input type="hidden" name="ym" value={nowYm} />
+                    <button className="btn text-xs py-1 px-2.5">이번 달 본문에 세팅</button>
+                  </form>
+                  {b.archived && <form action={archiveEventBlock}><input type="hidden" name="id" value={b.id} /><input type="hidden" name="restore" value="1" /><button className="btn btn-ghost text-xs py-1 px-2">보관 해제</button></form>}
+                  <form action={removeEventBlock}><input type="hidden" name="id" value={b.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
     </section>
   );

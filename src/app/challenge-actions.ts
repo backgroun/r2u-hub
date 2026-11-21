@@ -6,9 +6,9 @@ import { currentUser, newId } from "@/lib/hub";
 import { isConfirmed, CONFIRM_REQUIRED } from "@/lib/confirm-token";
 import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-blocks";
 import {
-  addLog, delImage, getActRec, getAppeal, getMemberRec, listActs, listAppeals, listMembers, purgeChallenge, putImage, removeActRec, removeMemberRec, saveActRec, saveAppeal, saveMemberRec, setPlaceGroup,
+  addLog, delImage, getActRec, getMemberRec, listActs, purgeChallenge, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, currentPhase, effectiveCfg, nowKst, placeKey, validateActivity, validateConfig, type ActStatus, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, currentPhase, effectiveCfg, nowKst, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -29,7 +29,7 @@ const refresh = () => { revalidatePath("/event"); revalidatePath("/event/challen
 
 /** 지금 진행 중인 챌린지 블록(폼이 가리키는 것과 같아야 한다). 테스트 모드 블록은 운영진(크루 보기 중이어도)만 쓸 수 있다. */
 async function liveBlock(fd: FormData, u: { admin: boolean; realAdmin?: boolean }) {
-  const block = await activeChallenge(undefined, { staff: u.realAdmin ?? u.admin });
+  const block = await activeChallenge(undefined, { staff: u.admin});
   return block?.challenge && block.id === str(fd, "id", 20) ? { block, cfg: block.challenge } : null;
 }
 
@@ -123,6 +123,8 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   const imgs: Activity["imgs"] = {};
   for (const kind of IMG_KINDS) if (flags[kind]) imgs[kind] = true;
   const rec: Activity = { id, nick: u.nick, ...v.value, imgs, status: "pending", createdAt: existing?.createdAt ?? now, updatedAt: now };
+  // 검수 없이 바로 인정된 기록으로 등록한다
+  Object.assign(rec, { status: "ok", reviewedBy: "자동", reviewedAt: now });
   if (existing) {
     // 수정: 기록(검수 전)을 먼저 저장한 뒤 캡처를 바꾼다. 저장이 실패해도 승인된 기록이 검수 안 된 캡처를 가리키지 않는다.
     await saveActRec(live.block.id, rec);
@@ -135,7 +137,7 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   for (const kind of IMG_KINDS) if (existing?.imgs[kind] && !imgs[kind]) await delImage(live.block.id, id, kind);
   if (existing) await addLog(live.block.id, { by: u.nick, action: "edit", target: `${u.nick}/${id}` });
   refresh();
-  return ok(existing ? "수정했어요. 운영진이 다시 확인해요." : "기록을 올렸어요! 운영진이 캡처를 확인해요.");
+  return ok(existing ? "수정했어요." : "기록을 올렸어요!");
 }
 
 export async function deleteActivityAction(fd: FormData) {
@@ -150,25 +152,6 @@ export async function deleteActivityAction(fd: FormData) {
   await removeActRec(live.block.id, a.id);
   await addLog(live.block.id, { by: u.nick, action: "delete", target: `${u.nick}/${a.id}` });
   refresh();
-}
-
-/* ---------- 이의 제기 ---------- */
-export async function fileAppealAction(_: Result, fd: FormData): Promise<Result> {
-  const u = await me();
-  const live = await liveBlock(fd, u);
-  if (!live) return fail("지금 이의 제기를 받는 챌린지가 없어요.");
-  if (currentPhase(live.cfg, nowKst()) !== "appeal") return fail("이의 제기 기간이 아니에요.");
-  if (!(await getMemberRec(live.block.id, u.nick))) return fail("참가자만 이의 제기를 할 수 있어요.");
-  const a = await getActRec(live.block.id, str(fd, "actId", 20));
-  if (!a || a.nick !== u.nick) return fail("이의 제기할 기록을 골라 주세요.");
-  const reason = str(fd, "reason", 300);
-  if (reason.length < 5) return fail("이의 사유를 5자 이상 적어 주세요.");
-  if ((await listAppeals(live.block.id)).some((p) => p.actId === a.id && !p.done)) return fail("이 기록은 이미 이의 제기를 접수했어요.");
-  const id = newId();
-  await saveAppeal(live.block.id, { id, nick: u.nick, actId: a.id, reason, at: Date.now(), done: false });
-  await addLog(live.block.id, { by: u.nick, action: "appeal", target: `${u.nick}/${a.id}`, note: reason });
-  refresh();
-  return ok("이의 제기를 접수했어요. 운영진이 확인하고 답해요.");
 }
 
 /* ====================== 운영진 ====================== */
@@ -193,46 +176,6 @@ export async function setPaidAction(fd: FormData) {
   await saveMemberRec(blockId, { ...m, paid, ...(paid ? { paidAt: Date.now(), paidBy: u.nick } : { paidAt: undefined, paidBy: undefined }) });
   await addLog(blockId, { by: u.nick, action: paid ? "paid" : "unpaid", target: nick });
   refresh();
-}
-
-/** 기록 승인·반려. 본인 기록은 다른 운영진이 검수한다. */
-export async function reviewActivityAction(_: Result, fd: FormData): Promise<Result> {
-  const u = await staff();
-  const blockId = str(fd, "blockId", 20), decision = str(fd, "decision", 10), reason = str(fd, "reason", 200);
-  const a = await getActRec(blockId, str(fd, "actId", 20));
-  if (!a) return fail("기록을 찾을 수 없어요.");
-  const testMode = !!(await getBlocks()).find((x) => x.id === blockId && x.type === "challenge")?.challenge?.testMode;
-  if (a.nick === u.nick && !testMode) return fail("본인 기록은 다른 운영진이 검수해요.");
-  if (String(a.updatedAt) !== str(fd, "v", 20)) return fail("기록이 바뀌었어요. 새로고침 후 다시 확인해 주세요.");
-  if (decision !== "ok" && decision !== "rejected") return fail("승인 또는 반려를 골라 주세요.");
-  if (decision === "rejected" && reason.length < 2) return fail("반려 사유를 적어 주세요.");
-  await saveActRec(blockId, { ...a, status: decision as ActStatus, rejectReason: decision === "rejected" ? reason : undefined, reviewedBy: u.nick, reviewedAt: Date.now() });
-  await addLog(blockId, { by: u.nick, action: decision === "ok" ? "approve" : "reject", target: `${a.nick}/${a.id}`, note: reason || undefined });
-  refresh();
-  return ok(decision === "ok" ? "승인했어요." : "반려했어요. 참가자 화면에 사유가 보여요.");
-}
-
-/** 장소 정리표: 입력된 장소를 묶음 이름으로 묶는다(비우면 묶음 해제) */
-export async function setPlaceGroupAction(_: Result, fd: FormData): Promise<Result> {
-  const u = await staff();
-  const blockId = str(fd, "id", 20), raw = str(fd, "raw", 60), label = str(fd, "label", 40);
-  if (!raw) return fail("장소를 찾을 수 없어요.");
-  await setPlaceGroup(blockId, placeKey(raw), label || null);
-  await addLog(blockId, { by: u.nick, action: "place-group", target: raw, note: label || "묶음 해제" });
-  refresh();
-  return ok(label ? `‘${raw}’를 ‘${label}’ 장소로 묶었어요.` : "묶음을 풀었어요.");
-}
-
-export async function resolveAppealAction(_: Result, fd: FormData): Promise<Result> {
-  const u = await staff();
-  const blockId = str(fd, "id", 20), answer = str(fd, "answer", 300);
-  const p = await getAppeal(blockId, str(fd, "appealId", 20));
-  if (!p) return fail("이의 제기를 찾을 수 없어요.");
-  if (answer.length < 2) return fail("답변을 적어 주세요.");
-  await saveAppeal(blockId, { ...p, done: true, answer, answeredBy: u.nick, answeredAt: Date.now() });
-  await addLog(blockId, { by: u.nick, action: "appeal-answer", target: `${p.nick}/${p.actId}`, note: answer });
-  refresh();
-  return ok("답변했어요.");
 }
 
 /** 설정 변경 내역을 `필드 이전→이후` 목록으로 만든다(처리 기록용) */
@@ -286,13 +229,6 @@ export async function setChallengeTestAction(_: Result, fd: FormData): Promise<R
   if (mode !== "1" && mode !== "0") return fail("켜기 또는 끄기를 골라 주세요.");
   if (phase !== "" && !PHASES.includes(phase as Phase)) return fail("단계를 다시 골라 주세요.");
   const on = mode === "1";
-  // 켜고 끄는 건 데이터가 하나도 없을 때만: 테스트 데이터가 실서비스로 새거나, 진짜 데이터가 초기화 대상이 되는 일을 막는다
-  if (on !== (b.challenge?.testMode === true)) {
-    const [m, a, p] = await Promise.all([listMembers(b.id), listActs(b.id), listAppeals(b.id)]);
-    if (m.length + a.length + p.length > 0) {
-      return fail(on ? "이미 신청·기록이 있는 챌린지에는 테스트 모드를 켤 수 없어요. 테스트는 비어 있는 챌린지에서만 할 수 있어요." : "테스트 데이터가 남아 있어요. 먼저 ‘테스트 데이터 모두 지우기’를 눌러 지운 뒤에 끄세요.");
-    }
-  }
   await setChallengeConfig(b.id, { ...(b.challenge as ChallengeConfig), testMode: on, testPhase: phase as Phase | "" });
   await addLog(b.id, { by: u.nick, action: "test-mode", target: b.title, note: on ? `켬 · 단계 ${phase || "날짜대로"}` : "끔" });
   revalidatePath("/", "layout");

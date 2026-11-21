@@ -249,8 +249,8 @@ export function validateActivity(i: RawInput, img: ImgFlags, cfg: ChallengeConfi
   return { ok: true, value: { startedAt: s, date, distanceKm, durationSec, surface, cadence: cad ?? null, avgHr: z != null ? hr : null, zone2Pct: z ?? null, place: place || null } };
 }
 
-/** 장소 입력을 같은 장소끼리 비교하는 키: 공백·대소문자를 없앤다 */
-export const placeKey = (raw: string): string => raw.normalize("NFC").trim().toLowerCase().replace(/\s+/g, "");
+/** 장소 입력을 같은 장소끼리 비교하는 키: 공백·기호·대소문자를 없앤다. 한 사람이 같은 장소를 여러 번 올려도 한 곳으로만 센다 */
+export const placeKey = (raw: string): string => raw.normalize("NFC").trim().toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 /** 운영진이 정리표로 묶어 둔 장소면 묶음 이름의 키를, 아니면 입력 그대로의 키를 돌려준다 */
 export const placeGroupOf = (raw: string, map: Record<string, string> = {}): string => {
   const k = placeKey(raw);

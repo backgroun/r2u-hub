@@ -16,6 +16,7 @@ export type EventBlock = {
   by: string;
   poll?: { question: string; options: string[] };
   challenge?: ChallengeConfig;
+  archived?: boolean; // 운영진이 직접 보관함으로 보냈는가
 };
 export const BLOCK_TYPES = { bingo: "빙고", poll: "투표·설문", challenge: "기록 챌린지" } as const;
 
@@ -50,6 +51,15 @@ export async function getActive(): Promise<Record<string, string>> {
   await getBlocks();
   const raw = await redis.get<Record<string, string> | string>(ACTIVE);
   return raw ? parse<Record<string, string>>(raw) : {};
+}
+
+/** 진행이 끝나 완료된 이벤트인가 (보관함으로 가는 기준).
+    챌린지: 최종 확정·시상 시각이 지났을 때(테스트 모드는 제외) · 빙고: 오픈 기간 종료일이 지났을 때 · 투표·설문: 속한 달이 지났을 때 */
+export function isBlockDone(b: EventBlock, period: { start: string; end: string } | null, now = nowKst()): boolean {
+  const today = now.slice(0, 10);
+  if (b.type === "challenge") return !!b.challenge && !b.challenge.testMode && now >= b.challenge.finalAt;
+  if (b.type === "bingo" && period && period.start.slice(0, 7) === b.ym) return today > period.end;
+  return b.ym < today.slice(0, 7);
 }
 
 /** 지금 이벤트 탭 본문에 보여 줄 블록: 이번 달 활성 블록, 없으면 가장 가까운 앞으로의 달 */
@@ -107,8 +117,22 @@ export async function setActive(ym: string, blockId: string | null) {
     if (!block) throw new Error("블록을 찾지 못했어요.");
     active[ym] = blockId;
     if (block.type === "bingo") await swapRoster(blockId);
+    if (block.archived) await setArchived(blockId, false); // 보관함에서 꺼내 쓰는 것이므로 보관 표시를 푼다
   } else delete active[ym];
   await redis.set(ACTIVE, JSON.stringify(active));
+}
+
+/** 보관함으로 보내거나(on) 꺼낸다(off). 보낼 때는 본문에서도 내린다. */
+export async function setArchived(id: string, on: boolean) {
+  const blocks = await getBlocks();
+  if (!blocks.some((b) => b.id === id)) throw new Error("블록을 찾지 못했어요.");
+  await saveBlocks(blocks.map((b) => (b.id === id ? { ...b, archived: on || undefined } : b)));
+  if (on) {
+    const active = await getActive();
+    let changed = false;
+    for (const m of Object.keys(active)) if (active[m] === id) { delete active[m]; changed = true; }
+    if (changed) await redis.set(ACTIVE, JSON.stringify(active));
+  }
 }
 
 export async function deleteBlock(id: string) {

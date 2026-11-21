@@ -18,7 +18,7 @@ import { saveIconOverride } from "@/lib/icon-notice";
 import { MAX_HOME_NOTICES, setHomeNoticeCount, addNotice, adminAbsentNoticeOn, deleteNotice, updateNotice, getPushEnabledNicks, setAdminAbsentNotice, pushReady, sendPushAll, sendPushToNicks } from "@/lib/notice";
 import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
 import { addComment as addBingoComment, allRows as allBingoRows, cleanupOrphanPhotos as cleanupBingoPhotos, getMissions as getBingoMissions, removeComment as removeBingoComment, clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
-import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive } from "@/lib/event-blocks";
+import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive, setArchived } from "@/lib/event-blocks";
 import { DEFAULT_CONFIG } from "@/lib/challenge/rules";
 import { canonCourse } from "@/lib/course";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
@@ -1016,7 +1016,7 @@ export async function bingoInfo(_: Result, fd: FormData): Promise<Result> {
   if (!re.test(start) || !re.test(end)) return fail("시작일·종료일을 골라 주세요.");
   if (end < start) return fail("종료일이 시작일보다 빠를 수 없어요.");
   const maxPerDay = Number(str(fd, "maxPerDay", 3));
-  if (!Number.isInteger(maxPerDay) || maxPerDay < 1 || maxPerDay > 25) return fail("하루 최대 인증 횟수는 1~25 사이로 입력해 주세요.");
+  if (!Number.isInteger(maxPerDay) || maxPerDay < 0 || maxPerDay > 25) return fail("하루 최대 인증 횟수는 0~25 사이로 입력해 주세요. (0 = 제한 없음)");
   await saveBingoInfo({ title, items: [], start, end, maxPerDay }); // 설명 문구는 쓰지 않는다 (기간·제목만)
   // 허브의 오픈 판단(이벤트 탭·메뉴)도 같은 기간을 쓰도록 함께 저장한다
   await redis.set(EVENT_PERIOD_KEY, JSON.stringify({ start, end }));
@@ -1066,6 +1066,14 @@ export async function activateEventBlock(fd: FormData) {
   const ym = str(fd, "ym", 7) || block?.ym || "";
   if (!block || !/^\d{4}-\d{2}$/.test(ym)) return;
   await setActive(ym, fd.get("off") ? null : id);
+  revalidatePath("/", "layout");
+}
+/** 이벤트 블록을 보관함으로 보내거나(기본) 꺼낸다(restore) */
+export async function archiveEventBlock(fd: FormData) {
+  await admin();
+  const id = str(fd, "id", 20);
+  if (!(await getBlocks()).some((b) => b.id === id)) return;
+  await setArchived(id, !fd.get("restore"));
   revalidatePath("/", "layout");
 }
 export async function removeEventBlock(fd: FormData) {

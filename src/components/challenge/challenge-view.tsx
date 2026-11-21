@@ -1,28 +1,29 @@
 import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import ActivityForm from "@/components/challenge/activity-form";
-import { deleteActivityAction, fileAppealAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
-import { listActs, listAppeals, listMembers, listPlaceMap } from "@/lib/challenge/store";
+import { deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
+import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst, placeGroupOf, placeKey,
-  type Activity, type Appeal, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
+  type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
-/** 참가자용 챌린지 화면: 규정 → 신청 → 내 기록 → 순위 → 시상 → 이의 제기 */
+/** 참가자용 챌린지 화면: 규정 → 신청 → 내 기록 → 순위 → 시상 */
 export default async function ChallengeView({ block, nick, staff }: { block: EventBlock; nick: string; staff: boolean }) {
   const cfg = block.challenge as ChallengeConfig;
   const now = nowKst();
   const phase = currentPhase(cfg, now);
   const ecfg = effectiveCfg(cfg); // 기록 기간을 보는 곳(순위·판정·입력)에는 테스트 모드에서 넓힌 설정을 쓴다
-  const [members, acts, places, appeals] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), listAppeals(block.id)]);
+  const [members, acts, places] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id)]);
   const mine = members.find((m) => m.nick === nick);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
+  const boardNicks = cfg.testMode ? members.map((m) => m.nick) : paidNicks; // 테스트 모드에서는 입금 확인 전 신청자도 순위에 넣는다
   const live = phase === "running" || phase === "upload";
-  const board = buildBoard(acts, paidNicks, ecfg, { verifiedOnly: !live, places });
+  const board = buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places });
   const myActs = acts.filter((a) => a.nick === nick);
-  const awards = canShowWinners(cfg, now, phase) ? awardWinners(buildBoard(acts, paidNicks, ecfg, { verifiedOnly: true, places })) : null;
+  const awards = canShowWinners(cfg, now, phase) ? awardWinners(buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places })) : null;
   const showBoard = phase === "running" || phase === "upload" || phase === "appeal" || phase === "closed";
 
   return (
@@ -37,16 +38,12 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
         {staff && <a href="/admin?tab=bingo" className="text-xs text-muted underline">운영진 관리 화면으로</a>}
       </section>
 
-      {mine && !mine.paid && (
-        <p className="panel p-3 text-sm">⏳ <b>입금 확인 전이에요.</b> 기록은 올릴 수 있지만, 순위와 수상에는 입금이 확인된 뒤부터 들어가요.</p>
-      )}
-
       <SignupPanel blockId={block.id} cfg={cfg} phase={phase} mine={mine} />
 
       {mine && (phase === "running" || phase === "upload") && (
         <section className="panel p-4 grid gap-3">
           <h2 className="font-bold">기록 올리기</h2>
-          <p className="text-xs text-muted">{fmtDateTime(cfg.uploadEnd)}까지 올리고 고칠 수 있어요. 올린 캡처는 나와 운영진만 볼 수 있어요.</p>
+          <p className="text-xs text-muted">{fmtDateTime(cfg.uploadEnd)}까지 올리고 고칠 수 있어요. 올린 캡처는 나와 운영진만 볼 수 있어요. 운영진 확인 없이 바로 인정돼요.</p>
           <ActivityForm blockId={block.id} start={ecfg.start} end={ecfg.end} now={now} />
         </section>
       )}
@@ -57,8 +54,6 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
           {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} ecfg={ecfg} blockId={block.id} now={now} canEdit={live} />)}
         </section>
       )}
-
-      {mine && phase === "appeal" && <AppealPanel blockId={block.id} acts={myActs} appeals={appeals.filter((p) => p.nick === nick)} />}
 
       {awards && (
         <section className="panel p-4 grid gap-2">
@@ -74,8 +69,7 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
         </section>
       )}
 
-      {showBoard && <BoardPanel board={board} acts={acts} me={nick} verifiedOnly={!live} />}
-      {showBoard && <PlacePanel acts={acts} places={places} />}
+      {showBoard && <BoardPanel board={board} me={nick} />}
 
       <FeePanel cfg={cfg} paid={paidNicks.length} />
       <RulesPanel cfg={cfg} open={phase === "soon" || phase === "signup"} />
@@ -118,11 +112,10 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
 
 function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: ChallengeConfig; ecfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean }) {
   const j = judge(a, ecfg);
-  const chip = a.status === "ok" ? <span className="chip chip-confirmed">인정</span> : a.status === "rejected" ? <span className="chip chip-failed">반려</span> : <span className="chip chip-warn">검수 전</span>;
   return (
     <div className="panel p-3 grid gap-2">
       <div className="flex items-center gap-2">
-        <b className="num">{a.startedAt.replace("T", " ")}</b>{chip}
+        <b className="num">{a.startedAt.replace("T", " ")}</b>
         <span className="ml-auto text-xs text-muted">{SURFACE_LABEL[a.surface]}</span>
       </div>
       <p className="text-sm num">{a.distanceKm.toFixed(2)}km · {fmtDur(a.durationSec)} · 평균 {fmtPace(j.paceSec)}/km{a.cadence != null ? ` · ${a.cadence}spm` : ""}{a.zone2Pct != null ? ` · Zone 2 ${a.zone2Pct}%` : ""}{a.place ? ` · ${a.place}` : ""}</p>
@@ -146,37 +139,10 @@ function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: Challenge
   );
 }
 
-/** 장소 정리표(공개): 같은 장소로 묶인 입력과 건수만 보여 준다. 닉네임·캡처는 싣지 않는다. */
-function PlacePanel({ acts, places }: { acts: Activity[]; places: Record<string, string> }) {
-  const groups = new Map<string, { label: string; raws: Map<string, number> }>();
-  for (const a of acts) {
-    if (a.status === "rejected" || !a.place) continue;
-    const g = placeGroupOf(a.place, places);
-    const k = placeKey(a.place);
-    const cur = groups.get(g) ?? { label: Object.hasOwn(places, k) && places[k] ? places[k] : a.place, raws: new Map<string, number>() };
-    if (Object.hasOwn(places, k) && places[k]) cur.label = places[k];
-    cur.raws.set(a.place, (cur.raws.get(a.place) ?? 0) + 1);
-    groups.set(g, cur);
-  }
-  if (groups.size === 0) return null;
-  return (
-    <section className="panel p-4 grid gap-2">
-      <h2 className="font-bold">장소 정리표</h2>
-      <p className="text-xs text-muted">같은 장소로 묶은 입력이에요. 지도 캡처상 출발 지점이 3km 이상 떨어져 있으면 다른 장소예요.</p>
-      <ul className="grid gap-1 text-sm">
-        {[...groups.values()].map((g) => (
-          <li key={g.label}><b>{g.label}</b> <span className="text-muted">{[...g.raws.entries()].map(([r, n]) => `${r} ${n}건`).join(" · ")}</span></li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function BoardPanel({ board, acts, me, verifiedOnly }: { board: Board; acts: Activity[]; me: string; verifiedOnly: boolean }) {
-  const byId = new Map(acts.map((a) => [a.id, a]));
+function BoardPanel({ board, me }: { board: Board; me: string }) {
   return (
     <section className="panel p-4 grid gap-3">
-      <h2 className="font-bold">부문별 순위 <span className="text-xs text-muted font-normal">{verifiedOnly ? "검수 완료 기록 기준" : "잠정 · 검수 전 기록 포함"}</span></h2>
+      <h2 className="font-bold">부문별 순위</h2>
       {CATEGORIES.map((c) => (
         <div key={c} className="grid gap-1">
           <h3 className="text-sm font-bold">{CATEGORY_LABEL[c]}</h3>
@@ -186,34 +152,10 @@ function BoardPanel({ board, acts, me, verifiedOnly }: { board: Board; acts: Act
                 <li key={e.nick} className={`flex items-center gap-2 ${e.nick === me ? "font-bold" : ""}`}>
                   <span className="num w-6 text-muted">{e.rank}</span><span className="truncate">{e.nick}</span>
                   <span className="ml-auto num">{formatValue(c, e.value)}</span>
-                  {e.actIds.some((id) => byId.get(id)?.status === "pending") && <span className="chip chip-warn">검수 전</span>}
                 </li>
               ))}
             </ol>
           )}
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function AppealPanel({ blockId, acts, appeals }: { blockId: string; acts: Activity[]; appeals: Appeal[] }) {
-  return (
-    <section className="panel p-4 grid gap-3">
-      <h2 className="font-bold">이의 제기</h2>
-      {acts.length === 0 ? <p className="text-sm text-muted">이의 제기할 기록이 없어요.</p> : (
-        <ActionForm action={fileAppealAction} className="grid gap-2">
-          <input type="hidden" name="id" value={blockId} />
-          <label className="field"><span className="label">기록</span>
-            <select name="actId" className="input">{acts.map((a) => <option key={a.id} value={a.id}>{a.startedAt.replace("T", " ")} · {a.distanceKm.toFixed(2)}km</option>)}</select></label>
-          <label className="field"><span className="label">사유</span><textarea name="reason" className="input" rows={3} maxLength={300} required /></label>
-          <div><Submit>이의 제기하기</Submit></div>
-        </ActionForm>
-      )}
-      {appeals.map((p) => (
-        <div key={p.id} className="text-sm border-t border-[var(--line)] pt-2">
-          <p>{p.reason}</p>
-          <p className="text-xs text-muted">{p.done ? `답변: ${p.answer}` : "운영진이 확인 중이에요."}</p>
         </div>
       ))}
     </section>
@@ -254,7 +196,7 @@ function RulesPanel({ cfg, open }: { cfg: ChallengeConfig; open: boolean }) {
             <li><b>최장시간</b>: 인정 시간 합계가 가장 긴 사람</li>
             <li><b>케이던스</b>: {RULE.cadenceMinKm}km 이상 1건의 평균 케이던스가 가장 높은 사람</li>
             <li><b>Zone 2</b>: 비율 {RULE.zone2MinPct}% 이상 1건의 거리가 가장 긴 사람</li>
-            <li><b>다양한 장소</b>: {RULE.placeMinSec / 60}분 이상 뛴 서로 다른 장소가 가장 많은 사람 (트레드밀 제외, 장소 정리표를 공개해요)</li>
+            <li><b>다양한 장소</b>: {RULE.placeMinSec / 60}분 이상 뛴 서로 다른 장소가 가장 많은 사람 (트레드밀 제외, 같은 장소는 한 번만 세요)</li>
             <li><b>5km</b>: 하루 합계 {RULE.fiveKmHundredths / 100}km 이상인 날이 가장 많은 사람</li>
           </ol>
         </div>
@@ -270,8 +212,7 @@ function RulesPanel({ cfg, open }: { cfg: ChallengeConfig; open: boolean }) {
           <b className={h}>💳 참가</b>
           <ul className="grid gap-1">
             <li className={li}>회비 {won(cfg.fee)} (환불 없음). 입금이 확인된 분만 순위에 들어가요.</li>
-            <li className={li}>일정: 신청 {fmtMdTime(cfg.signupStart)}~{fmtMdTime(cfg.signupEnd)} · 기록 수정 {fmtMdTime(cfg.uploadEnd)}까지 · 이의 제기 {fmtMdTime(cfg.appealEnd)}까지 · 확정 {fmtMdTime(cfg.finalAt)}</li>
-            <li className={li}>운영진도 참가할 수 있고, 본인 기록은 다른 운영진이 검수해요.</li>
+            <li className={li}>일정: 신청 {fmtMdTime(cfg.signupStart)}~{fmtMdTime(cfg.signupEnd)} · 기록 수정 {fmtMdTime(cfg.uploadEnd)}까지 · 확정 {fmtMdTime(cfg.finalAt)}</li>
           </ul>
         </div>
       </div>

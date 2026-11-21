@@ -176,7 +176,7 @@ function renderGuide(g) {
   };
   const cur = doneLines().length;
   if (!g.endDays) { sum.textContent = '이벤트가 마감됐어요.'; return; }
-  sum.textContent = `마감 ${fmt(END)}까지 ${g.endDays}일 · 하루 최대 ${MAX_PER_DAY}칸`;
+  sum.textContent = `마감 ${fmt(END)}까지 ${g.endDays}일 · ${UNLIMITED_PER_DAY ? '하루 제한 없음' : `하루 최대 ${MAX_PER_DAY}칸`}`;
   if (!g.openCount) { sum.textContent = '🎉 모든 줄을 완성했어요!'; return; }
   if (!g.slots) { sum.textContent += ' · 오늘은 이미 다 채웠어요'; return; }
   if (!g.gain) { sum.textContent += ' · 마감 안에 새 빙고는 어려워요. 칸을 최대한 채워 보세요!'; return; }
@@ -333,7 +333,7 @@ function applyInfo(i) {
   if (!i) return;
   if (hubPeriod) { START = hubPeriod.start; END = hubPeriod.end; }
   else if (i.start && i.end) { START = i.start; END = i.end; }
-  if (Number.isInteger(i.maxPerDay) && i.maxPerDay >= 1) MAX_PER_DAY = i.maxPerDay;
+  if (Number.isInteger(i.maxPerDay) && i.maxPerDay >= 0) { UNLIMITED_PER_DAY = i.maxPerDay === 0; MAX_PER_DAY = UNLIMITED_PER_DAY ? 25 : i.maxPerDay; } // 0 = 제한 없음(칸은 25개뿐이라 25로 둔다)
   showPeriod();
   // 아래 안내 카드는 운영진이 안내 제목을 적어 둔 경우에만 보인다 (기간은 위쪽 제목 아래에만 있다)
   $('infoCard').hidden = !i.title;

@@ -118,7 +118,11 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   const raw: RawInput = {
     startedAt,
     distanceKm: num(fd, "distanceKm"),
-    durationSec: parseDuration(str(fd, "dur", 20)),
+    // 시·분 두 칸으로 받는다(예전 한 칸 "dur" 입력도 그대로 읽는다)
+    durationSec: fd.has("dur") ? parseDuration(str(fd, "dur", 20)) : (() => {
+      const h = num(fd, "durH") ?? 0, m = num(fd, "durM") ?? 0;
+      return Number.isFinite(h) && Number.isFinite(m) && h >= 0 && m >= 0 && m < 60 ? Math.round(h * 3600 + m * 60) : null;
+    })(),
     surface: str(fd, "surface", 10),
     cadence: num(fd, "cadence"),
     avgHr: num(fd, "avgHr"),

@@ -3,7 +3,7 @@ import { ActionForm, Submit } from "@/components/action-form";
 import PhotoField from "@/components/challenge/photo-field";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { submitActivityAction } from "@/app/challenge-actions";
-import { SURFACE_LABEL, durationInput, type Activity, type Surface } from "@/lib/challenge/rules";
+import { SURFACE_LABEL, type Activity, type Surface } from "@/lib/challenge/rules";
 
 const SECTION = "rounded-lg border border-[var(--line)] p-3";
 
@@ -23,13 +23,15 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
         </select>
       </div>
       <div className="field">
-        <div className="grid grid-cols-2 gap-2">
-          <label className="field"><span className="label">거리 (km)</span>
-            <input name="distanceKm" inputMode="decimal" className="input min-w-0" required placeholder="예: 10.05" defaultValue={initial?.distanceKm ?? ""} /></label>
-          <label className="field"><span className="label">달린 시간 (시:분)</span>
-            <input name="dur" inputMode="text" autoComplete="off" className="input min-w-0" required placeholder="예: 1:30" defaultValue={dur ? durationInput(dur) : ""} /></label>
+        <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+          <label className="field min-w-0"><span className="label">거리 (km)</span>
+            <input name="distanceKm" inputMode="decimal" className="input min-w-0" required placeholder="10.05" defaultValue={initial?.distanceKm ?? ""} /></label>
+          <label className="field min-w-0"><span className="label">시간 (시)</span>
+            <input name="durH" type="number" min={0} max={23} inputMode="numeric" className="input min-w-0" placeholder="1" defaultValue={dur ? Math.floor(dur / 3600) : ""} /></label>
+          <label className="field min-w-0"><span className="label">시간 (분)</span>
+            <input name="durM" type="number" min={0} max={59} inputMode="numeric" className="input min-w-0" placeholder="30" defaultValue={dur ? Math.floor((dur % 3600) / 60) : ""} /></label>
         </div>
-        <span className="text-xs text-muted">시간은 한 칸에 적어요. (예: 1:30) 평균 페이스는 거리와 시간으로 자동 계산돼요.</span>
+        <span className="text-xs text-muted">평균 페이스는 거리와 시간으로 자동 계산돼요.</span>
       </div>
       <PhotoField name="img_summary" label="활동 요약 캡처" required have={!!initial?.imgs.summary} />
 

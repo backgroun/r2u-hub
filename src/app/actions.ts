@@ -19,7 +19,7 @@ import { MAX_HOME_NOTICES, setHomeNoticeCount, addNotice, adminAbsentNoticeOn, d
 import { EVENT_PERIOD_KEY, resetEventCache, setEventHidden } from "@/lib/event";
 import { addComment as addBingoComment, allRows as allBingoRows, cleanupOrphanPhotos as cleanupBingoPhotos, getMissions as getBingoMissions, removeComment as removeBingoComment, clearRecords as clearBingoRecords, getRoster as getBingoRoster, renameMember as renameBingoMember, saveInfo as saveBingoInfo, saveMission as saveBingoMission, setRoster as setBingoRoster } from "@/lib/bingo-store";
 import { castVote, createBlock, deleteBlock, displayBlock, getBlocks, joinRoster, leaveRoster, setActive, setArchived } from "@/lib/event-blocks";
-import { DEFAULT_CONFIG } from "@/lib/challenge/rules";
+import { DEFAULT_CONFIG, validateConfig } from "@/lib/challenge/rules";
 import { canonCourse } from "@/lib/course";
 import { detailExternal, viewUrl } from "@/lib/roadrun";
 import { collectNews, patchNews } from "@/lib/news";
@@ -1053,8 +1053,14 @@ export async function createEventBlock(_: Result, fd: FormData): Promise<Result>
   }
   const challenge = type === "challenge"
     ? { ...DEFAULT_CONFIG, bank: { bank: str(fd, "bank", 20), account: str(fd, "account", 30), holder: str(fd, "holder", 20) },
-        prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12) }
+        // 일정·회비는 폼에서 받고(없으면 기본값), 기록 종료가 곧 최종 확정이다
+        signupStart: str(fd, "signupStart", 16) || DEFAULT_CONFIG.signupStart, signupEnd: str(fd, "signupEnd", 16) || DEFAULT_CONFIG.signupEnd,
+        start: str(fd, "start", 16) || DEFAULT_CONFIG.start, end: str(fd, "end", 16) || DEFAULT_CONFIG.end, finalAt: str(fd, "end", 16) || DEFAULT_CONFIG.end,
+        fee: fd.get("fee") != null && String(fd.get("fee")) !== "" ? Number(str(fd, "fee", 8)) : DEFAULT_CONFIG.fee,
+        prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
+        raffle: String(fd.get("raffle") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 20) }
     : undefined;
+  if (challenge) { const bad = validateConfig(challenge); if (bad) return fail(bad); }
   await createBlock({ type, title, ym, by: u.nick, ...(poll ? { poll } : {}), ...(challenge ? { challenge } : {}) });
   revalidatePath("/event"); revalidatePath("/admin");
   return ok("이벤트 블록을 만들었어요. 아래 목록에서 ‘본문에 세팅’을 누르면 이벤트 탭에 보여요.");

@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib, pickBib, pickTicket, claimUnique,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, sectionsToText, effectiveWinners, awardConflict, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib, pickBib, pickTicket, claimUnique,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -511,4 +511,30 @@ test("번호 확보: 동시에 여러 명이 뽑아도 같은 번호가 나가�
   assert.equal(new Set(nums).size, 200); // 한 번호도 겹치지 않음
   assert.ok(nums.every((n) => n >= 1000 && n <= 9999));
   await assert.rejects(() => claimUnique(() => 7, async () => false, () => {}, 5));
+});
+
+test("규정 글 ↔ 묶음 목록 왕복: 제목·번호 목록·점 목록이 그대로", () => {
+  const text = defaultRulesText();
+  assert.equal(sectionsToText(parseRules(text)), text);
+  const secs = [{ title: "안내", ordered: true, items: ["가", "나"] }, { title: "참고", ordered: false, items: ["다"] }];
+  assert.equal(sectionsToText(secs), "## 안내\n1. 가\n2. 나\n## 참고\n다");
+  assert.deepEqual(parseRules(sectionsToText(secs)).map((x) => [x.title, x.ordered, x.items]), [["안내", true, ["가", "나"]], ["참고", false, ["다"]]]);
+  // 제목이 없는 묶음은 글로 쓰면 맨 앞에서만 구분된다(그 뒤에 오면 앞 묶음에 붙는다)
+  assert.deepEqual(parseRules("첫 줄\n## 제목\n항목").map((x) => x.title), ["", "제목"]);
+});
+
+test("수상 교체: 직접 정한 값이 자동 시상을 덮고, 1인 1상 충돌을 알려 준다", () => {
+  const auto = [
+    { category: "distance", winner: "가", tie: [], provisional: false },
+    { category: "time", winner: null, tie: ["나", "다"], provisional: false },
+    { category: "cadence", winner: "나", tie: [], provisional: false },
+  ];
+  const none = effectiveWinners(auto, {});
+  assert.deepEqual(none.map((x) => [x.winner, x.overridden]), [["가", false], [null, false], ["나", false]]);
+  assert.deepEqual(none[1].tie, ["나", "다"]); // 동점은 그대로 남는다
+  const o = effectiveWinners(auto, { time: "다", distance: "" });
+  assert.deepEqual(o.map((x) => [x.winner, x.overridden, x.tie.length]), [[null, true, 0], ["다", true, 0], ["나", false, 0]]);
+  assert.equal(awardConflict(o, "time", "나"), "cadence"); // 나는 이미 케이던스 수상자
+  assert.equal(awardConflict(o, "time", "라"), null);
+  assert.equal(awardConflict(o, "cadence", "나"), null); // 자기 부문은 충돌이 아니다
 });

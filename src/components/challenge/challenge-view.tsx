@@ -3,7 +3,7 @@ import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import ActivityForm from "@/components/challenge/activity-form";
 import ChallengeBoard from "@/components/challenge/challenge-board";
 import { claimPaidAction, deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
-import { getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
+import { getAwards, getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
   CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst, fmtBib, fmtTicket,
   parseRules, defaultRulesText, fillRules, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
@@ -17,7 +17,7 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
   const now = nowKst();
   const phase = currentPhase(cfg, now);
   const ecfg = effectiveCfg(cfg); // 기록 기간을 보는 곳(순위·판정·입력)에는 테스트 모드에서 넓힌 설정을 쓴다
-  const [members, acts, places, raffle] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), getRaffle(block.id)]);
+  const [members, acts, places, raffle, awardsRec] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), getRaffle(block.id), getAwards(block.id)]);
   const mine = members.find((m) => m.nick === nick);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
   const boardNicks = cfg.testMode ? members.map((m) => m.nick) : paidNicks; // 테스트 모드에서는 입금 확인 전 신청자도 순위에 넣는다
@@ -26,7 +26,8 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
   const myActs = acts.filter((a) => a.nick === nick);
   const wonTickets = new Set((raffle?.winners ?? []).map((w) => w.ticket)); // 당첨된 번호는 내 기록의 번호 공에 테두리를 둘러 알린다
   const raffleOn = (cfg.raffle?.length ?? 0) > 0;
-  const awards = canShowWinners(cfg, now, phase) ? awardWinners(buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places })) : null;
+  // 시상 결과는 운영진이 확정한 뒤에만 보인다(확정할 때 고정한 값)
+  const awards = awardsRec.confirmed ? CATEGORIES.map((c) => ({ category: c, winner: awardsRec.snapshot?.[c] ?? null })) : null;
   const showBoard = phase === "running" || phase === "closed";
 
   return (
@@ -80,8 +81,7 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
             {awards.map((x) => (
               <div key={x.category} className="ch-win">
                 <dt>{CATEGORY_LABEL[x.category]}</dt>
-                <dd>{x.winner ?? (x.tie.length ? `동점 (${x.tie.join(", ")}) — 운영진이 정해요` : "해당자 없음")}
-                  {x.provisional && <span className="ch-note font-normal"> · 앞 부문 동점 정리 후 확정</span>}</dd>
+                <dd>{x.winner ?? "해당자 없음"}</dd>
               </div>
             ))}
           </dl>

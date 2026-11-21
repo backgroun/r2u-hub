@@ -2,10 +2,11 @@ import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import MoneyInput from "@/components/money-input";
 import RecordSlider from "@/components/challenge/record-slider";
-import { drawRaffleAction, resetChallengeDataAction, saveChallengeConfigAction, setChallengeTestAction, setPaidAction } from "@/app/challenge-actions";
-import { getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
+import RulesEditor from "@/components/challenge/rules-editor";
+import { confirmAwardsAction, drawRaffleAction, replaceAwardAction, unconfirmAwardsAction, resetChallengeDataAction, saveChallengeRulesAction, setChallengeTestAction, setPaidAction } from "@/app/challenge-actions";
+import { getAwards, getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, currentPhase, fmtTicket, RULES_TOKENS, defaultRulesText, effectiveCfg, fmtBib, fmtDate, fmtDur, fmtPace, judge, nowKst,
+  CATEGORY_LABEL, IMG_KINDS, effectiveWinners, formatValue, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, currentPhase, fmtTicket, RULES_TOKENS, defaultRulesText, effectiveCfg, fmtBib, fmtDate, fmtDur, fmtPace, judge, nowKst,
   type ChallengeConfig, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -17,13 +18,20 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
   const cfg = block.challenge as ChallengeConfig;
   const phase = currentPhase(cfg, nowKst());
   const ecfg = effectiveCfg(cfg); // 기록 기간을 보는 판정·순위에는 테스트 모드에서 넓힌 설정을 쓴다
-  const [members, acts, places, raffle] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), getRaffle(block.id)]);
+  const [members, acts, places, raffle, awardsRec] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), getRaffle(block.id), getAwards(block.id)]);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
   const boardNicks = cfg.testMode ? members.map((m) => m.nick) : paidNicks; // 테스트 모드에서는 입금 확인 전 신청자도 순위에 넣는다
   const eligibleTickets = acts.filter((a) => a.ticket != null && (cfg.testMode || paidNicks.includes(a.nick))).length;
   const raffleReady = phase === "closed" || cfg.testMode;
+  // 참가자별로 발급된 행운 번호(추첨 대상 여부와 당첨 표시용)
+  const ticketsByNick = new Map<string, number[]>();
+  for (const a of acts) if (a.ticket != null) ticketsByNick.set(a.nick, [...(ticketsByNick.get(a.nick) ?? []), a.ticket]);
+  const ticketRows = [...ticketsByNick.entries()].sort((x, y) => x[0].localeCompare(y[0])).map(([nick, list]) => ({ nick, list: list.sort((p, q) => p - q), ok: cfg.testMode || paidNicks.includes(nick) }));
+  const wonTickets = new Set((raffle?.winners ?? []).map((w) => w.ticket));
   const recent = [...acts].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-  const awards = awardWinners(buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places }));
+  const board = buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places });
+  const awards = effectiveWinners(awardWinners(board), awardsRec.overrides);
+  const awardsReady = phase === "closed" || cfg.testMode;
 
   return (
     <section className="grid gap-3">
@@ -63,27 +71,12 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
       </div>
 
       <details className="panel p-4">
-        <summary className="font-bold cursor-pointer">설정 (기간·회비·계좌·상품)</summary>
-        <ActionForm action={saveChallengeConfigAction} keep restoreOnError className="grid gap-2 pt-3">
+        <summary className="font-bold cursor-pointer">규정 안내</summary>
+        <ActionForm action={saveChallengeRulesAction} keep restoreOnError className="grid gap-3 pt-3">
           <input type="hidden" name="id" value={block.id} />
-          <p className="text-xs text-muted">일정은 모두 날짜와 시각(한국 시간)으로 정해요. 기록 시작·종료는 활동 시작 시각 기준이고, 각 마감은 그 시각까지 인정돼요. 규정은 신청 마감 전에 확정하세요. 신청이 시작된 뒤 바꾸면 분쟁이 생길 수 있어서 비밀번호 확인 후 저장되고, 기록으로 남아요.</p>
-          <div className="grid grid-cols-2 gap-2">
-            {([["signupStart", "신청 시작"], ["signupEnd", "신청 마감"], ["start", "기록 시작"], ["end", "기록 종료"]] as const).map(([k, l]) => (
-              <label key={k} className="field"><span className="label">{l}</span><input name={k} type="datetime-local" className="input" defaultValue={cfg[k]} required /></label>
-            ))}
-          </div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr 1.6fr 1fr" }}>
-            <label className="field min-w-0"><span className="label">회비(원)</span><MoneyInput name="fee" defaultValue={cfg.fee} required className="input min-w-0" /></label>
-            <label className="field min-w-0"><span className="label">은행</span><input name="bank" className="input min-w-0" defaultValue={cfg.bank.bank} /></label>
-            <label className="field min-w-0"><span className="label">계좌번호</span><input name="account" className="input min-w-0" defaultValue={cfg.bank.account} /></label>
-            <label className="field min-w-0"><span className="label">예금주</span><input name="holder" className="input min-w-0" defaultValue={cfg.bank.holder} /></label>
-          </div>
-          <label className="field"><span className="label">규정 안내 (참가자 화면의 ‘규정 한눈에 보기’)</span>
-            <textarea name="rulesText" className="input" rows={14} defaultValue={cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText()} />
-            <span className="text-xs text-muted">“## 제목” 줄이 묶음 제목, “1. ” 로 시작하면 번호 목록, 나머지 줄은 점 목록이에요. **굵게** 표시를 쓸 수 있어요. 일자·회비·계좌는 {RULES_TOKENS.join(" ")} 로 적으면 위에서 정한 값으로 자동 채워져요.</span></label>
-          <label className="field"><span className="label">추첨 상품 (한 줄에 하나 · 비우면 추첨 없음)</span><textarea name="raffle" className="input" rows={3} placeholder={"예: 치킨 쿠폰\n러닝 양말"} defaultValue={(cfg.raffle ?? []).join("\n")} /></label>
-          <label className="field"><span className="label">상품 예정 (한 줄에 하나)</span><textarea name="prizes" className="input" rows={5} defaultValue={cfg.prizes.join("\n")} /></label>
-          <div><ConfirmButton className="btn btn-primary" message={"챌린지 설정을 저장할까요?\n기간·회비·상품이 참가자 화면에 바로 반영돼요."}>저장</ConfirmButton></div>
+          <p className="text-xs text-muted">참가자 화면의 ‘규정 한눈에 보기’예요. 묶음마다 제목과 내용(한 줄에 하나)을 적으면 돼요. 일자·회비·계좌·상품은 위의 ‘자동 입력’ 버튼으로 넣으면 이벤트 블록 설정에서 정한 값으로 바로 채워져요. 기본 문구 그대로 두면 설정을 바꿀 때 같이 따라가요.</p>
+          <RulesEditor initialText={cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText()} defaultText={defaultRulesText()} />
+          <div><ConfirmButton className="btn btn-primary" message={"규정 안내를 저장할까요?\n참가자 화면에 바로 반영돼요."}>저장</ConfirmButton></div>
         </ActionForm>
       </details>
 
@@ -102,11 +95,21 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         </div>
       </details>
 
-      <details className="panel p-4" open={!!raffle}>
+      <details className="panel p-4" open>
         <summary className="font-bold cursor-pointer">경품 추첨 (번호 {eligibleTickets}장 · 상품 {(cfg.raffle ?? []).length}개)</summary>
         <div className="grid gap-3 pt-3">
           <p className="text-xs text-muted">기록을 올릴 때마다 행운 번호가 한 장씩 발급돼요. 추첨은 입금 확인된 참가자의 번호만 대상이고, 한 사람은 한 번만 당첨돼요.{!raffleReady && " 기록이 끝난 뒤에 추첨할 수 있어요."}</p>
-          {(cfg.raffle ?? []).length === 0 && <p className="text-sm">설정의 “추첨 상품”에 상품을 적어야 추첨할 수 있어요.</p>}
+          {(cfg.raffle ?? []).length === 0 && <p className="text-sm">이벤트 블록 설정의 “추첨 상품”에 상품을 적어야 추첨할 수 있어요.</p>}
+          {ticketRows.length === 0 ? <p className="text-sm text-muted">아직 발급된 행운 번호가 없어요.</p> : (
+            <ul className="grid gap-2" aria-label="참가자별 행운 번호">
+              {ticketRows.map((r) => (
+                <li key={r.nick} className="grid gap-1" style={r.ok ? undefined : { opacity: 0.5 }}>
+                  <span className="text-sm"><b>{r.nick}</b> <span className="text-xs text-muted">{r.list.length}장{r.ok ? "" : " · 입금 확인 전이라 추첨에서 빠져요"}</span></span>
+                  <ul className="ch-balls">{r.list.map((n) => <li key={n} className="ch-ball ch-ball-sm" data-c={n % 5} data-hit={wonTickets.has(n) ? "1" : undefined}>{fmtTicket(n)}</li>)}</ul>
+                </li>
+              ))}
+            </ul>
+          )}
           {raffle && (
             <ol className="grid gap-1 text-sm">
               {raffle.winners.map((w) => <li key={`${w.prize}-${w.ticket}`}><b>{w.prize}</b> · {w.nick} <span className="text-muted num">({fmtTicket(w.ticket)})</span></li>)}
@@ -152,15 +155,55 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         </div>
       </details>
 
-      <details className="panel p-4">
-        <summary className="font-bold cursor-pointer">결과 미리보기 (1인 1상)</summary>
-        <ul className="grid gap-1 pt-3 text-sm">
-          {awards.map((x) => (
-            <li key={x.category} className="flex gap-2"><span className="w-24 text-muted">{CATEGORY_LABEL[x.category]}</span>
-              <b>{x.winner ?? (x.tie.length ? `동점 (${x.tie.join(", ")}) — 운영진이 정해 주세요` : "해당자 없음")}</b>
-              {x.provisional && <span className="text-xs text-muted">앞 부문 동점 정리 후 확정</span>}</li>
-          ))}
-        </ul>
+      <details className="panel p-4" open>
+        <summary className="font-bold cursor-pointer">수상 결과 (확정·교체)</summary>
+        <div className="grid gap-3 pt-3">
+          <p className="text-sm">
+            {awardsRec.confirmed
+              ? <><span className="chip chip-confirmed">확정됨</span> <span className="text-xs text-muted">{awardsRec.confirmedAt ? when(awardsRec.confirmedAt) : ""} · {awardsRec.confirmedBy} · 참가자 화면에 공개 중</span></>
+              : <><span className="chip chip-warn">확정 전</span> <span className="text-xs text-muted">{awardsReady ? "" : "기록이 끝난 뒤에 확정할 수 있어요"}</span></>}
+          </p>
+          <ul className="grid gap-3">
+            {awards.map((x) => {
+              const rest = board[x.category].filter((e) => e.rank >= 2 && e.rank <= 10);
+              return (
+                <li key={x.category} className="grid gap-1.5 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <b className="text-sm">{CATEGORY_LABEL[x.category]}</b>
+                    <span className="font-bold">{x.winner ?? (x.tie.length ? `동점 · ${x.tie.join(", ")}` : "해당자 없음")}</span>
+                    {x.overridden && <span className="chip">교체됨</span>}
+                  </div>
+                  {(x.tie.length > 0 || x.overridden) && (
+                    <ActionForm action={replaceAwardAction} keep className="flex items-center gap-2">
+                      <input type="hidden" name="id" value={block.id} /><input type="hidden" name="category" value={x.category} />
+                      <select name="nick" aria-label={`${CATEGORY_LABEL[x.category]} 수상자 교체`} className="input min-w-0 flex-1 py-1.5 text-sm" style={{ width: "auto" }} defaultValue={x.winner ?? ""}>
+                        <option value="" disabled>참가자 선택</option>
+                        {members.map((m) => <option key={m.nick} value={m.nick}>{m.nick}</option>)}
+                      </select>
+                      <Submit className="btn text-sm px-3 py-1.5 shrink-0" pendingText="…">교체</Submit>
+                    </ActionForm>
+                  )}
+                  {rest.length > 0 && (
+                    <ol className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted" aria-label={`${CATEGORY_LABEL[x.category]} 2~10위`}>
+                      {rest.map((e) => <li key={e.nick} className="flex justify-between gap-2"><span className="truncate"><span className="num">{e.rank}위</span> {e.nick}</span><span className="num shrink-0">{formatValue(x.category, e.value)}</span></li>)}
+                    </ol>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {awardsRec.confirmed ? (
+            <ActionForm action={unconfirmAwardsAction} keep className="flex">
+              <input type="hidden" name="id" value={block.id} />
+              <ConfirmButton className="btn btn-danger" message={"확정을 취소할까요?\n참가자 화면에서 수상 결과가 다시 숨겨져요."}>확정 취소</ConfirmButton>
+            </ActionForm>
+          ) : (
+            <ActionForm action={confirmAwardsAction} keep className="flex">
+              <input type="hidden" name="id" value={block.id} />
+              <ConfirmButton className="btn btn-primary" message={"수상 결과를 확정할까요?\n지금 결과가 고정되어 참가자 화면에 공개돼요."}>수상 결과 확정</ConfirmButton>
+            </ActionForm>
+          )}
+        </div>
       </details>
     </section>
   );

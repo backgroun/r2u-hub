@@ -1,6 +1,6 @@
 import "server-only";
 import { redis } from "@/lib/hub";
-import { IMG_KINDS, claimUnique, pickBib, pickTicket, type Activity, type Appeal, type ChallengeMember, type ImgKind, type LogEntry, type Raffle } from "@/lib/challenge/rules";
+import { IMG_KINDS, claimUnique, pickBib, pickTicket, type Activity, type AwardsRecord, type Appeal, type ChallengeMember, type ImgKind, type LogEntry, type Raffle } from "@/lib/challenge/rules";
 
 /* 챌린지 저장소: 블록 하나당 r2u:chal:{blockId}:* 키들. 해시 하나에 항목을 JSON으로 넣는 기존 방식과 같다. */
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
@@ -71,6 +71,12 @@ export async function claimTicket(blockId: string, owner: string, used: Set<numb
 export async function claimBib(blockId: string, owner: string, used: Set<number>, randInt: (n: number) => number) {
   return claimUnique(() => pickBib(used, randInt), async (n) => (await redis.hsetnx(k(blockId, "bibs"), String(n), owner)) === 1, (n) => used.add(n));
 }
+export async function getAwards(blockId: string): Promise<AwardsRecord> {
+  const v = await redis.get(k(blockId, "awards"));
+  const r = v ? parse<AwardsRecord>(v) : null;
+  return r ? { ...r, overrides: r.overrides ?? {} } : { confirmed: false, overrides: {} };
+}
+export const saveAwards = (blockId: string, r: AwardsRecord) => redis.set(k(blockId, "awards"), JSON.stringify(r));
 export const saveRaffle = (blockId: string, r: Raffle) => redis.set(k(blockId, "raffle"), JSON.stringify(r));
 
 /* ---------- 판정·처리 로그 (지우지 않는다) ---------- */
@@ -85,6 +91,6 @@ export async function purgeChallenge(blockId: string) {
   const acts = await all<Activity>(k(blockId, ACTS));
   const tx = redis.multi();
   for (const a of acts) for (const kind of IMG_KINDS) tx.del(imgKey(blockId, a.id, kind));
-  tx.del(k(blockId, MEMBERS), k(blockId, ACTS), k(blockId, PLACES), k(blockId, APPEALS), k(blockId, LOG), k(blockId, "ticket-seq"), k(blockId, "bib-seq"), k(blockId, "tickets"), k(blockId, "bibs"), k(blockId, "raffle"));
+  tx.del(k(blockId, MEMBERS), k(blockId, ACTS), k(blockId, PLACES), k(blockId, APPEALS), k(blockId, LOG), k(blockId, "ticket-seq"), k(blockId, "bib-seq"), k(blockId, "tickets"), k(blockId, "bibs"), k(blockId, "raffle"), k(blockId, "awards"));
   await tx.exec();
 }

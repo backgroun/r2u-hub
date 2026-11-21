@@ -6,9 +6,9 @@ import { currentUser, newId } from "@/lib/hub";
 import { isConfirmed, CONFIRM_REQUIRED } from "@/lib/confirm-token";
 import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-blocks";
 import {
-  addLog, delImage, getActRec, getMemberRec, claimBib, claimTicket, listActs, listMembers, purgeChallenge, saveRaffle, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
+  addLog, delImage, getActRec, getMemberRec, claimBib, claimTicket, getAwards, listActs, listMembers, listPlaceMap, saveAwards, purgeChallenge, saveRaffle, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, drawRaffle, fmtBib, fmtTicket, nowKst, parseDuration, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, currentPhase, effectiveCfg, CATEGORIES, CATEGORY_LABEL, awardConflict, awardWinners, buildBoard, defaultRulesText, drawRaffle, effectiveWinners, fmtBib, fmtTicket, nowKst, parseDuration, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -244,13 +244,10 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
     prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
     spendNote: "", // 회비 사용 내역은 더 이상 입력하지 않는다
     raffle: String(fd.get("raffle") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 20),
-    rulesText: "", // 아래에서 기본 글과 비교해 채운다
+    rulesText: b.challenge?.rulesText ?? "", // 규정 글은 규정 설정(saveChallengeRulesAction)에서만 바꾼다
     // 테스트 모드 설정은 이 폼이 건드리지 않는다
     testMode: b.challenge?.testMode === true, testPhase: b.challenge?.testPhase ?? "",
   };
-  // 규정 안내 글: 기본 글과 같으면 비워 둔다(그래야 기간·회비를 바꿀 때 기본 글이 같이 바뀐다)
-  const rulesInput = String(fd.get("rulesText") ?? "").replace(/\r\n?/g, "\n").trim().slice(0, 4000);
-  cfg.rulesText = rulesInput === defaultRulesText() ? "" : rulesInput;
   const bad = validateConfig(cfg);
   if (bad) return fail(bad);
   const note = configDiff(b.challenge as ChallengeConfig, cfg);
@@ -258,6 +255,86 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
   await addLog(b.id, { by: u.nick, action: "config", target: b.title, note });
   revalidatePath("/", "layout");
   return ok("챌린지 설정을 저장했어요.");
+}
+
+/** 규정 안내 글 저장(규정 한눈에 보기). 기본 글과 같으면 비워 둔다 — 그래야 기간·회비를 바꿀 때 기본 글이 같이 따라간다. */
+export async function saveChallengeRulesAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  if (!(await isConfirmed(fd.get("confirmToken")))) return fail(CONFIRM_REQUIRED);
+  const b = await challengeBlock(str(fd, "id", 20));
+  const input = String(fd.get("rulesText") ?? "").replace(/\r\n?/g, "\n").trim().slice(0, 4000);
+  const rulesText = input === defaultRulesText() ? "" : input;
+  const cur = b.challenge as ChallengeConfig;
+  if ((cur.rulesText ?? "") === rulesText) return ok("바뀐 내용이 없어요.");
+  await setChallengeConfig(b.id, { ...cur, rulesText });
+  await addLog(b.id, { by: u.nick, action: "rules", target: b.title, note: rulesText ? "규정 안내 글 수정" : "기본 규정 문구로 되돌림" });
+  revalidatePath("/", "layout");
+  return ok("규정 안내를 저장했어요.");
+}
+
+/* ---------- 수상 확정·교체 ---------- */
+/** 지금 기준의 최종 수상자(자동 시상 + 운영진이 직접 정한 값) */
+async function liveAwards(b: { id: string; challenge?: ChallengeConfig }) {
+  const cfg = b.challenge as ChallengeConfig;
+  const [members, acts, places, rec] = await Promise.all([listMembers(b.id), listActs(b.id), listPlaceMap(b.id), getAwards(b.id)]);
+  const nicks = (cfg.testMode ? members : members.filter((m) => m.paid)).map((m) => m.nick); // 순위와 같은 기준
+  const auto = awardWinners(buildBoard(acts, nicks, effectiveCfg(cfg), { verifiedOnly: false, places }));
+  return { members, rec, list: effectiveWinners(auto, rec.overrides) };
+}
+
+/** 부문 수상자 교체: nick = 참가자 닉네임 · "__none" = 해당자 없음 · "__auto" = 자동 결정으로 되돌림. 확정된 뒤에도 바꿀 수 있다(공개된 결과가 같이 바뀐다). */
+export async function replaceAwardAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  const b = await challengeBlock(str(fd, "id", 20));
+  const category = str(fd, "category", 10) as (typeof CATEGORIES)[number];
+  if (!CATEGORIES.includes(category)) return fail("부문을 찾을 수 없어요.");
+  const pick = str(fd, "nick", 30);
+  if (!pick) return fail("참가자를 골라 주세요.");
+  const { members, rec, list } = await liveAwards(b);
+  const overrides = { ...rec.overrides };
+  let value: string | null | undefined; // undefined = 자동으로 되돌림
+  if (pick === "__auto") { delete overrides[category]; value = undefined; }
+  else if (pick === "__none") { overrides[category] = ""; value = null; }
+  else {
+    if (!members.some((m) => m.nick === pick)) return fail("참가자만 수상자로 정할 수 있어요.");
+    const clash = awardConflict(list, category, pick);
+    if (clash) return fail(`${pick}님은 이미 ‘${CATEGORY_LABEL[clash]}’ 수상자예요. 1인 1상이라 그 부문을 먼저 바꿔 주세요.`);
+    overrides[category] = pick; value = pick;
+  }
+  const next = { ...rec, overrides, ...(rec.confirmed ? { snapshot: { ...(rec.snapshot ?? {}), ...(value === undefined ? { [category]: list.find((x) => x.category === category)?.winner ?? null } : { [category]: value }) } } : {}) };
+  await saveAwards(b.id, next);
+  await addLog(b.id, { by: u.nick, action: "award-replace", target: CATEGORY_LABEL[category], note: pick === "__auto" ? "자동 결정으로 되돌림" : pick === "__none" ? "해당자 없음" : pick });
+  revalidatePath("/", "layout");
+  return ok("수상자를 바꿨어요.");
+}
+
+/** 수상 결과 확정: 지금 결과를 그대로 고정해 참가자 화면에 공개한다. 동점이 남아 있으면 먼저 교체로 정해야 한다. */
+export async function confirmAwardsAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  if (!(await isConfirmed(fd.get("confirmToken")))) return fail(CONFIRM_REQUIRED);
+  const b = await challengeBlock(str(fd, "id", 20));
+  const cfg = b.challenge as ChallengeConfig;
+  if (currentPhase(cfg, nowKst()) !== "closed" && !cfg.testMode) return fail("기록이 끝난 뒤에 확정할 수 있어요.");
+  const { rec, list } = await liveAwards(b);
+  const tied = list.filter((x) => x.winner === null && x.tie.length > 0);
+  if (tied.length) return fail(`동점인 부문이 있어요: ${tied.map((x) => CATEGORY_LABEL[x.category]).join(", ")}. 교체에서 수상자를 정해 주세요.`);
+  const snapshot = Object.fromEntries(list.map((x) => [x.category, x.winner]));
+  await saveAwards(b.id, { ...rec, confirmed: true, confirmedAt: Date.now(), confirmedBy: u.nick, snapshot });
+  await addLog(b.id, { by: u.nick, action: "award-confirm", target: b.title, note: list.map((x) => `${CATEGORY_LABEL[x.category]}→${x.winner ?? "없음"}`).join(" / ") });
+  revalidatePath("/", "layout");
+  return ok("수상 결과를 확정했어요. 참가자 화면에 공개돼요.");
+}
+
+/** 확정 취소: 참가자 화면에서 수상 결과가 다시 숨겨진다(교체해 둔 값은 남는다). */
+export async function unconfirmAwardsAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await staff();
+  if (!(await isConfirmed(fd.get("confirmToken")))) return fail(CONFIRM_REQUIRED);
+  const b = await challengeBlock(str(fd, "id", 20));
+  const rec = await getAwards(b.id);
+  await saveAwards(b.id, { ...rec, confirmed: false, confirmedAt: undefined, confirmedBy: undefined, snapshot: undefined });
+  await addLog(b.id, { by: u.nick, action: "award-unconfirm", target: b.title });
+  revalidatePath("/", "layout");
+  return ok("확정을 취소했어요.");
 }
 
 /* ---------- 테스트 모드 (운영진 전용) ---------- */

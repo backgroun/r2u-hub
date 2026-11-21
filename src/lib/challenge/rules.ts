@@ -502,3 +502,38 @@ export async function claimUnique(pick: () => number, tryClaim: (n: number) => P
   }
   throw new Error("번호를 확보하지 못했어요. 다시 시도해 주세요.");
 }
+
+/** 묶음 목록 → 규정 글 (parseRules 의 반대). 번호 목록은 1. 2. 3. 번호를 붙여 쓴다. */
+export function sectionsToText(sections: RulesSection[]): string {
+  const lines: string[] = [];
+  for (const sec of sections) {
+    if (sec.title.trim()) lines.push(`## ${sec.title.trim()}`);
+    sec.items.forEach((it, i) => { const t = it.trim(); if (t) lines.push(sec.ordered ? `${i + 1}. ${t}` : t); });
+  }
+  return lines.join("\n");
+}
+
+/* ---------- 수상 확정·교체 ---------- */
+/** 운영진이 정한 수상 결과: overrides = 부문별로 직접 정한 수상자(""은 해당자 없음). 확정하면 그 시점 결과를 snapshot에 고정해 참가자에게 공개한다. */
+export type AwardsRecord = {
+  confirmed: boolean; confirmedAt?: number; confirmedBy?: string;
+  overrides: Partial<Record<Category, string>>;
+  snapshot?: Partial<Record<Category, string | null>>;
+};
+export type EffectiveAward = { category: Category; winner: string | null; tie: string[]; overridden: boolean; provisional: boolean };
+
+/** 자동 시상(awardWinners)에 운영진이 직접 정한 값(overrides)을 얹은 최종 수상자 */
+export function effectiveWinners(auto: Award[], overrides: AwardsRecord["overrides"]): EffectiveAward[] {
+  return auto.map((a) => {
+    if (Object.hasOwn(overrides, a.category)) {
+      const v = overrides[a.category] as string;
+      return { category: a.category, winner: v || null, tie: [], overridden: true, provisional: false };
+    }
+    return { category: a.category, winner: a.winner, tie: a.tie, overridden: false, provisional: a.provisional };
+  });
+}
+
+/** 한 사람이 두 부문에서 이기면 안 된다(1인 1상): 그 사람이 이미 이기고 있는 다른 부문을 돌려준다 */
+export function awardConflict(list: EffectiveAward[], category: Category, nick: string): Category | null {
+  return list.find((x) => x.category !== category && x.winner === nick)?.category ?? null;
+}

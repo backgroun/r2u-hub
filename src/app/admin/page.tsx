@@ -21,6 +21,8 @@ import RaceForm from "@/components/race-form";
 import GroupbuyStaff from "@/components/groupbuy-staff";
 import PasswordInput from "@/components/password-input";
 import ChallengeAdmin from "@/components/challenge/challenge-admin";
+import ChallengeSettings from "@/components/challenge/challenge-settings";
+import { DEFAULT_CONFIG } from "@/lib/challenge/rules";
 import BingoReviewCard from "@/components/bingo-review-card";
 import RosterSelect from "@/components/roster-select";
 import AdminMemberRow from "@/components/admin-member-row";
@@ -849,6 +851,12 @@ async function Events() {
                   <form action={removeEventBlock}><input type="hidden" name="id" value={b.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
                 </div>
               </div>
+              {b.type === "challenge" && b.challenge && (
+                <details className="rounded-lg border border-[var(--line)] p-3">
+                  <summary className="font-bold cursor-pointer text-sm">일정·회비·계좌·상품 설정</summary>
+                  <div className="pt-3"><ChallengeSettings block={b} /></div>
+                </details>
+              )}
               </div>
             );
           })}
@@ -863,7 +871,7 @@ async function Events() {
       <details className="panel p-4">
         <summary className="font-bold cursor-pointer">+ 이벤트 블록 만들기</summary>
         <ActionForm action={createEventBlock} className="grid gap-3 pt-3" collapse>
-          <EventBlockFields nowYm={nowYm} accounts={savedAccounts} />
+          <EventBlockFields nowYm={nowYm} accounts={savedAccounts} defaults={{ signupStart: DEFAULT_CONFIG.signupStart, signupEnd: DEFAULT_CONFIG.signupEnd, start: DEFAULT_CONFIG.start, end: DEFAULT_CONFIG.end, fee: DEFAULT_CONFIG.fee }} />
         </ActionForm>
         {/* 빙고 운영: 오픈/종료일·하루 인증 횟수 (안내 제목은 더 이상 입력하지 않는다) */}
         <div className="grid gap-2 pt-3">

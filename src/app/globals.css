@@ -1758,3 +1758,6 @@ button.came-chip { cursor: pointer; }
 .ch-win-me { padding: 12px 14px; border-radius: 14px; font-weight: 800; background: var(--bib); color: var(--bib-ink); }
 @media (prefers-reduced-motion: reduce) { .ch-draw li { animation: none; } }
 .ch-ball-sm { flex: none; min-width: 40px; height: 28px; padding-inline: 6px; font-size: 11px; box-shadow: 0 3px 6px -3px color-mix(in srgb, var(--bc) 70%, transparent), inset 0 -2px 3px color-mix(in srgb, #000 22%, transparent); }
+.ch-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.ch-line .ch-title { font-size: 18px; }
+.ch-line .ch-period { margin-right: auto; }

@@ -12,7 +12,7 @@ import {
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
 /** 참가자용 챌린지 화면: 규정 → 신청 → 내 기록 → 순위 → 시상 */
-export default async function ChallengeView({ block, nick, staff }: { block: EventBlock; nick: string; staff: boolean }) {
+export default async function ChallengeView({ block, nick }: { block: EventBlock; nick: string; staff?: boolean }) {
   const cfg = block.challenge as ChallengeConfig;
   const now = nowKst();
   const phase = currentPhase(cfg, now);
@@ -31,7 +31,7 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
 
   return (
     <div className="grid gap-4">
-      <Hero title={block.title} cfg={cfg} phase={phase} now={now} staff={staff} />
+      <Hero title={block.title} cfg={cfg} phase={phase} now={now} />
 
       {cfg.testMode && (
         <p className="panel p-3 text-sm font-bold" style={{ background: "#fff4d6", color: "#5a4300" }}>🧪 테스트 모드 · 운영진에게만 보여요 · 단계: {PHASE_LABEL[phase]}</p>
@@ -109,16 +109,15 @@ function daysLeft(now: string, end: string) {
   return Math.round((d(end) - d(now)) / 86400000);
 }
 
-function Hero({ title, cfg, phase, now, staff }: { title: string; cfg: ChallengeConfig; phase: Phase; now: string; staff: boolean }) {
+function Hero({ title, cfg, phase, now }: { title: string; cfg: ChallengeConfig; phase: Phase; now: string }) {
   const left = phase === "running" ? daysLeft(now, cfg.end) : null;
   return (
     <section className="ch-hero">
-      <div className="ch-meta">
+      <div className="ch-line">
         <h1 className="ch-title">{title}</h1>
+        <span className="ch-period"><b>{fmtMdTime(cfg.start)}</b> ~ <b>{fmtMdTime(cfg.end)}</b>{left !== null && <span className="ch-dday"> · {left > 0 ? `종료까지 ${left}일` : "오늘 마감"}</span>}</span>
         <span className="ch-pill" data-live={phase === "running" ? "1" : undefined} data-quiet={phase === "closed" || phase === "soon" ? "1" : undefined}>{PHASE_LABEL[phase]}</span>
       </div>
-      <p className="ch-period"><b>{fmtMdTime(cfg.start)}</b> ~ <b>{fmtMdTime(cfg.end)}</b>{left !== null && <span className="ch-dday"> · {left > 0 ? `종료까지 ${left}일` : "오늘 마감"}</span>}</p>
-      {staff && <a href="/admin?tab=bingo" className="text-xs text-muted underline">운영진 관리 화면으로</a>}
     </section>
   );
 }

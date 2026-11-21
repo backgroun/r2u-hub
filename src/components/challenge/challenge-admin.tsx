@@ -8,7 +8,7 @@ import {
   type ChallengeConfig, type Phase,
 } from "@/lib/challenge/rules";
 
-const TEST_PHASES: Phase[] = ["signup", "ready", "running", "closed"];
+const TEST_PHASES: Phase[] = ["signup", "running", "closed"]; // 테스트에서 고정해 볼 단계 (날짜대로·시작 전은 뺐다)
 const when = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ");
 
 /** 운영진용 챌린지 관리: 설정 → 입금 → 올라온 기록 → 결과 미리보기 */
@@ -34,8 +34,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
             <summary className="cursor-pointer text-sm font-bold py-1" style={cfg.testMode ? { color: "#8a5a00" } : undefined}>🧪 테스트 {cfg.testMode ? "켜짐 · 운영진에게만 보여요" : "꺼짐"}</summary>
             <ActionForm action={setChallengeTestAction} keep className="flex items-stretch gap-2 pt-2">
               <input type="hidden" name="id" value={block.id} />
-              <select name="testPhase" aria-label="단계" className="input min-w-0 flex-[3] py-1.5 text-sm" style={{ width: "auto" }} defaultValue={cfg.testPhase}>
-                <option value="">단계: 날짜대로</option>
+              <select name="testPhase" aria-label="단계" className="input min-w-0 flex-[3] py-1.5 text-sm" style={{ width: "auto" }} defaultValue={TEST_PHASES.includes(cfg.testPhase as Phase) ? cfg.testPhase : "running"}>
                 {TEST_PHASES.map((p) => <option key={p} value={p}>단계: {PHASE_LABEL[p]}</option>)}
               </select>
               <select name="testMode" aria-label="테스트 모드" className="input min-w-0 flex-[2] py-1.5 text-sm" style={{ width: "auto" }} defaultValue={cfg.testMode ? "1" : "0"}>

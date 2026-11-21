@@ -27,7 +27,11 @@ export default function ChallengeSettings({ block }: { block: EventBlock }) {
             <label className="field min-w-0"><span className="label">계좌번호</span><input name="account" className="input min-w-0" defaultValue={cfg.bank.account} /></label>
             <label className="field min-w-0"><span className="label">예금주</span><input name="holder" className="input min-w-0" defaultValue={cfg.bank.holder} /></label>
           </div>
-          <label className="field w-40" title="0 = 제한 없음"><span className="label">하루 인증 횟수</span><input name="maxPerDay" type="number" min={0} max={50} inputMode="numeric" className="input" defaultValue={cfg.maxPerDay ?? 0} required /><span className="text-xs text-muted">0 = 제한 없음</span></label>
+          <div className="flex items-center gap-2">
+            <label htmlFor={`mpd-${block.id}`} className="label shrink-0 whitespace-nowrap">하루 인증 횟수</label>
+            <input id={`mpd-${block.id}`} name="maxPerDay" type="number" min={0} max={50} inputMode="numeric" className="input min-w-0 grow" defaultValue={cfg.maxPerDay ?? 0} required />
+            <span className="shrink-0 whitespace-nowrap text-xs text-muted">0 = 제한 없음</span>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <label className="field"><span className="label">상품 예정 (한 줄에 하나)</span><textarea name="prizes" className="input" rows={4} defaultValue={cfg.prizes.join("\n")} /></label>
             <label className="field"><span className="label">추첨 상품 (한 줄에 하나 · 비우면 추첨 없음)</span><textarea name="raffle" className="input" rows={4} placeholder={"예: 치킨 쿠폰\n러닝 양말"} defaultValue={(cfg.raffle ?? []).join("\n")} /></label>

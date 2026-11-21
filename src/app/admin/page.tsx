@@ -869,8 +869,10 @@ async function Events() {
         <div className="grid gap-2 border-t border-[var(--line)] pt-3">
           <h3 className="font-bold text-sm">이벤트 안내/기간/인증 횟수</h3>
           <ActionForm action={bingoInfo} keep className="event-info-form grid gap-2">
-            <label className="field"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
-            <label className="field"><span className="label">하루 최대 인증 횟수 (0 = 제한 없음, 최대 25)</span><input name="maxPerDay" type="number" min={0} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>
+            <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 9.5rem" }}>
+              <label className="field min-w-0"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
+              <label className="field" title="0 = 제한 없음, 최대 25"><span className="label">하루 인증 횟수 (0=무제한)</span><input name="maxPerDay" type="number" min={0} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>
+            </div>
             <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
               <label className="field"><span className="label">오픈일</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
               <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>

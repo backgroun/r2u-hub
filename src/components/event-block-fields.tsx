@@ -25,9 +25,10 @@ export default function EventBlockFields({ nowYm, accounts = [] }: { nowYm: stri
           </select></label>
         <label className="field"><span className="label">월</span><input name="ym" type="month" className="input" defaultValue={nowYm} required /></label>
       </div>
-      <div className="flex items-end gap-2">
-        <label className="field grow min-w-0"><span className="label">이벤트 이름</span><input name="title" className="input" maxLength={40} required placeholder="예: 11월 5×5 미션 빙고" /></label>
-        <Submit className="btn btn-primary shrink-0">블록 만들기</Submit>
+      <div className="flex items-center gap-2">
+        <label htmlFor="block-title" className="label shrink-0 whitespace-nowrap">이벤트 이름</label>
+        <input id="block-title" name="title" className="input grow min-w-0" maxLength={40} required placeholder="예: 11월 5×5 미션 빙고" />
+        <Submit className="btn btn-primary shrink-0 whitespace-nowrap">블록 만들기</Submit>
       </div>
       {kind === "poll" && (
         <>

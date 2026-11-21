@@ -30,16 +30,16 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         <details className="border-t border-[var(--line)] pt-2">
           <summary className="cursor-pointer text-sm font-bold" style={cfg.testMode ? { color: "#8a5a00" } : undefined}>🧪 테스트 {cfg.testMode ? "켜짐 · 운영진에게만 보여요" : "꺼짐"}</summary>
           <div className="grid gap-2 pt-2">
-            <ActionForm action={setChallengeTestAction} keep className="flex items-center gap-2 flex-wrap">
+            <ActionForm action={setChallengeTestAction} keep className="flex items-center gap-2">
               <input type="hidden" name="id" value={block.id} />
-              <select name="testPhase" aria-label="단계" className="input w-auto py-1.5 text-sm" defaultValue={cfg.testPhase}>
+              <select name="testPhase" aria-label="단계" className="input min-w-0 flex-1 py-1.5 text-sm" style={{ width: "auto" }} defaultValue={cfg.testPhase}>
                 <option value="">단계: 날짜대로</option>
                 {TEST_PHASES.map((p) => <option key={p} value={p}>단계: {PHASE_LABEL[p]}</option>)}
               </select>
-              <select name="testMode" aria-label="테스트 모드" className="input w-auto py-1.5 text-sm" defaultValue={cfg.testMode ? "1" : "0"}>
+              <select name="testMode" aria-label="테스트 모드" className="input min-w-0 flex-none py-1.5 text-sm" style={{ width: "auto" }} defaultValue={cfg.testMode ? "1" : "0"}>
                 <option value="1">켜기</option><option value="0">끄기</option>
               </select>
-              <Submit className="btn btn-primary text-sm py-1.5 px-3" pendingText="…">적용</Submit>
+              <Submit className="btn btn-primary shrink-0 text-sm py-1.5 px-3" pendingText="…">적용</Submit>
             </ActionForm>
             {cfg.testMode && (
               <ActionForm action={resetChallengeDataAction} keep className="flex">

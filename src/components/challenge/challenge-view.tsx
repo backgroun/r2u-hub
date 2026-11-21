@@ -193,7 +193,7 @@ function MyAct({ a, ecfg, blockId, now, canEdit, won }: { a: Activity; cfg: Chal
       <summary className="cursor-pointer text-sm num">
         <span className="flex min-w-0 items-center gap-2">
           {a.ticket != null && <span className="ch-ball ch-ball-sm" data-c={a.ticket % 5} data-hit={won ? "1" : undefined} aria-label={`행운 번호 ${fmtTicket(a.ticket)}`}>{fmtTicket(a.ticket)}</span>}
-          <span className="min-w-0"><b>{fmtDate(a.date)}</b> <span className="text-muted">· {rest}</span>{j.notes.length > 0 && <span className="text-[var(--bad)]"> ⚠</span>}</span>
+          <span className="min-w-0"><b>{fmtDate(a.date)}</b> <span className="text-muted">· {rest}</span>{j.notes.length > 0 && <span className="text-[var(--bad)]"> ⚠</span>}{a.cadence != null && <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>케이던스 최고</span>}{a.zone2Pct != null && a.zone2Pct >= RULE.zone2MinPct && <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>Zone 2 최고</span>}</span>
         </span>
       </summary>
       <div className="grid gap-2 pt-2">

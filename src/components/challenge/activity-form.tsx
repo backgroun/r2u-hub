@@ -7,6 +7,8 @@ import { useState } from "react";
 import { RULE, SURFACE_LABEL, fmtPace, paceSecOf, type Activity, type Surface } from "@/lib/challenge/rules";
 
 const SECTION = "rounded-lg border border-[var(--line)] p-3";
+/** 케이던스·Zone 2 는 가장 좋은 기록 한 번만 인증한다는 표시 */
+const BEST = <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>최고기록 1회 인증</span>;
 
 const SLOW = 600, FAST = 180; // 게이지 범위: km당 10:00(느림) ~ 3:00(빠름)
 
@@ -29,7 +31,7 @@ function PaceGauge({ pace }: { pace: number | null }) {
 }
 
 /** 기준에 못 미쳐 입력할 수 없는 선택 부문: 흐리게 보이고 입력칸은 아예 없다(저장할 때도 값이 가지 않는다). */
-function Locked({ title, reason }: { title: string; reason: string }) {
+function Locked({ title, reason }: { title: React.ReactNode; reason: string }) {
   return (
     <div className={SECTION} style={{ opacity: 0.55 }} aria-disabled="true">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm"><b>{title}</b><span className="text-xs text-muted">{reason}</span></div>
@@ -79,9 +81,9 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       </div>
       <PhotoField name="img_summary" label="활동 요약 캡처" required inline have={!!initial?.imgs.summary} />
 
-      {cadenceOff ? <Locked title="케이던스 부문" reason={`${RULE.cadenceMinKm}km 이상 달린 기록만 입력할 수 있어요`} /> : (
+      {cadenceOff ? <Locked title={<>케이던스 부문{BEST}</>} reason={`${RULE.cadenceMinKm}km 이상 달린 기록만 입력할 수 있어요`} /> : (
         <details className={SECTION} open={initial?.cadence != null}>
-          <summary className="font-bold cursor-pointer text-sm">케이던스 부문 (10km 이상 활동)</summary>
+          <summary className="font-bold cursor-pointer text-sm">케이던스 부문 (10km 이상 활동){BEST}</summary>
           <div className="grid gap-2 pt-2">
             <div className="grid grid-cols-2 items-start gap-3">
               <label className="field"><span className="label">평균 케이던스 (spm)</span>
@@ -94,7 +96,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       )}
 
       <details className={SECTION} open={initial?.zone2Pct != null}>
-        <summary className="font-bold cursor-pointer text-sm">Zone 2 부문 (80% 이상)</summary>
+        <summary className="font-bold cursor-pointer text-sm">Zone 2 부문 (80% 이상){BEST}</summary>
         <div className="grid gap-2 pt-2">
           <div className="grid grid-cols-2 items-start gap-3">
             <label className="field"><span className="label">Zone 2 체류 비율 (%)</span>

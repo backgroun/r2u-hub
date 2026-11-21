@@ -184,7 +184,7 @@ test("입력: 말이 안 되는 거리·시간·페이스를 막는다", () => {
   assert.match(check(raw({ distanceKm: null }), imgs()).msg, /거리/);
   assert.match(check(raw({ durationSec: 30 }), imgs()).msg, /시간/);
   assert.match(check(raw({ durationSec: 600 }), imgs()).msg, /너무 빨라/); // 2:00/km
-  assert.match(check(raw({ surface: "toString" }), imgs()).msg, /로드/);
+  assert.match(check(raw({ surface: "toString" }), imgs()).msg, /야외/);
 });
 
 test("입력: 케이던스는 값과 캡처가 짝이어야 한다", () => {

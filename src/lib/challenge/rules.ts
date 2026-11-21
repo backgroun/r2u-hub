@@ -13,7 +13,7 @@ export const RULE = {
 } as const;
 
 export type Surface = "road" | "treadmill" | "track";
-export const SURFACE_LABEL: Record<Surface, string> = { road: "로드", treadmill: "트레드밀", track: "트랙" };
+export const SURFACE_LABEL: Record<Surface, string> = { road: "야외", treadmill: "트레드밀", track: "트랙" }; // 입력에서는 야외·트레드밀만 고르고, 예전에 저장된 트랙 기록은 그대로 읽는다
 
 /** 부문 6개. 배열 순서가 시상 확정 순서다. */
 export const CATEGORIES = ["distance", "time", "cadence", "zone2", "place", "fiveK"] as const;
@@ -215,7 +215,7 @@ export function validateActivity(i: RawInput, img: ImgFlags, cfg: ChallengeConfi
   if (!inRange(i.durationSec, 60, 86400) || !Number.isInteger(i.durationSec)) return bad("시간을 확인해 주세요. (1분~24시간)");
   const durationSec = i.durationSec;
   if (paceSecOf(distanceKm, durationSec) < RULE.suspectPaceSec) return bad("평균 페이스가 너무 빨라요(2:30/km 미만). 거리와 시간을 다시 확인해 주세요.");
-  if (typeof i.surface !== "string" || !Object.hasOwn(SURFACE_LABEL, i.surface)) return bad("로드·트레드밀·트랙 중에서 골라 주세요.");
+  if (typeof i.surface !== "string" || !Object.hasOwn(SURFACE_LABEL, i.surface)) return bad("야외·트레드밀 중에서 골라 주세요.");
   const surface = i.surface as Surface;
 
   if (!img.summary) return bad("활동 요약 캡처를 올려 주세요. (날짜·거리·시간이 보여야 해요)");
@@ -377,7 +377,7 @@ export function defaultRulesText(): string {
     "기간은 {기록시작} ~ {기록종료}예요. 활동 **시작 시각** 기준이에요.",
     "모든 활동에는 **요약 캡처가 필수**예요. 편집한 캡처는 실격이고, 요청하면 원본을 내야 해요.",
     `평균 페이스 **km당 ${fmtPace(RULE.maxPaceSec)} 이내**만 인정해요. (Zone 2 부문은 예외)`,
-    "로드·트레드밀·트랙 모두 가능해요.",
+    "야외·트레드밀 모두 가능해요.",
     "## 🏆 부문 (1인 1상, 아래 순서로 확정)",
     "1. **거리**: 인정 거리 합계가 가장 긴 사람",
     "2. **최장시간**: 인정 시간 합계가 가장 긴 사람",

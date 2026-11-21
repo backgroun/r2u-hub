@@ -480,3 +480,14 @@ export function pickBib(used: Set<number>, randInt: (n: number) => number): numb
   for (let n = LOW + randInt(SIZE), k = 0; k < SIZE; k++, n = n + 1 >= LOW + SIZE ? LOW : n + 1) if (!used.has(n)) return n;
   throw new Error("배번이 모두 쓰였어요.");
 }
+
+/** 행운 번호 뽑기: 1000~9999 중 안 쓴 번호를 무작위로. 다 쓰였으면 5자리(10000~99999)에서 뽑는다. */
+export function pickTicket(used: Set<number>, randInt: (n: number) => number): number {
+  const LOW = 1000, SIZE = 9000;
+  let free = 0; for (const n of used) if (n >= LOW && n < LOW + SIZE) free++;
+  if (free < SIZE) {
+    for (let i = 0; i < 50; i++) { const n = LOW + randInt(SIZE); if (!used.has(n)) return n; }
+    for (let n = LOW + randInt(SIZE), k = 0; k < SIZE; k++, n = n + 1 >= LOW + SIZE ? LOW : n + 1) if (!used.has(n)) return n;
+  }
+  return pickBib(used, randInt);
+}

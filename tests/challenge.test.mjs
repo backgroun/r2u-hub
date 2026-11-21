@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib, pickBib,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib, pickBib, pickTicket,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -485,4 +485,15 @@ test("배번 뽑기: 5자리 범위 안, 이미 쓴 번호는 피한다", () => 
   const almost = new Set(); for (let n = 10000; n < 100000; n++) if (n !== 54321) almost.add(n);
   assert.equal(pickBib(almost, () => 0), 54321);
   assert.throws(() => pickBib(new Set(Array.from({ length: 90000 }, (_, i) => 10000 + i)), () => 0));
+});
+
+test("행운 번호 뽑기: 4자리 무작위, 겹치지 않고 다 쓰이면 5자리", () => {
+  assert.equal(pickTicket(new Set(), () => 0), 1000);
+  assert.equal(pickTicket(new Set(), (n) => n - 1), 9999);
+  const used = new Set();
+  for (let i = 0; i < 400; i++) { const t = pickTicket(used, (n) => Math.floor(Math.random() * n)); assert.ok(t >= 1000 && t <= 9999); assert.ok(!used.has(t)); used.add(t); }
+  const full = new Set(Array.from({ length: 9000 }, (_, i) => 1000 + i));
+  const big = pickTicket(full, () => 0);
+  assert.ok(big >= 10000 && big <= 99999);
+  assert.equal(fmtTicket(1234), "1234");
 });

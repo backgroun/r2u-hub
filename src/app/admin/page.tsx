@@ -784,39 +784,9 @@ async function Events() {
   const monthOf = (b: { id: string; ym: string }) => activeYmOf(b.id) ?? b.ym;
   const hasBingo = shown.some((b) => b.type === "bingo"); // 빙고 전용 패널(인증 확인·명단·기간)은 보관함 밖에 빙고 블록이 있을 때만 보인다
   const months = [...new Set(shown.map(monthOf))].sort().reverse();
-  return (
-    <section className="grid gap-3">
-      {months.map((ym) => (
-        <div key={ym} className="panel p-4 grid gap-2">
-          <h3 className="font-bold">{ym.slice(0, 4)}년 {Number(ym.slice(5))}월 {ym === nowYm && <span className="chip chip-open">이번 달</span>}</h3>
-          {shown.filter((b) => monthOf(b) === ym).map((b) => {
-            const on = active[ym] === b.id;
-            return (
-              <div key={b.id} className="grid gap-2 border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 grid">
-                  <span className="font-bold truncate">{b.title} {on && <span className="chip chip-confirmed">본문에 세팅됨</span>}</span>
-                  <span className="text-xs text-muted truncate">{BLOCK_TYPES[b.type]}{b.poll ? ` · ${b.poll.question}` : ""}</span>
-                </div>
-                <div className="ml-auto flex gap-1.5 shrink-0">
-                  <form action={activateEventBlock}>
-                    <input type="hidden" name="id" value={b.id} /><input type="hidden" name="ym" value={ym} />
-                    {on ? <><input type="hidden" name="off" value="1" /><button className="btn text-xs py-1 px-2.5">내리기</button></> : <button className="btn btn-primary text-xs py-1 px-2.5">본문에 세팅</button>}
-                  </form>
-                  <form action={archiveEventBlock}><input type="hidden" name="id" value={b.id} /><button className="btn btn-ghost text-xs py-1 px-2">보관함으로</button></form>
-                  <form action={removeEventBlock}><input type="hidden" name="id" value={b.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
-                </div>
-              </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
-
-      {shown.filter((b) => b.type === "challenge" && b.challenge).map((b) => <ChallengeAdmin key={b.id} block={b} />)}
-
-      {hasBingo && (
-        <>
+  // 빙고 전용 관리 내용(인증 확인·명단·사진 정리·기간): 보관함 밖에 빙고가 있으면 본문 아래, 없으면 가장 최근 보관된 빙고 안에 같이 담는다
+  const bingoPanels = (
+    <>
       {/* 인증 확인: 크루원이 올린 인증(사진)을 날짜별로 보고, 잘못된 건 댓글로 알려 준다 (댓글을 달면 그 사람에게 푸시 알림) */}
       <details id="verify" className="panel p-4" open>
         <summary className="font-bold cursor-pointer">인증 확인 ({review.total}건)</summary>
@@ -849,8 +819,55 @@ async function Events() {
           </ActionForm>
         </div>
       </details>
-        </>
-      )}
+
+      {/* 빙고 운영: 예전에는 빙고 화면 안의 ‘운영진 모드’에서만 가능했던 설정을 허브에서 바로 */}
+      <details className="panel p-4">
+        <summary className="font-bold cursor-pointer">이벤트 안내/기간/인증 횟수</summary>
+        <ActionForm action={bingoInfo} keep className="event-info-form grid gap-2 pt-2">
+          <label className="field"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
+          <label className="field"><span className="label">하루 최대 인증 횟수 (0 = 제한 없음, 최대 25)</span><input name="maxPerDay" type="number" min={0} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>
+          <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
+            <label className="field"><span className="label">오픈일</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
+            <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>
+            <Submit className="btn btn-primary" confirm="이벤트 안내·기간을 바꿀까요?">저장</Submit>
+          </div>
+        </ActionForm>
+      </details>
+    </>
+  );
+  const bingoOwnerId = hasBingo ? undefined : archived.find((x) => x.type === "bingo")?.id;
+  return (
+    <section className="grid gap-3">
+      {months.map((ym) => (
+        <div key={ym} className="panel p-4 grid gap-2">
+          <h3 className="font-bold">{ym.slice(0, 4)}년 {Number(ym.slice(5))}월 {ym === nowYm && <span className="chip chip-open">이번 달</span>}</h3>
+          {shown.filter((b) => monthOf(b) === ym).map((b) => {
+            const on = active[ym] === b.id;
+            return (
+              <div key={b.id} className="grid gap-2 border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 grid">
+                  <span className="font-bold truncate">{b.title} {on && <span className="chip chip-confirmed">본문에 세팅됨</span>}</span>
+                  <span className="text-xs text-muted truncate">{BLOCK_TYPES[b.type]}{b.poll ? ` · ${b.poll.question}` : ""}</span>
+                </div>
+                <div className="ml-auto flex gap-1.5 shrink-0">
+                  <form action={activateEventBlock}>
+                    <input type="hidden" name="id" value={b.id} /><input type="hidden" name="ym" value={ym} />
+                    {on ? <><input type="hidden" name="off" value="1" /><button className="btn text-xs py-1 px-2.5">내리기</button></> : <button className="btn btn-primary text-xs py-1 px-2.5">본문에 세팅</button>}
+                  </form>
+                  <form action={archiveEventBlock}><input type="hidden" name="id" value={b.id} /><button className="btn btn-ghost text-xs py-1 px-2">보관함으로</button></form>
+                  <form action={removeEventBlock}><input type="hidden" name="id" value={b.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
+                </div>
+              </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+
+      {shown.filter((b) => b.type === "challenge" && b.challenge).map((b) => <ChallengeAdmin key={b.id} block={b} />)}
+
+      {hasBingo && bingoPanels}
 
       {/* 평소에는 접어 두고, 새 블록을 만들 때만 펼친다 (만들면 자동으로 다시 접힌다) */}
       <details className="panel p-4">
@@ -874,23 +891,6 @@ async function Events() {
         </ActionForm>
       </details>
 
-      {hasBingo && (
-        <>
-      {/* 빙고 운영: 예전에는 빙고 화면 안의 ‘운영진 모드’에서만 가능했던 설정을 허브에서 바로 */}
-      <details className="panel p-4">
-        <summary className="font-bold cursor-pointer">이벤트 안내/기간/인증 횟수</summary>
-        <ActionForm action={bingoInfo} keep className="event-info-form grid gap-2 pt-2">
-          <label className="field"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
-          <label className="field"><span className="label">하루 최대 인증 횟수 (0 = 제한 없음, 최대 25)</span><input name="maxPerDay" type="number" min={0} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>
-          <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
-            <label className="field"><span className="label">오픈일</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
-            <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>
-            <Submit className="btn btn-primary" confirm="이벤트 안내·기간을 바꿀까요?">저장</Submit>
-          </div>
-        </ActionForm>
-      </details>
-        </>
-      )}
 
       {archived.length > 0 && (
         <details className="panel p-4">
@@ -898,7 +898,8 @@ async function Events() {
           <p className="text-sm text-muted pt-2">진행이 끝난 이벤트와 직접 보관한 이벤트를 모아 둬요. 다시 쓰려면 ‘이번 달 본문에 세팅’을 누르세요.</p>
           <div className="grid gap-2 pt-2">
             {archived.map((b) => (
-              <div key={b.id} className="flex items-center gap-2 border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
+              <div key={b.id} className="grid gap-2 border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
+              <div className="flex items-center gap-2">
                 <div className="min-w-0 grid">
                   <span className="font-bold truncate">{b.title} {activeYmOf(b.id) && <span className="chip chip-confirmed">본문에 세팅됨</span>}</span>
                   <span className="text-xs text-muted truncate">{b.ym.slice(0, 4)}년 {Number(b.ym.slice(5))}월 · {BLOCK_TYPES[b.type]}{b.poll ? ` · ${b.poll.question}` : ""}</span>
@@ -913,6 +914,19 @@ async function Events() {
                   {b.archived && <form action={archiveEventBlock}><input type="hidden" name="id" value={b.id} /><input type="hidden" name="restore" value="1" /><button className="btn btn-ghost text-xs py-1 px-2">보관 해제</button></form>}
                   <form action={removeEventBlock}><input type="hidden" name="id" value={b.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
                 </div>
+              </div>
+              {b.type === "challenge" && b.challenge && (
+                <details className="rounded-lg border border-[var(--line)] p-3">
+                  <summary className="font-bold cursor-pointer text-sm">이 이벤트의 관리 내용 (신청·기록·결과)</summary>
+                  <div className="pt-3"><ChallengeAdmin block={b} /></div>
+                </details>
+              )}
+              {b.id === bingoOwnerId && (
+                <details className="rounded-lg border border-[var(--line)] p-3">
+                  <summary className="font-bold cursor-pointer text-sm">이 이벤트의 관리 내용 (인증 확인·명단·기간)</summary>
+                  <div className="grid gap-3 pt-3">{bingoPanels}</div>
+                </details>
+              )}
               </div>
             ))}
           </div>

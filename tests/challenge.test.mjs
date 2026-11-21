@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib, pickBib,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -470,4 +470,19 @@ test("대회 배번: 5자리로 표기", () => {
   assert.equal(fmtBib(10001), "10001");
   assert.equal(fmtBib(7), "00007");
   assert.equal(fmtBib(10001).length, 5);
+});
+
+test("배번 뽑기: 5자리 범위 안, 이미 쓴 번호는 피한다", () => {
+  const seq = (vals) => { let i = 0; return (n) => vals[i++ % vals.length] % n; };
+  assert.equal(pickBib(new Set(), () => 0), 10000);
+  assert.equal(pickBib(new Set(), (n) => n - 1), 99999);
+  // 처음 뽑은 번호가 이미 쓰였으면 다음 후보를 쓴다
+  assert.equal(pickBib(new Set([10005]), seq([5, 7])), 10007);
+  // 진짜 난수로도 항상 5자리, 겹치지 않는다
+  const used = new Set();
+  for (let i = 0; i < 500; i++) { const b = pickBib(used, (n) => Math.floor(Math.random() * n)); assert.ok(b >= 10000 && b <= 99999); assert.ok(!used.has(b)); used.add(b); }
+  // 거의 다 찼을 때도 남은 번호를 찾는다
+  const almost = new Set(); for (let n = 10000; n < 100000; n++) if (n !== 54321) almost.add(n);
+  assert.equal(pickBib(almost, () => 0), 54321);
+  assert.throws(() => pickBib(new Set(Array.from({ length: 90000 }, (_, i) => 10000 + i)), () => 0));
 });

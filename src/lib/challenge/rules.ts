@@ -470,3 +470,13 @@ export function drawRaffle(tickets: { ticket: number; nick: string }[], prizes: 
 
 /** 대회 배번: 5자리로 채운다 (10001 → "10001") */
 export const fmtBib = (n: number): string => String(n).padStart(5, "0");
+
+/** 배번 뽑기: 10000~99999 중 아직 안 쓴 번호를 무작위로 하나 고른다. randInt(n)은 0~n-1 정수. */
+export function pickBib(used: Set<number>, randInt: (n: number) => number): number {
+  const LOW = 10000, SIZE = 90000;
+  if (used.size >= SIZE) throw new Error("배번이 모두 쓰였어요.");
+  for (let i = 0; i < 50; i++) { const n = LOW + randInt(SIZE); if (!used.has(n)) return n; }
+  // 거의 다 찼을 때: 처음 빈 번호부터 찾는다
+  for (let n = LOW + randInt(SIZE), k = 0; k < SIZE; k++, n = n + 1 >= LOW + SIZE ? LOW : n + 1) if (!used.has(n)) return n;
+  throw new Error("배번이 모두 쓰였어요.");
+}

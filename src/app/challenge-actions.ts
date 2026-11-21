@@ -6,9 +6,9 @@ import { currentUser, newId } from "@/lib/hub";
 import { isConfirmed, CONFIRM_REQUIRED } from "@/lib/confirm-token";
 import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-blocks";
 import {
-  addLog, delImage, getActRec, getMemberRec, listActs, listMembers, nextBib, nextTicket, purgeChallenge, saveRaffle, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
+  addLog, delImage, getActRec, getMemberRec, listActs, listMembers, nextTicket, purgeChallenge, saveRaffle, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, drawRaffle, fmtBib, fmtTicket, nowKst, parseDuration, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, drawRaffle, fmtBib, fmtTicket, nowKst, parseDuration, pickBib, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -41,7 +41,9 @@ export async function joinChallengeAction(_: Result, fd: FormData): Promise<Resu
   if (currentPhase(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 아니에요.");
   if (await getMemberRec(live.block.id, u.nick)) return fail("이미 신청했어요.");
   const now = Date.now();
-  const bib = await nextBib(live.block.id);
+  // 배번: 순서대로가 아니라 아직 안 쓴 5자리 번호를 무작위로 뽑는다
+  const used = new Set((await listMembers(live.block.id)).flatMap((m) => (m.bib != null ? [m.bib] : [])));
+  const bib = pickBib(used, (n) => randomInt(n));
   await saveMemberRec(live.block.id, { nick: u.nick, appliedAt: now, agreedAt: now, paid: false, bib });
   await addLog(live.block.id, { by: u.nick, action: "join", target: u.nick });
   refresh();

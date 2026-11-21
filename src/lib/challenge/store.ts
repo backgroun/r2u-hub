@@ -61,8 +61,6 @@ export const saveAppeal = (blockId: string, a: Appeal) => redis.hset(k(blockId, 
 
 /* ---------- 경품 추첨: 행운 번호(블록별 1부터 이어지는 번호)와 추첨 결과 ---------- */
 export const nextTicket = (blockId: string) => redis.incr(k(blockId, "ticket-seq"));
-/** 대회 배번: 신청 순서대로 10001, 10002, … (5자리) */
-export const nextBib = async (blockId: string) => 10000 + (await redis.incr(k(blockId, "bib-seq")));
 export async function getRaffle(blockId: string) {
   const v = await redis.get(k(blockId, "raffle"));
   return v ? parse<Raffle>(v) : null;

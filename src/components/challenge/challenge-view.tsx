@@ -29,12 +29,12 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
 
   return (
     <div className="grid gap-4">
+      <Hero title={block.title} cfg={cfg} phase={phase} now={now} staff={staff} />
+
       {cfg.testMode && (
         <p className="panel p-3 text-sm font-bold" style={{ background: "#fff4d6", color: "#5a4300" }}>🧪 테스트 모드 · 운영진에게만 보여요 · 단계: {PHASE_LABEL[phase]}</p>
       )}
       {showBoard && <ChallengeBoard me={nick} tabs={CATEGORIES.map((c) => ({ key: c, label: CATEGORY_LABEL[c], rows: board[c].map((e) => ({ nick: e.nick, rank: e.rank, value: formatValue(c, e.value) })) }))} />}
-
-      <Hero title={block.title} cfg={cfg} phase={phase} now={now} staff={staff} />
 
       <SignupPanel blockId={block.id} cfg={cfg} phase={phase} mine={mine} />
 

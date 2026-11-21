@@ -25,29 +25,25 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
     <section className="grid gap-3">
       <div className="panel p-4 grid gap-2">
         <h2 className="font-bold">{block.title} <span className="chip chip-open">{PHASE_LABEL[phase]}</span></h2>
-        {cfg.testMode && <p className="text-sm font-bold" style={{ color: "#8a5a00" }}>🧪 테스트 모드 켜짐 — 운영진에게만 보여요</p>}
         <p className="text-sm text-muted">신청 {members.length}명 · 입금 확인 {paidNicks.length}명 · 기록 {acts.length}건</p>
-        <details className="border-t border-[var(--line)] pt-2" open={cfg.testMode}>
-          <summary className="font-bold cursor-pointer text-sm">🧪 테스트 모드 {cfg.testMode ? "(켜짐)" : "(꺼짐)"}</summary>
-          <div className="grid gap-3 pt-3">
-            <p className="text-xs text-muted">켜면 크루원에게는 이 챌린지가 보이지 않고, 운영진만 날짜와 상관없이 전 과정을 써 볼 수 있어요. 단계를 고정하면 기록 기간 밖의 날짜로도 올릴 수 있고, 기록은 검수 없이 바로 승인돼요. 끝나면 ‘테스트 데이터 모두 지우기’로 정리하세요.</p>
-            <ActionForm action={setChallengeTestAction} keep className="flex items-end gap-2 flex-wrap">
+        <details className="border-t border-[var(--line)] pt-2">
+          <summary className="cursor-pointer text-sm font-bold" style={cfg.testMode ? { color: "#8a5a00" } : undefined}>🧪 테스트 {cfg.testMode ? "켜짐 · 운영진에게만 보여요" : "꺼짐"}</summary>
+          <div className="grid gap-2 pt-2">
+            <ActionForm action={setChallengeTestAction} keep className="flex items-center gap-2 flex-wrap">
               <input type="hidden" name="id" value={block.id} />
-              <label className="field"><span className="label">단계</span>
-                <select name="testPhase" className="input" defaultValue={cfg.testPhase}>
-                  <option value="">날짜대로(자동)</option>
-                  {TEST_PHASES.map((p) => <option key={p} value={p}>{PHASE_LABEL[p]}</option>)}
-                </select></label>
-              <label className="field"><span className="label">테스트 모드</span>
-                <select name="testMode" className="input" defaultValue={cfg.testMode ? "1" : "0"}>
-                  <option value="1">켜기</option><option value="0">끄기</option>
-                </select></label>
-              <Submit className="btn btn-primary" pendingText="저장 중…">적용</Submit>
+              <select name="testPhase" aria-label="단계" className="input w-auto py-1.5 text-sm" defaultValue={cfg.testPhase}>
+                <option value="">단계: 날짜대로</option>
+                {TEST_PHASES.map((p) => <option key={p} value={p}>단계: {PHASE_LABEL[p]}</option>)}
+              </select>
+              <select name="testMode" aria-label="테스트 모드" className="input w-auto py-1.5 text-sm" defaultValue={cfg.testMode ? "1" : "0"}>
+                <option value="1">켜기</option><option value="0">끄기</option>
+              </select>
+              <Submit className="btn btn-primary text-sm py-1.5 px-3" pendingText="…">적용</Submit>
             </ActionForm>
             {cfg.testMode && (
               <ActionForm action={resetChallengeDataAction} keep className="flex">
                 <input type="hidden" name="id" value={block.id} />
-                <ConfirmButton className="btn btn-ghost btn-danger" message={`신청 ${members.length}명 · 기록 ${acts.length}건을 모두 지울까요?\n되돌릴 수 없어요.`}>테스트 데이터 모두 지우기</ConfirmButton>
+                <ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2" message={`신청 ${members.length}명 · 기록 ${acts.length}건을 모두 지울까요?\n되돌릴 수 없어요.`}>테스트 데이터 지우기</ConfirmButton>
               </ActionForm>
             )}
           </div>

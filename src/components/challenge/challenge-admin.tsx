@@ -27,12 +27,12 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
       <div className="panel p-4 grid gap-2">
         <h2 className="font-bold">{block.title} <span className="chip chip-open">{PHASE_LABEL[phase]}</span></h2>
         <p className="text-sm text-muted">신청 {members.length}명 · 입금 확인 {paidNicks.length}명 · 기록 {acts.length}건</p>
-        <details className="border-t border-[var(--line)] pt-2">
-          <summary className="cursor-pointer text-sm font-bold" style={cfg.testMode ? { color: "#8a5a00" } : undefined}>🧪 테스트 {cfg.testMode ? "켜짐 · 운영진에게만 보여요" : "꺼짐"}</summary>
-          <div className="grid gap-2 pt-2">
-            <ActionForm action={setChallengeTestAction} keep className="flex items-center gap-2">
+        <div className="flex items-start gap-2 border-t border-[var(--line)] pt-2">
+          <details className="grow min-w-0">
+            <summary className="cursor-pointer text-sm font-bold py-1" style={cfg.testMode ? { color: "#8a5a00" } : undefined}>🧪 테스트 {cfg.testMode ? "켜짐 · 운영진에게만 보여요" : "꺼짐"}</summary>
+            <ActionForm action={setChallengeTestAction} keep className="flex items-center gap-2 pt-2">
               <input type="hidden" name="id" value={block.id} />
-              <select name="testPhase" aria-label="단계" className="input min-w-0 flex-1 py-1.5 text-sm" style={{ width: "auto" }} defaultValue={cfg.testPhase}>
+              <select name="testPhase" aria-label="단계" className="input min-w-0 flex-none py-1.5 text-sm" style={{ width: "auto" }} defaultValue={cfg.testPhase}>
                 <option value="">단계: 날짜대로</option>
                 {TEST_PHASES.map((p) => <option key={p} value={p}>단계: {PHASE_LABEL[p]}</option>)}
               </select>
@@ -41,14 +41,14 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
               </select>
               <Submit className="btn btn-primary shrink-0 text-sm py-1.5 px-3" pendingText="…">적용</Submit>
             </ActionForm>
-            {cfg.testMode && (
-              <ActionForm action={resetChallengeDataAction} keep className="flex">
-                <input type="hidden" name="id" value={block.id} />
-                <ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2" message={`신청 ${members.length}명 · 기록 ${acts.length}건을 모두 지울까요?\n되돌릴 수 없어요.`}>테스트 데이터 지우기</ConfirmButton>
-              </ActionForm>
-            )}
-          </div>
-        </details>
+          </details>
+          {cfg.testMode && (
+            <ActionForm action={resetChallengeDataAction} keep className="shrink-0">
+              <input type="hidden" name="id" value={block.id} />
+              <ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2" message={`신청 ${members.length}명 · 기록 ${acts.length}건을 모두 지울까요?\n되돌릴 수 없어요.`}>테스트 데이터 지우기</ConfirmButton>
+            </ActionForm>
+          )}
+        </div>
       </div>
 
       <details className="panel p-4">

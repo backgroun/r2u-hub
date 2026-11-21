@@ -1,7 +1,7 @@
 import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import { resetChallengeDataAction, saveChallengeConfigAction, setChallengeTestAction, setPaidAction } from "@/app/challenge-actions";
-import { listActs, listLog, listMembers, listPlaceMap } from "@/lib/challenge/store";
+import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
   CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, SURFACE_LABEL, awardWinners, buildBoard, currentPhase, effectiveCfg, fmtDur, fmtPace, judge, nowKst,
   type ChallengeConfig, type Phase,
@@ -10,12 +10,12 @@ import {
 const TEST_PHASES: Phase[] = ["signup", "ready", "running", "upload", "appeal", "closed"];
 const when = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ");
 
-/** 운영진용 챌린지 관리: 설정 → 입금 → 올라온 기록 → 결과 미리보기 → 로그 */
+/** 운영진용 챌린지 관리: 설정 → 입금 → 올라온 기록 → 결과 미리보기 */
 export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
   const cfg = block.challenge as ChallengeConfig;
   const phase = currentPhase(cfg, nowKst());
   const ecfg = effectiveCfg(cfg); // 기록 기간을 보는 판정·순위에는 테스트 모드에서 넓힌 설정을 쓴다
-  const [members, acts, places, log] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id), listLog(block.id)]);
+  const [members, acts, places] = await Promise.all([listMembers(block.id), listActs(block.id), listPlaceMap(block.id)]);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
   const boardNicks = cfg.testMode ? members.map((m) => m.nick) : paidNicks; // 테스트 모드에서는 입금 확인 전 신청자도 순위에 넣는다
   const recent = [...acts].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
@@ -124,14 +124,6 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
               <b>{x.winner ?? (x.tie.length ? `동점 (${x.tie.join(", ")}) — 운영진이 정해 주세요` : "해당자 없음")}</b>
               {x.provisional && <span className="text-xs text-muted">앞 부문 동점 정리 후 확정</span>}</li>
           ))}
-        </ul>
-      </details>
-
-      <details className="panel p-4">
-        <summary className="font-bold cursor-pointer">처리 기록 (최근 50건)</summary>
-        <ul className="grid gap-1 pt-3 text-xs text-muted">
-          {log.map((l, i) => <li key={i}>{when(l.at)} · {l.by} · {l.action} · {l.target}{l.note ? ` · ${l.note}` : ""}</li>)}
-          {log.length === 0 && <li>아직 기록이 없어요.</li>}
         </ul>
       </details>
     </section>

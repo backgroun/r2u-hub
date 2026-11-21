@@ -820,19 +820,6 @@ async function Events() {
         </div>
       </details>
 
-      {/* 빙고 운영: 예전에는 빙고 화면 안의 ‘운영진 모드’에서만 가능했던 설정을 허브에서 바로 */}
-      <details className="panel p-4">
-        <summary className="font-bold cursor-pointer">이벤트 안내/기간/인증 횟수</summary>
-        <ActionForm action={bingoInfo} keep className="event-info-form grid gap-2 pt-2">
-          <label className="field"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
-          <label className="field"><span className="label">하루 최대 인증 횟수 (0 = 제한 없음, 최대 25)</span><input name="maxPerDay" type="number" min={0} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>
-          <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
-            <label className="field"><span className="label">오픈일</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
-            <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>
-            <Submit className="btn btn-primary" confirm="이벤트 안내·기간을 바꿀까요?">저장</Submit>
-          </div>
-        </ActionForm>
-      </details>
     </>
   );
   const bingoOwnerId = hasBingo ? undefined : archived.find((x) => x.type === "bingo")?.id;
@@ -889,6 +876,19 @@ async function Events() {
           <label className="field"><span className="label">상품 예정 (챌린지일 때, 한 줄에 하나)</span><textarea name="prizes" className="input" rows={4} defaultValue={"넥워머\n카프슬리브\n오스무브 모자\n데카르트 장갑"} /></label>
           <div><Submit>블록 만들기</Submit></div>
         </ActionForm>
+        {/* 빙고 운영: 안내 제목·오픈/종료일·하루 인증 횟수 */}
+        <div className="grid gap-2 border-t border-[var(--line)] pt-3">
+          <h3 className="font-bold text-sm">빙고 안내/기간/인증 횟수</h3>
+          <ActionForm action={bingoInfo} keep className="event-info-form grid gap-2">
+            <label className="field"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
+            <label className="field"><span className="label">하루 최대 인증 횟수 (0 = 제한 없음, 최대 25)</span><input name="maxPerDay" type="number" min={0} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>
+            <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
+              <label className="field"><span className="label">오픈일</span><input name="start" type="date" className="input" defaultValue={start} required /></label>
+              <label className="field"><span className="label">종료일</span><input name="end" type="date" className="input" defaultValue={end} required /></label>
+              <Submit className="btn btn-primary" confirm="이벤트 안내·기간을 바꿀까요?">저장</Submit>
+            </div>
+          </ActionForm>
+        </div>
       </details>
 
 

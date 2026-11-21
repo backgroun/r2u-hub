@@ -3,14 +3,42 @@ import { ActionForm, Submit } from "@/components/action-form";
 import PhotoField from "@/components/challenge/photo-field";
 import KakaoPlaceField from "@/components/kakao-place-field";
 import { submitActivityAction } from "@/app/challenge-actions";
-import { SURFACE_LABEL, type Activity, type Surface } from "@/lib/challenge/rules";
+import { useState } from "react";
+import { RULE, SURFACE_LABEL, fmtPace, paceSecOf, type Activity, type Surface } from "@/lib/challenge/rules";
 
 const SECTION = "rounded-lg border border-[var(--line)] p-3";
+
+const SLOW = 600, FAST = 180; // 게이지 범위: km당 10:00(느림) ~ 3:00(빠름)
+
+/** 입력 중인 거리·시간으로 평균 페이스를 속도계처럼 보여 준다. 기준선(8:00/km) 안쪽이면 인정, 느리면 제외. */
+function PaceGauge({ pace }: { pace: number | null }) {
+  const ok = pace != null && pace <= RULE.maxPaceSec;
+  const pos = (sec: number) => `${Math.max(0, Math.min(1, (SLOW - sec) / (SLOW - FAST))) * 100}%`;
+  return (
+    <div className="ch-gauge" data-state={pace == null ? "idle" : ok ? "ok" : "slow"} aria-live="polite">
+      <div className="ch-gauge-bar" aria-hidden>
+        <i style={{ width: pace == null ? "0%" : pos(pace) }} />
+        <b style={{ left: pos(RULE.maxPaceSec) }} />
+        {pace != null && <em style={{ left: pos(pace) }} />}
+      </div>
+      <p className="ch-gauge-t">
+        {pace == null ? "거리와 시간을 적으면 평균 페이스가 여기 나와요" : <><b className="num">{fmtPace(pace)}</b>/km · {ok ? "인정 페이스!" : `${fmtPace(RULE.maxPaceSec)}보다 느려서 거리·시간 등에서 빠져요`}</>}
+      </p>
+    </div>
+  );
+}
 
 /** 기록 올리기·수정 폼. 활동 요약 캡처는 필수, 케이던스·Zone 2·장소는 해당할 때만 값과 캡처를 함께 채운다. */
 export default function ActivityForm({ blockId, start, end, now, initial }: { blockId: string; start: string; end: string; now: string; initial?: Activity }) {
   const max = now < end ? now : end; // 기록은 지금보다 미래일 수 없고 종료 시각을 넘을 수 없다
   const dur = initial?.durationSec ?? 0;
+  const [pace, setPace] = useState<number | null>(initial && initial.durationSec > 0 && initial.distanceKm > 0 ? paceSecOf(initial.distanceKm, initial.durationSec) : null);
+  // 거리·시간 칸에 글자를 넣을 때마다 평균 페이스를 다시 계산한다
+  const onPace = (e: React.FormEvent<HTMLDivElement>) => {
+    const q = (n: string) => (e.currentTarget.querySelector(`[name="${n}"]`) as HTMLInputElement | null)?.value ?? "";
+    const km = parseFloat(q("distanceKm").replace(",", ".")), sec = (Number(q("durH")) || 0) * 3600 + (Number(q("durM")) || 0) * 60;
+    setPace(km > 0 && sec >= 60 ? paceSecOf(km, sec) : null);
+  };
   return (
     <ActionForm action={submitActivityAction} keep={!!initial} restoreOnError className="grid gap-3">
       <input type="hidden" name="id" value={blockId} />
@@ -22,7 +50,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
           {(["road", "treadmill"] as Surface[]).map((k) => <option key={k} value={k}>{SURFACE_LABEL[k]}</option>)}
         </select>
       </div>
-      <div className="field">
+      <div className="field" onInput={onPace}>
         <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
           <label className="field min-w-0"><span className="label">거리 (km)</span>
             <input name="distanceKm" inputMode="decimal" className="input min-w-0" required placeholder="10.05" defaultValue={initial?.distanceKm ?? ""} /></label>
@@ -31,9 +59,9 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
           <label className="field min-w-0"><span className="label">시간 (분)</span>
             <input name="durM" type="number" min={0} max={59} inputMode="numeric" className="input min-w-0" placeholder="30" defaultValue={dur ? Math.floor((dur % 3600) / 60) : ""} /></label>
         </div>
-        <span className="text-xs text-muted">평균 페이스는 거리와 시간으로 자동 계산돼요.</span>
+        <PaceGauge pace={pace} />
       </div>
-      <PhotoField name="img_summary" label="활동 요약 캡처" required have={!!initial?.imgs.summary} />
+      <PhotoField name="img_summary" label="활동 요약 캡처" required inline have={!!initial?.imgs.summary} />
 
       <details className={SECTION} open={initial?.cadence != null}>
         <summary className="font-bold cursor-pointer text-sm">케이던스 부문 (10km 이상 활동)</summary>
@@ -73,7 +101,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
         </div>
       </details>
 
-      <div><Submit pendingText="올리는 중…">{initial ? "수정 저장" : "기록 올리기"}</Submit></div>
+      <div><Submit className="btn btn-primary ch-go w-full" pendingText="올리는 중…">{initial ? "수정 저장" : "기록 올리기 · 번호 받기"}</Submit></div>
     </ActionForm>
   );
 }

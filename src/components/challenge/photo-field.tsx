@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 const MAX = 450 * 1024; // rules.ts 의 RULE.imageMaxBytes 와 같은 값
 
 /** 캡처 1장 고르기: 브라우저에서 긴 변 1600px로 줄여 올린다(글씨가 읽히도록 사진 올리기보다 크게). 폼이 초기화되면 미리보기도 비운다. */
-export default function PhotoField({ name, label, hint, have, required }: { name: string; label: string; hint?: string; have?: boolean; required?: boolean }) {
+export default function PhotoField({ name, label, hint, have, required, inline }: { name: string; label: string; hint?: string; have?: boolean; required?: boolean; inline?: boolean /* 제목과 파일 선택을 한 줄에 */ }) {
   const pick = useRef<HTMLInputElement>(null);
   const out = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState("");
@@ -50,15 +50,15 @@ export default function PhotoField({ name, label, hint, have, required }: { name
   }
 
   return (
-    <div className="field">
-      <span className="label">{label}{required && <b className="text-[var(--bad)]"> *</b>}</span>
+    <div className={inline ? "flex flex-wrap items-center gap-x-2 gap-y-1" : "field"}>
+      <span className={inline ? "label shrink-0 whitespace-nowrap" : "label"}>{label}{required && <b className="text-[var(--bad)]"> *</b>}</span>
       <input ref={out} type="file" name={name} hidden />
-      <input ref={pick} type="file" accept="image/*" className="input" onChange={onPick} />
-      {hint && <span className="text-xs text-muted">{hint}</span>}
-      {preview && <img src={preview} alt={`${label} 미리보기`} className="mt-1 rounded-lg" style={{ maxHeight: 140, maxWidth: "100%" }} />}
-      {busy && <span className="text-xs text-muted">줄이는 중…</span>}
-      {msg && <span className="text-xs text-muted">{msg}</span>}
-      {have && !preview && <span className="text-xs text-muted">올려 둔 캡처가 있어요. 새로 고르면 바뀌어요.</span>}
+      <input ref={pick} type="file" accept="image/*" className={inline ? "input min-w-0 grow basis-0" : "input"} onChange={onPick} />
+      {hint && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>{hint}</span>}
+      {preview && <img src={preview} alt={`${label} 미리보기`} className={`mt-1 rounded-lg ${inline ? "basis-0" : ""}`} style={{ maxHeight: 140, maxWidth: "100%", ...(inline ? { flexBasis: "100%", objectFit: "contain", objectPosition: "left" } : {}) }} />}
+      {busy && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>줄이는 중…</span>}
+      {msg && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>{msg}</span>}
+      {have && !preview && <span className={`text-xs text-muted ${inline ? "basis-full" : ""}`}>올려 둔 캡처가 있어요. 새로 고르면 바뀌어요.</span>}
     </div>
   );
 }

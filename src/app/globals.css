@@ -1871,3 +1871,21 @@ button.came-chip { cursor: pointer; }
 .ch-slider:focus-visible { outline: 2px solid var(--lane); outline-offset: 2px; }
 .ch-slide { flex: 0 0 min(92%, 440px); scroll-snap-align: start; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--ink) 4%, transparent); min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .ch-slider { scroll-behavior: auto; } }
+
+/* ---------- 기록 올리기: 출발선 체크 무늬 · 페이스 게이지 · GO 버튼 ---------- */
+.ch-start { position: relative; padding-top: 22px; overflow: hidden; }
+.ch-start::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 8px; opacity: .9;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--ink) 88%, transparent) 0 25%, transparent 0 50%) 0 0 / 8px 8px; }
+.ch-gauge { display: grid; gap: 6px; padding-top: 2px; }
+.ch-gauge-bar { position: relative; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 10%, transparent);
+  background-image: repeating-linear-gradient(90deg, transparent 0 11px, color-mix(in srgb, var(--ink) 12%, transparent) 11px 12px); }
+.ch-gauge-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--good); transition: width .35s cubic-bezier(.22, 1, .36, 1), background-color .3s; }
+.ch-gauge[data-state="slow"] .ch-gauge-bar i { background: var(--warn); }
+.ch-gauge-bar b { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 2px; background: var(--ink); opacity: .7; }
+.ch-gauge-bar em { position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: #fff; border: 3px solid var(--good); box-shadow: 0 2px 6px color-mix(in srgb, #000 35%, transparent); transition: left .35s cubic-bezier(.22, 1, .36, 1), border-color .3s; }
+.ch-gauge[data-state="slow"] .ch-gauge-bar em { border-color: var(--warn); }
+.ch-gauge-t { margin: 0; font-size: 12px; color: var(--muted); }
+.ch-gauge[data-state="ok"] .ch-gauge-t { color: var(--good); font-weight: 700; }
+.ch-gauge[data-state="slow"] .ch-gauge-t { color: var(--warn); font-weight: 700; }
+.ch-go { min-height: 52px; font-size: 16px; letter-spacing: -0.01em; }
+@media (prefers-reduced-motion: reduce) { .ch-gauge-bar i, .ch-gauge-bar em { transition: none; } }

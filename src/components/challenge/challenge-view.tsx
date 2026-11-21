@@ -44,7 +44,7 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
       <SignupPanel blockId={block.id} cfg={cfg} phase={phase} mine={mine} />
 
       {mine && phase === "running" && (
-        <section className="ch-card">
+        <section className="ch-card ch-start">
           <h2 className="ch-h"><span className="flex items-center gap-2">기록 올리기 {mine.bib != null && <BibMini bib={mine.bib} />}</span> <small>{fmtMdTime(cfg.end)}까지{(cfg.maxPerDay ?? 0) > 0 ? ` · 하루 ${cfg.maxPerDay}번` : ""}</small></h2>
           <ActivityForm blockId={block.id} start={ecfg.start} end={ecfg.end} now={now} />
         </section>

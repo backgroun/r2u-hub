@@ -29,7 +29,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
           <label className="field"><span className="label">달린 시간 (시:분)</span>
             <input name="dur" inputMode="text" autoComplete="off" className="input min-w-0" required placeholder="예: 1:30" defaultValue={dur ? durationInput(dur) : ""} /></label>
         </div>
-        <span className="text-xs text-muted">시간은 한 칸에 적어요. (1:30 · 1시간 30분 · 90분이면 90) 평균 페이스는 거리와 시간으로 자동 계산돼요.</span>
+        <span className="text-xs text-muted">시간은 한 칸에 적어요. (예: 1:30) 평균 페이스는 거리와 시간으로 자동 계산돼요.</span>
       </div>
       <PhotoField name="img_summary" label="활동 요약 캡처" required hint="날짜·거리·시간이 보이는 화면이에요. 편집한 캡처는 실격이에요." have={!!initial?.imgs.summary} />
 

@@ -204,13 +204,26 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
 
 function MyAct({ a, ecfg, blockId, now, canEdit, won, five, bestCad, bestZ2 }: { a: Activity; cfg: ChallengeConfig; ecfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean; won: boolean; five: boolean; bestCad: boolean; bestZ2: boolean }) {
   const j = judge(a, ecfg);
-  const rest = [a.surface !== "road" ? SURFACE_LABEL[a.surface] : null, `${a.distanceKm.toFixed(2)}km`, fmtDur(a.durationSec), `${fmtPace(j.paceSec)}/km`, a.cadence != null ? `${a.cadence}spm` : null, a.zone2Pct != null ? `Z2 ${a.zone2Pct}%` : null, a.place].filter(Boolean).join(" · ");
+  // 줄 구성: 1줄 = 거리 · 시간 · 페이스(항상 한 줄), 2줄 = 부가 정보(종류·케이던스·Zone 2·장소)와 뱃지. 폭이 좁아도 같은 모양이 되도록 두 줄로 정해 둔다.
+  const extra = [a.surface !== "road" ? SURFACE_LABEL[a.surface] : null, a.cadence != null ? `${a.cadence}spm` : null, a.zone2Pct != null ? `Z2 ${a.zone2Pct}%` : null, a.place].filter(Boolean).join(" · ");
+  const tag = { fontSize: 10, padding: "1px 6px" } as const;
+  const hasLine2 = five || bestCad || bestZ2 || !!extra;
   return (
     <details className="panel ch-act px-3 py-2">
-      <summary className="cursor-pointer text-sm num">
-        <span className="flex min-w-0 items-center gap-2">
+      <summary className="cursor-pointer num">
+        <span className="flex min-w-0 flex-1 items-center gap-2.5">
           {a.ticket != null && <span className="ch-ball ch-ball-sm" data-c={a.ticket % 5} data-hit={won ? "1" : undefined} aria-label={`행운 번호 ${fmtTicket(a.ticket)}`}>{fmtTicket(a.ticket)}</span>}
-          <span className="min-w-0">{five && <span className="chip chip-confirmed mr-1" style={{ fontSize: 11 }}>5km 이상</span>}<span className="text-muted">{rest}</span>{j.notes.length > 0 && <span className="text-[var(--bad)]"> ⚠</span>}{bestCad && <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>케이던스 최고</span>}{bestZ2 && <span className="chip chip-open ml-1" style={{ fontSize: 11 }}>Zone 2 최고</span>}</span>
+          <span className="grid min-w-0 flex-1 gap-0.5">
+            <span className="truncate text-sm font-bold">{a.distanceKm.toFixed(2)}km · {fmtDur(a.durationSec)} · {fmtPace(j.paceSec)}/km{j.notes.length > 0 && <span className="text-[var(--bad)]"> ⚠</span>}</span>
+            {hasLine2 && (
+              <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted">
+                {five && <span className="chip chip-confirmed" style={tag}>5km 이상</span>}
+                {bestCad && <span className="chip chip-open" style={tag}>케이던스 최고</span>}
+                {bestZ2 && <span className="chip chip-open" style={tag}>Zone 2 최고</span>}
+                {extra && <span className="min-w-0 truncate">{extra}</span>}
+              </span>
+            )}
+          </span>
         </span>
       </summary>
       <div className="grid gap-2 pt-2">

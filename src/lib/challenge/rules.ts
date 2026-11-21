@@ -72,7 +72,7 @@ export const DEFAULT_CONFIG: ChallengeConfig = {
   bank: { bank: "", account: "", holder: "" },
   signupStart: "2026-11-24T09:00", signupEnd: "2026-11-30T23:59",
   start: "2026-12-01T00:00", end: "2026-12-18T23:59",
-  uploadEnd: "2026-12-20T23:59", appealEnd: "2026-12-22T23:59", finalAt: "2026-12-23T00:00",
+  uploadEnd: "2026-12-20T23:59", appealEnd: "2026-12-20T23:59", finalAt: "2026-12-20T23:59", // 이의 제기·최종 확정은 따로 두지 않고 업로드 마감과 같게 둔다
   prizes: ["넥워머", "카프슬리브", "오스무브 모자", "데카르트 장갑"],
   spendNote: "",
   testMode: false, testPhase: "",
@@ -104,8 +104,8 @@ export function validateConfig(c: ChallengeConfig): string | null {
   if (!(c.signupEnd < c.start)) return "신청 마감은 기록 시작보다 앞이어야 해요.";
   if (!(c.start <= c.end)) return "기록 시작이 종료보다 늦어요.";
   if (!(c.end < c.uploadEnd)) return "업로드 마감은 기록 종료보다 뒤여야 해요.";
-  if (!(c.uploadEnd < c.appealEnd)) return "이의 제기 마감은 업로드 마감보다 뒤여야 해요.";
-  if (!(c.appealEnd < c.finalAt)) return "최종 확정은 이의 제기 마감보다 뒤여야 해요.";
+  if (!(c.uploadEnd <= c.appealEnd)) return "이의 제기 마감은 업로드 마감보다 뒤여야 해요.";
+  if (!(c.appealEnd <= c.finalAt)) return "최종 확정은 이의 제기 마감보다 뒤여야 해요.";
   if (!Number.isInteger(c.fee) || c.fee < 0) return "회비를 확인해 주세요.";
   return null;
 }

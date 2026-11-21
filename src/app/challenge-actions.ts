@@ -185,11 +185,10 @@ function configDiff(a: ChallengeConfig, b: ChallengeConfig): string {
   const cmp = (name: string, x: string | number, y: string | number) => { if (x !== y) out.push(`${name} ${show(x)}→${show(y)}`); };
   cmp("신청시작", a.signupStart, b.signupStart); cmp("신청마감", a.signupEnd, b.signupEnd);
   cmp("기록시작", a.start, b.start); cmp("기록종료", a.end, b.end);
-  cmp("업로드마감", a.uploadEnd, b.uploadEnd); cmp("이의제기마감", a.appealEnd, b.appealEnd); cmp("최종확정", a.finalAt, b.finalAt);
+  cmp("업로드마감", a.uploadEnd, b.uploadEnd);
   cmp("회비", a.fee, b.fee);
   cmp("은행", a.bank.bank, b.bank.bank); cmp("계좌", a.bank.account, b.bank.account); cmp("예금주", a.bank.holder, b.bank.holder);
   cmp("상품", a.prizes.join(", "), b.prizes.join(", "));
-  if (a.spendNote !== b.spendNote) out.push("회비 사용 내역 변경");
   return out.length ? out.join(" / ") : "변경 없음";
 }
 
@@ -203,9 +202,9 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
     bank: { bank: str(fd, "bank", 20), account: str(fd, "account", 30), holder: str(fd, "holder", 20) },
     signupStart: str(fd, "signupStart", 16), signupEnd: str(fd, "signupEnd", 16),
     start: str(fd, "start", 16), end: str(fd, "end", 16),
-    uploadEnd: str(fd, "uploadEnd", 16), appealEnd: str(fd, "appealEnd", 16), finalAt: str(fd, "finalAt", 16),
+    uploadEnd: str(fd, "uploadEnd", 16), appealEnd: str(fd, "uploadEnd", 16), finalAt: str(fd, "uploadEnd", 16), // 업로드 마감이 지나면 바로 종료·시상
     prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
-    spendNote: str(fd, "spendNote", 500),
+    spendNote: "", // 회비 사용 내역은 더 이상 입력하지 않는다
     // 테스트 모드 설정은 이 폼이 건드리지 않는다
     testMode: b.challenge?.testMode === true, testPhase: b.challenge?.testPhase ?? "",
   };

@@ -1,5 +1,6 @@
 import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
+import MoneyInput from "@/components/money-input";
 import { resetChallengeDataAction, saveChallengeConfigAction, setChallengeTestAction, setPaidAction } from "@/app/challenge-actions";
 import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
@@ -56,10 +57,10 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
           <input type="hidden" name="id" value={block.id} />
           <p className="text-xs text-muted">일정은 모두 날짜와 시각(한국 시간)으로 정해요. 기록 시작·종료는 활동 시작 시각 기준이고, 각 마감은 그 시각까지 인정돼요. 규정은 신청 마감 전에 확정하세요. 신청이 시작된 뒤 바꾸면 분쟁이 생길 수 있어서 비밀번호 확인 후 저장되고, 기록으로 남아요.</p>
           <div className="grid grid-cols-2 gap-2">
-            {([["signupStart", "신청 시작"], ["signupEnd", "신청 마감"], ["start", "기록 시작"], ["end", "기록 종료"], ["uploadEnd", "업로드 마감"], ["appealEnd", "이의 제기 마감"], ["finalAt", "최종 확정"]] as const).map(([k, l]) => (
+            {([["signupStart", "신청 시작"], ["signupEnd", "신청 마감"], ["start", "기록 시작"], ["end", "기록 종료"], ["uploadEnd", "업로드 마감"]] as const).map(([k, l]) => (
               <label key={k} className="field"><span className="label">{l}</span><input name={k} type="datetime-local" className="input" defaultValue={cfg[k]} required /></label>
             ))}
-            <label className="field"><span className="label">회비(원)</span><input name="fee" type="number" min={0} className="input" defaultValue={cfg.fee} required /></label>
+            <label className="field"><span className="label">회비(원)</span><MoneyInput name="fee" defaultValue={cfg.fee} required /></label>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <label className="field"><span className="label">은행</span><input name="bank" className="input" defaultValue={cfg.bank.bank} /></label>
@@ -67,7 +68,6 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
             <label className="field"><span className="label">예금주</span><input name="holder" className="input" defaultValue={cfg.bank.holder} /></label>
           </div>
           <label className="field"><span className="label">상품 예정 (한 줄에 하나)</span><textarea name="prizes" className="input" rows={5} defaultValue={cfg.prizes.join("\n")} /></label>
-          <label className="field"><span className="label">회비 사용 내역 (참가자에게 공개)</span><textarea name="spendNote" className="input" rows={3} maxLength={500} defaultValue={cfg.spendNote} /></label>
           <div><ConfirmButton className="btn btn-primary" message={"챌린지 설정을 저장할까요?\n기간·회비·상품이 참가자 화면에 바로 반영돼요."}>저장</ConfirmButton></div>
         </ActionForm>
       </details>

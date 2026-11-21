@@ -2,11 +2,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  DEFAULT_CONFIG as cfg, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
+  DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
   currentPhase, effectiveCfg, canShowWinners,
 } from "../src/lib/challenge/rules.ts";
+
+// 단계·검증 시험은 이의 제기·확정 일정이 따로 있는 설정으로 본다
+const cfg = { ...DEFAULT_CONFIG, appealEnd: "2026-12-22T23:59", finalAt: "2026-12-23T00:00" };
 
 /** 테스트용 활동 (기본: 12/2 새벽 5km 25분 = 페이스 5:00) */
 const act = (o = {}) => {
@@ -56,13 +59,13 @@ test("날짜 더하기와 설정 검증", () => {
   assert.equal(validateConfig(cfg), null);
   assert.match(validateConfig({ ...cfg, signupEnd: "2026-12-01T00:00" }), /신청 마감/);
   assert.match(validateConfig({ ...cfg, uploadEnd: "2026-12-18T23:59" }), /업로드 마감/);
-  assert.match(validateConfig({ ...cfg, finalAt: "2026-12-22T23:59" }), /확정/);
+  assert.match(validateConfig({ ...cfg, finalAt: "2026-12-22T23:58" }), /확정/);
   assert.match(validateConfig({ ...cfg, start: "2026-13-01T00:00" }), /날짜/);
   assert.match(validateConfig({ ...cfg, start: "2026-12-01T25:00" }), /날짜/);
   assert.match(validateConfig({ ...cfg, start: "2026-12-01" }), /날짜/); // 시각이 없으면 거절
   assert.match(validateConfig({ ...cfg, signupStart: "2026-12-01T00:00", signupEnd: "2026-11-30T23:59" }), /신청 시작/);
   assert.match(validateConfig({ ...cfg, start: "2026-12-19T00:00", end: "2026-12-18T23:59", uploadEnd: "2026-12-20T23:59" }), /기록 시작/);
-  assert.match(validateConfig({ ...cfg, appealEnd: "2026-12-20T23:59" }), /이의 제기/);
+  assert.match(validateConfig({ ...cfg, appealEnd: "2026-12-20T23:58" }), /이의 제기/);
   assert.equal(validateConfig({ ...cfg, end: "2026-12-18T22:00", uploadEnd: "2026-12-18T22:01" }), null);
   assert.match(validateConfig({ ...cfg, fee: -1 }), /회비/);
 });
@@ -398,4 +401,13 @@ test("테스트 모드: 시상 공개 조건", () => {
   assert.equal(canShowWinners(cfg, "2026-12-25T00:00", "appeal"), false);
   assert.equal(canShowWinners(T, "2026-11-20T10:00", "closed"), true); // 테스트 모드는 날짜와 상관없이
   assert.equal(canShowWinners(T, "2026-11-20T10:00", "appeal"), false);
+});
+
+test("기본 설정: 이의 제기·최종 확정은 업로드 마감과 같아 마감 직후 종료된다", () => {
+  const d = DEFAULT_CONFIG;
+  assert.equal(d.appealEnd, d.uploadEnd);
+  assert.equal(d.finalAt, d.uploadEnd);
+  assert.equal(validateConfig(d), null);
+  assert.equal(phaseOf(d, "2026-12-20T23:59"), "upload");
+  assert.equal(phaseOf(d, "2026-12-21T00:00"), "closed");
 });

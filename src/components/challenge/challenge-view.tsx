@@ -168,7 +168,6 @@ function FeePanel({ cfg, paid }: { cfg: ChallengeConfig; paid: number }) {
       <h2 className="font-bold">회비와 상품</h2>
       <p>모인 회비 <b>{won(cfg.fee * paid)}</b> ({paid}명 입금 확인)</p>
       <p>상품(예정, 변경될 수 있어요): {cfg.prizes.join(" · ") || "곧 안내해요"}</p>
-      {cfg.spendNote && <p className="whitespace-pre-line text-muted">{cfg.spendNote}</p>}
     </section>
   );
 }
@@ -212,7 +211,7 @@ function RulesPanel({ cfg, open }: { cfg: ChallengeConfig; open: boolean }) {
           <b className={h}>💳 참가</b>
           <ul className="grid gap-1">
             <li className={li}>회비 {won(cfg.fee)} (환불 없음). 입금이 확인된 분만 순위에 들어가요.</li>
-            <li className={li}>일정: 신청 {fmtMdTime(cfg.signupStart)}~{fmtMdTime(cfg.signupEnd)} · 기록 수정 {fmtMdTime(cfg.uploadEnd)}까지 · 확정 {fmtMdTime(cfg.finalAt)}</li>
+            <li className={li}>일정: 신청 {fmtMdTime(cfg.signupStart)}~{fmtMdTime(cfg.signupEnd)} · 기록 수정·업로드 {fmtMdTime(cfg.uploadEnd)}까지</li>
           </ul>
         </div>
       </div>

@@ -4,7 +4,7 @@ import ActivityForm from "@/components/challenge/activity-form";
 import { deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
   parseRules, defaultRulesText, fillRules, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -49,7 +49,7 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
       )}
 
       {mine && myActs.length > 0 && (
-        <section className="grid gap-2">
+        <section className="grid gap-1.5">
           <h2 className="font-bold px-1">내 기록 {myActs.length}건</h2>
           {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} ecfg={ecfg} blockId={block.id} now={now} canEdit={live} />)}
         </section>
@@ -112,30 +112,30 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
 
 function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: ChallengeConfig; ecfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean }) {
   const j = judge(a, ecfg);
+  const rest = [`${a.distanceKm.toFixed(2)}km`, fmtDur(a.durationSec), `${fmtPace(j.paceSec)}/km`, a.cadence != null ? `${a.cadence}spm` : null, a.zone2Pct != null ? `Z2 ${a.zone2Pct}%` : null, a.place].filter(Boolean).join(" · ");
   return (
-    <div className="panel p-3 grid gap-2">
-      <div className="flex items-center gap-2">
-        <b className="num">{fmtDate(a.date)}</b>
-        <span className="ml-auto text-xs text-muted">{SURFACE_LABEL[a.surface]}</span>
-      </div>
-      <p className="text-sm num">{a.distanceKm.toFixed(2)}km · {fmtDur(a.durationSec)} · 평균 {fmtPace(j.paceSec)}/km{a.cadence != null ? ` · ${a.cadence}spm` : ""}{a.zone2Pct != null ? ` · Zone 2 ${a.zone2Pct}%` : ""}{a.place ? ` · ${a.place}` : ""}</p>
-      {j.notes.map((n) => <p key={n} className="text-xs text-[var(--bad)]">{n}</p>)}
-      <div className="flex gap-2 flex-wrap">
-        {IMG_KINDS.filter((k) => a.imgs[k]).map((k) => (
-          <a key={k} href={`/api/challenge/${blockId}/${a.id}/${k}?v=${a.updatedAt}`} target="_blank" rel="noreferrer" className="text-xs underline">{IMG_LABEL[k]} 캡처</a>
-        ))}
-      </div>
-      {canEdit && (
-        <div className="flex gap-2 items-start">
-          <details className="grow"><summary className="btn btn-ghost text-sm cursor-pointer inline-flex">수정</summary>
-            <div className="pt-3"><ActivityForm blockId={blockId} start={ecfg.start} end={ecfg.end} now={now} initial={a} /></div></details>
-          <form action={deleteActivityAction}>
-            <input type="hidden" name="id" value={blockId} /><input type="hidden" name="actId" value={a.id} />
-            <ConfirmButton message={"이 기록을 삭제할까요?\n되돌릴 수 없어요."}>삭제</ConfirmButton>
-          </form>
+    <details className="panel px-3 py-2">
+      <summary className="cursor-pointer text-sm num">
+        <span className="min-w-0"><b>{fmtDate(a.date)}</b> <span className="text-muted">· {rest}</span>{j.notes.length > 0 && <span className="text-[var(--bad)]"> ⚠</span>}</span>
+      </summary>
+      <div className="grid gap-2 pt-2">
+        {j.notes.map((n) => <p key={n} className="text-xs text-[var(--bad)]">{n}</p>)}
+        <div className="flex gap-2 flex-wrap">
+          {IMG_KINDS.filter((k) => a.imgs[k]).map((k) => (
+            <a key={k} href={`/api/challenge/${blockId}/${a.id}/${k}?v=${a.updatedAt}`} target="_blank" rel="noreferrer" className="text-xs underline">{IMG_LABEL[k]} 캡처</a>
+          ))}
         </div>
-      )}
-    </div>
+        {canEdit && (
+          <>
+            <ActivityForm blockId={blockId} start={ecfg.start} end={ecfg.end} now={now} initial={a} />
+            <form action={deleteActivityAction}>
+              <input type="hidden" name="id" value={blockId} /><input type="hidden" name="actId" value={a.id} />
+              <ConfirmButton message={"이 기록을 삭제할까요?\n되돌릴 수 없어요."}>이 기록 삭제</ConfirmButton>
+            </form>
+          </>
+        )}
+      </div>
+    </details>
   );
 }
 

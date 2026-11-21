@@ -1873,9 +1873,9 @@ button.came-chip { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .ch-slider { scroll-behavior: auto; } }
 
 /* ---------- 기록 올리기: 출발선 체크 무늬 · 페이스 게이지 · GO 버튼 ---------- */
-.ch-start { position: relative; padding-top: 22px; overflow: hidden; }
-.ch-start::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 8px; opacity: .9;
-  background: repeating-conic-gradient(color-mix(in srgb, var(--ink) 88%, transparent) 0 25%, transparent 0 50%) 0 0 / 8px 8px; }
+.ch-start { position: relative; padding-top: 18px; overflow: hidden; }
+/* 출발선: 카드 맨 위를 가로지르는 얇은 주황 띠(둥근 모서리에 잘려도 깔끔하게 이어진다) */
+.ch-start::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--bib); }
 .ch-gauge { display: grid; gap: 6px; padding-top: 2px; }
 .ch-gauge-bar { position: relative; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 10%, transparent);
   background-image: repeating-linear-gradient(90deg, transparent 0 11px, color-mix(in srgb, var(--ink) 12%, transparent) 11px 12px); }

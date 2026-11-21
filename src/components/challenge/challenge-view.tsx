@@ -134,7 +134,7 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
           </ActionForm>
         </div>
         <p className="text-sm">회비 <b>{won(cfg.fee)}</b> · {bank}</p>
-        <p className="text-sm text-[var(--bad)]">회비는 신청을 취소하거나 중간에 그만두어도 환불되지 않아요.</p>
+        <p className="text-sm text-[var(--bad)]">입금 후에는 신청을 취소하거나 중간에 그만두어도 회비가 환불되지 않아요.</p>
       </section>
     );
   }

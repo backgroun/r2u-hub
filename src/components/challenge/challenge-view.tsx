@@ -4,7 +4,7 @@ import ActivityForm from "@/components/challenge/activity-form";
 import { deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
-  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
+  CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
   parseRules, defaultRulesText, fillRules, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
@@ -112,7 +112,7 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
 
 function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: ChallengeConfig; ecfg: ChallengeConfig; blockId: string; now: string; canEdit: boolean }) {
   const j = judge(a, ecfg);
-  const rest = [`${a.distanceKm.toFixed(2)}km`, fmtDur(a.durationSec), `${fmtPace(j.paceSec)}/km`, a.cadence != null ? `${a.cadence}spm` : null, a.zone2Pct != null ? `Z2 ${a.zone2Pct}%` : null, a.place].filter(Boolean).join(" · ");
+  const rest = [a.surface !== "road" ? SURFACE_LABEL[a.surface] : null, `${a.distanceKm.toFixed(2)}km`, fmtDur(a.durationSec), `${fmtPace(j.paceSec)}/km`, a.cadence != null ? `${a.cadence}spm` : null, a.zone2Pct != null ? `Z2 ${a.zone2Pct}%` : null, a.place].filter(Boolean).join(" · ");
   return (
     <details className="panel px-3 py-2">
       <summary className="cursor-pointer text-sm num">

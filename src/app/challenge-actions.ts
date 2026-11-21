@@ -6,9 +6,9 @@ import { currentUser, newId } from "@/lib/hub";
 import { isConfirmed, CONFIRM_REQUIRED } from "@/lib/confirm-token";
 import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-blocks";
 import {
-  addLog, delImage, getActRec, getMemberRec, listActs, listMembers, purgeChallenge, saveRaffle, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
+  addLog, delImage, getActRec, getMemberRec, claimBib, claimTicket, listActs, listMembers, purgeChallenge, saveRaffle, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, drawRaffle, fmtBib, fmtTicket, nowKst, parseDuration, pickBib, pickTicket, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, drawRaffle, fmtBib, fmtTicket, nowKst, parseDuration, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -43,7 +43,7 @@ export async function joinChallengeAction(_: Result, fd: FormData): Promise<Resu
   const now = Date.now();
   // 배번: 순서대로가 아니라 아직 안 쓴 5자리 번호를 무작위로 뽑는다
   const used = new Set((await listMembers(live.block.id)).flatMap((m) => (m.bib != null ? [m.bib] : [])));
-  const bib = pickBib(used, (n) => randomInt(n));
+  const bib = await claimBib(live.block.id, u.nick, used, (n) => randomInt(n));
   await saveMemberRec(live.block.id, { nick: u.nick, appliedAt: now, agreedAt: now, paid: false, bib });
   await addLog(live.block.id, { by: u.nick, action: "join", target: u.nick });
   refresh();
@@ -161,7 +161,7 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   Object.assign(rec, { status: "ok", reviewedBy: "자동", reviewedAt: now });
   // 경품 추첨용 행운 번호: 새 기록에만 한 장 발급하고, 수정해도 그대로 둔다
   if (existing?.ticket != null) rec.ticket = existing.ticket;
-  else if (!existing) rec.ticket = pickTicket(new Set((await listActs(live.block.id)).flatMap((a) => (a.ticket != null ? [a.ticket] : []))), (n) => randomInt(n)); // 순서대로가 아니라 안 쓴 번호를 무작위로
+  else if (!existing) rec.ticket = await claimTicket(live.block.id, id, new Set((await listActs(live.block.id)).flatMap((a) => (a.ticket != null ? [a.ticket] : []))), (n) => randomInt(n)); // 안 쓴 번호를 무작위로, 저장소에서 원자적으로 확보(절대 겹치지 않음)
   if (existing) {
     // 수정: 기록(검수 전)을 먼저 저장한 뒤 캡처를 바꾼다. 저장이 실패해도 승인된 기록이 검수 안 된 캡처를 가리키지 않는다.
     await saveActRec(live.block.id, rec);

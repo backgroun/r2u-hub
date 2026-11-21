@@ -1,6 +1,6 @@
 import "server-only";
 import { redis } from "@/lib/hub";
-import { IMG_KINDS, type Activity, type Appeal, type ChallengeMember, type ImgKind, type LogEntry, type Raffle } from "@/lib/challenge/rules";
+import { IMG_KINDS, claimUnique, pickBib, pickTicket, type Activity, type Appeal, type ChallengeMember, type ImgKind, type LogEntry, type Raffle } from "@/lib/challenge/rules";
 
 /* 챌린지 저장소: 블록 하나당 r2u:chal:{blockId}:* 키들. 해시 하나에 항목을 JSON으로 넣는 기존 방식과 같다. */
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
@@ -64,6 +64,13 @@ export async function getRaffle(blockId: string) {
   const v = await redis.get(k(blockId, "raffle"));
   return v ? parse<Raffle>(v) : null;
 }
+/** 행운 번호·배번 확보: 블록마다 번호표 해시에 "비어 있을 때만" 써 넣어 동시에 신청해도 같은 번호가 나가지 않게 한다. 한 번 나간 번호는 기록을 지워도 다시 쓰지 않는다. */
+export async function claimTicket(blockId: string, owner: string, used: Set<number>, randInt: (n: number) => number) {
+  return claimUnique(() => pickTicket(used, randInt), async (n) => (await redis.hsetnx(k(blockId, "tickets"), String(n), owner)) === 1, (n) => used.add(n));
+}
+export async function claimBib(blockId: string, owner: string, used: Set<number>, randInt: (n: number) => number) {
+  return claimUnique(() => pickBib(used, randInt), async (n) => (await redis.hsetnx(k(blockId, "bibs"), String(n), owner)) === 1, (n) => used.add(n));
+}
 export const saveRaffle = (blockId: string, r: Raffle) => redis.set(k(blockId, "raffle"), JSON.stringify(r));
 
 /* ---------- 판정·처리 로그 (지우지 않는다) ---------- */
@@ -78,6 +85,6 @@ export async function purgeChallenge(blockId: string) {
   const acts = await all<Activity>(k(blockId, ACTS));
   const tx = redis.multi();
   for (const a of acts) for (const kind of IMG_KINDS) tx.del(imgKey(blockId, a.id, kind));
-  tx.del(k(blockId, MEMBERS), k(blockId, ACTS), k(blockId, PLACES), k(blockId, APPEALS), k(blockId, LOG), k(blockId, "ticket-seq"), k(blockId, "bib-seq"), k(blockId, "raffle"));
+  tx.del(k(blockId, MEMBERS), k(blockId, ACTS), k(blockId, PLACES), k(blockId, APPEALS), k(blockId, LOG), k(blockId, "ticket-seq"), k(blockId, "bib-seq"), k(blockId, "tickets"), k(blockId, "bibs"), k(blockId, "raffle"));
   await tx.exec();
 }

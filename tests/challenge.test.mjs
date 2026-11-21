@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib, pickBib, pickTicket,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput, drawRaffle, fmtTicket, fmtBib, pickBib, pickTicket, claimUnique,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -496,4 +496,19 @@ test("행운 번호 뽑기: 4자리 무작위, 겹치지 않고 다 쓰이면 5�
   const big = pickTicket(full, () => 0);
   assert.ok(big >= 10000 && big <= 99999);
   assert.equal(fmtTicket(1234), "1234");
+});
+
+test("번호 확보: 동시에 여러 명이 뽑아도 같은 번호가 나가지 않는다", async () => {
+  const claimed = new Set(); // 저장소의 "비어 있을 때만 쓰기"를 흉내
+  const tryClaim = async (n) => { await Promise.resolve(); if (claimed.has(n)) return false; claimed.add(n); return true; };
+  // 모두가 처음엔 같은 후보를 뽑도록 난수를 고정 → 충돌을 일부러 만든다
+  const people = Array.from({ length: 200 }, () => {
+    const used = new Set();
+    let calls = 0;
+    return claimUnique(() => pickTicket(used, () => (calls++ < 3 ? 5 : Math.floor(Math.random() * 9000))), tryClaim, (n) => used.add(n));
+  });
+  const nums = await Promise.all(people);
+  assert.equal(new Set(nums).size, 200); // 한 번호도 겹치지 않음
+  assert.ok(nums.every((n) => n >= 1000 && n <= 9999));
+  await assert.rejects(() => claimUnique(() => 7, async () => false, () => {}, 5));
 });

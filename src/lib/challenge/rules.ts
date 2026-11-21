@@ -491,3 +491,14 @@ export function pickTicket(used: Set<number>, randInt: (n: number) => number): n
   }
   return pickBib(used, randInt);
 }
+
+/** 번호를 겹치지 않게 확보한다: pick()으로 후보를 뽑고, tryClaim(n)이 true(=그 번호를 내가 차지함)일 때까지 다시 뽑는다.
+    tryClaim은 저장소의 "비어 있을 때만 쓰기"처럼 원자적이어야 한다(동시에 두 사람이 같은 번호를 뽑아도 한 사람만 성공). 실패한 번호는 markUsed로 제외한다. */
+export async function claimUnique(pick: () => number, tryClaim: (n: number) => Promise<boolean>, markUsed: (n: number) => void, tries = 200): Promise<number> {
+  for (let i = 0; i < tries; i++) {
+    const n = pick();
+    if (await tryClaim(n)) return n;
+    markUsed(n);
+  }
+  throw new Error("번호를 확보하지 못했어요. 다시 시도해 주세요.");
+}

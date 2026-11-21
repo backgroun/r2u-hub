@@ -1736,10 +1736,10 @@ button.came-chip { cursor: pointer; }
 
 /* ---------- 행운 번호 · 경품 추첨 ---------- */
 .ch-balls { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.ch-ball { --bc: var(--bib); display: inline-grid; place-items: center; min-width: 54px; height: 54px; padding-inline: 8px; border-radius: 999px; font-family: var(--font-num); font-size: 15px; font-weight: 800;
-  font-variant-numeric: tabular-nums; letter-spacing: -0.01em; color: #fff;
-  background: radial-gradient(circle at 32% 26%, color-mix(in srgb, #fff 55%, var(--bc)) 0, var(--bc) 46%, color-mix(in srgb, #000 38%, var(--bc)) 100%);
-  box-shadow: 0 6px 12px -6px color-mix(in srgb, var(--bc) 70%, transparent), inset 0 -3px 5px color-mix(in srgb, #000 22%, transparent); text-shadow: 0 1px 2px color-mix(in srgb, #000 40%, transparent); }
+/* 행운 번호: 입체 공 대신 납작한 번호표 — 단색 알약, 왼쪽에 작은 구멍 하나, 굵은 숫자 */
+.ch-ball { --bc: var(--bib); position: relative; display: inline-grid; place-items: center; min-width: 72px; height: 32px; padding: 0 14px 0 22px; border-radius: 999px; background: var(--bc); color: #fff;
+  font-family: var(--font-num); font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .08em; line-height: 1; white-space: nowrap; }
+.ch-ball::before { content: ""; position: absolute; left: 10px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: color-mix(in srgb, #000 28%, var(--bc)); }
 .ch-ball[data-c="1"] { --bc: var(--lane); }
 .ch-ball[data-c="2"] { --bc: #d9485a; }
 .ch-ball[data-c="3"] { --bc: #7a8794; }
@@ -1751,13 +1751,14 @@ button.came-chip { cursor: pointer; }
 .ch-draw li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; background: color-mix(in srgb, var(--ink) 5%, transparent);
   animation: ch-pop .55s cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--i, 0) * 120ms); }
 .ch-draw li[data-me="1"] { background: color-mix(in srgb, var(--bib) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bib) 55%, transparent); }
-.ch-draw .ch-ball { min-width: 48px; height: 48px; font-size: 14px; }
+.ch-draw .ch-ball { min-width: 78px; height: 34px; font-size: 15px; }
 .ch-draw-prize { font-size: 12px; font-weight: 700; color: var(--muted); }
 .ch-draw-who { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 @keyframes ch-pop { 0% { opacity: 0; transform: translateY(10px) scale(.94); } 100% { opacity: 1; transform: none; } }
 .ch-win-me { padding: 12px 14px; border-radius: 14px; font-weight: 800; background: var(--bib); color: var(--bib-ink); }
 @media (prefers-reduced-motion: reduce) { .ch-draw li { animation: none; } }
-.ch-ball-sm { flex: none; min-width: 40px; height: 28px; padding-inline: 6px; font-size: 11px; box-shadow: 0 3px 6px -3px color-mix(in srgb, var(--bc) 70%, transparent), inset 0 -2px 3px color-mix(in srgb, #000 22%, transparent); }
+.ch-ball-sm { flex: none; min-width: 54px; height: 22px; padding: 0 8px 0 16px; font-size: 11px; letter-spacing: .05em; }
+.ch-ball-sm::before { left: 6px; width: 5px; height: 5px; margin-top: -2.5px; }
 .ch-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .ch-line .ch-title { font-size: 18px; }
 .ch-line .ch-period { margin-right: auto; }

@@ -145,7 +145,7 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
         {!mine.paid && <p className="text-sm">회비 <b>{won(cfg.fee)}</b>을 입금해 주세요 · {bank}</p>}
         <ActionForm action={leaveChallengeAction} keep alertError className="flex">
           <input type="hidden" name="id" value={blockId} />
-          <Submit className="btn btn-ghost btn-danger text-sm" confirm="신청을 취소할까요? 낸 회비는 돌려받을 수 없어요.">신청 취소 (환불 없음)</Submit>
+          <Submit className="btn btn-danger text-sm" confirm={mine.paid ? "신청을 취소할까요? 낸 회비는 돌려받을 수 없어요." : "신청을 취소할까요?"}>{mine.paid ? "신청 취소 (환불 없음)" : "신청 취소"}</Submit>
         </ActionForm>
       </section>
     );

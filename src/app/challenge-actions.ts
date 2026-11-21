@@ -52,11 +52,12 @@ export async function leaveChallengeAction(_: Result, fd: FormData): Promise<Res
   const live = await liveBlock(fd, u);
   if (!live) return fail("지금 신청을 받는 챌린지가 없어요.");
   if (currentPhase(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 끝나서 취소할 수 없어요.");
-  if (!(await getMemberRec(live.block.id, u.nick))) return fail("신청 내역이 없어요.");
+  const member = await getMemberRec(live.block.id, u.nick);
+  if (!member) return fail("신청 내역이 없어요.");
   await removeMemberRec(live.block.id, u.nick);
   await addLog(live.block.id, { by: u.nick, action: "leave", target: u.nick });
   refresh();
-  return ok("신청을 취소했어요. 낸 회비는 돌려드리지 않아요.");
+  return ok(member.paid ? "신청을 취소했어요. 낸 회비는 돌려드리지 않아요." : "신청을 취소했어요."); // 입금 확인 전에는 환불 얘기를 하지 않는다
 }
 
 /* ---------- 기록 올리기·수정 ---------- */

@@ -1056,6 +1056,7 @@ export async function createEventBlock(_: Result, fd: FormData): Promise<Result>
         // 일정·회비는 폼에서 받고(없으면 기본값), 기록 종료가 곧 최종 확정이다
         signupStart: str(fd, "signupStart", 16) || DEFAULT_CONFIG.signupStart, signupEnd: str(fd, "signupEnd", 16) || DEFAULT_CONFIG.signupEnd,
         start: str(fd, "start", 16) || DEFAULT_CONFIG.start, end: str(fd, "end", 16) || DEFAULT_CONFIG.end, finalAt: str(fd, "end", 16) || DEFAULT_CONFIG.end,
+        maxPerDay: Math.max(0, Math.min(50, Math.floor(Number(str(fd, "maxPerDay", 3)) || 0))),
         fee: fd.get("fee") != null && String(fd.get("fee")) !== "" ? Number(str(fd, "fee", 8)) : DEFAULT_CONFIG.fee,
         prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
         raffle: String(fd.get("raffle") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 20) }

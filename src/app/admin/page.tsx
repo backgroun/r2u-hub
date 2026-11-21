@@ -873,19 +873,6 @@ async function Events() {
         <ActionForm action={createEventBlock} className="grid gap-3 pt-3" collapse>
           <EventBlockFields nowYm={nowYm} accounts={savedAccounts} defaults={{ signupStart: DEFAULT_CONFIG.signupStart, signupEnd: DEFAULT_CONFIG.signupEnd, start: DEFAULT_CONFIG.start, end: DEFAULT_CONFIG.end, fee: DEFAULT_CONFIG.fee }} />
         </ActionForm>
-        {/* 빙고 운영: 오픈/종료일·하루 인증 횟수 (안내 제목은 더 이상 입력하지 않는다) */}
-        <div className="grid gap-2 pt-3">
-          <h3 className="font-bold text-sm">이벤트 기간/인증 횟수</h3>
-          <ActionForm action={bingoInfo} keep className="grid gap-3">
-            <div className="grid items-end gap-2" style={{ gridTemplateColumns: "1fr 1fr 7rem auto" }}>
-              <label className="field min-w-0"><span className="label">오픈일</span><input name="start" type="date" className="input min-w-0" defaultValue={start} required /></label>
-              <label className="field min-w-0"><span className="label">종료일</span><input name="end" type="date" className="input min-w-0" defaultValue={end} required /></label>
-              <label className="field min-w-0" title="0 = 제한 없음, 최대 25"><span className="label">인증 횟수</span><input name="maxPerDay" type="number" min={0} max={25} className="input min-w-0" defaultValue={view.info.maxPerDay} required /></label>
-              <Submit className="btn btn-primary" confirm="이벤트 기간·인증 횟수를 바꿀까요?">저장</Submit>
-            </div>
-            <p className="text-xs text-muted text-left">인증 횟수/일 (0=무제한, 최대 25)</p>
-          </ActionForm>
-        </div>
       </details>
 
 

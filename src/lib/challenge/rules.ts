@@ -61,6 +61,7 @@ export type ChallengeConfig = {
   finalAt: string; // 최종 확정·시상 발표
   prizes: string[]; // 상품 예정 목록 (변경될 수 있음)
   spendNote: string; // 회비 사용 내역 공개 문구
+  maxPerDay?: number; // 하루에 올릴 수 있는 기록 수(0 또는 비어 있으면 제한 없음)
   raffle?: string[]; // 경품 추첨 상품 목록(비어 있으면 추첨을 하지 않는다)
   rulesText?: string; // 운영진이 고친 규정 안내 글. 비어 있으면 defaultRulesText 를 쓴다
   // 운영진 전용 테스트 모드: 켜면 운영진에게만 보이고, testPhase가 있으면 날짜와 상관없이 그 단계로 본다
@@ -95,6 +96,7 @@ export function normalizeConfig(c: ChallengeConfig): ChallengeConfig {
     spendNote: c.spendNote ?? "",
     rulesText: c.rulesText ?? "",
     raffle: Array.isArray(c.raffle) ? c.raffle : [],
+    maxPerDay: Number.isInteger(c.maxPerDay) && (c.maxPerDay as number) > 0 ? c.maxPerDay : 0,
     testMode: c.testMode === true, testPhase: ["appeal", "upload"].includes(c.testPhase as string) ? "closed" : c.testPhase ?? "", // 없어진 업로드·이의 제기 단계로 고정돼 있던 값은 종료로
   };
 }

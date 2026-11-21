@@ -139,6 +139,12 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
     zone: keep("zone", raw.zone2Pct != null || raw.avgHr != null),
     map: keep("map", raw.place !== ""),
   };
+  // 하루 인증 횟수 제한(0이면 제한 없음): 같은 날 올린 다른 기록 수를 센다
+  const dayMax = live.cfg.maxPerDay ?? 0;
+  if (dayMax > 0) {
+    const sameDay = (await listActs(live.block.id)).filter((x) => x.nick === u.nick && x.id !== actId && x.date === runDate).length;
+    if (sameDay >= dayMax) return fail(`하루에 최대 ${dayMax}번까지 올릴 수 있어요.`);
+  }
   const v = validateActivity(raw, flags, effectiveCfg(live.cfg), nowStr);
   if (!v.ok) return fail(v.msg);
 
@@ -227,6 +233,7 @@ function configDiff(a: ChallengeConfig, b: ChallengeConfig): string {
   cmp("은행", a.bank.bank, b.bank.bank); cmp("계좌", a.bank.account, b.bank.account); cmp("예금주", a.bank.holder, b.bank.holder);
   cmp("상품", a.prizes.join(", "), b.prizes.join(", "));
   cmp("추첨상품", (a.raffle ?? []).join(", "), (b.raffle ?? []).join(", "));
+  cmp("하루인증횟수", a.maxPerDay ?? 0, b.maxPerDay ?? 0);
   return out.length ? out.join(" / ") : "변경 없음";
 }
 
@@ -244,6 +251,7 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
     prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
     spendNote: "", // 회비 사용 내역은 더 이상 입력하지 않는다
     raffle: String(fd.get("raffle") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 20),
+    maxPerDay: Math.max(0, Math.min(50, Math.floor(Number(str(fd, "maxPerDay", 3)) || 0))),
     rulesText: b.challenge?.rulesText ?? "", // 규정 글은 규정 설정(saveChallengeRulesAction)에서만 바꾼다
     // 테스트 모드 설정은 이 폼이 건드리지 않는다
     testMode: b.challenge?.testMode === true, testPhase: b.challenge?.testPhase ?? "",

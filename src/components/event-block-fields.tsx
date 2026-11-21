@@ -49,7 +49,10 @@ export default function EventBlockFields({ nowYm, accounts = [], defaults }: { n
                   <label key={k} className="field min-w-0"><span className="label">{l}</span><input name={k} type="datetime-local" className="input min-w-0" defaultValue={defaults[k]} required /></label>
                 ))}
               </div>
-              <label className="field"><span className="label">회비(원)</span><MoneyInput name="fee" defaultValue={defaults.fee} required /></label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="field min-w-0"><span className="label">회비(원)</span><MoneyInput name="fee" defaultValue={defaults.fee} required /></label>
+                <label className="field min-w-0"><span className="label">하루 인증 횟수 (0=무제한)</span><input name="maxPerDay" type="number" min={0} max={50} inputMode="numeric" className="input min-w-0" defaultValue={0} required /></label>
+              </div>
             </>
           )}
           {accounts.length > 0 && (

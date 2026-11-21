@@ -31,6 +31,7 @@ import { gearBoard, gearLinks, gearSuggestions, gearClickStats, gearLinkEdits, t
 import { coupangReady } from "@/lib/coupang";
 import SpotTestButton, { SpotCardButton } from "@/components/spot-test-button";
 import KakaoPlaceField from "@/components/kakao-place-field";
+import EventBlockFields from "@/components/event-block-fields";
 import { rankMonth, shiftYm } from "@/lib/rank";
 import { getLevels, getPointConfig, getPointSources, getPointTotals, levelOf, PT_LABELS, VS_SETTLE, type PointRules, type VsSettle } from "@/lib/points";
 import { getVsHistory } from "@/lib/versus";
@@ -860,20 +861,7 @@ async function Events() {
       <details className="panel p-4">
         <summary className="font-bold cursor-pointer">+ 이벤트 블록 만들기</summary>
         <ActionForm action={createEventBlock} className="grid gap-3 pt-3" collapse>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="field"><span className="label">종류</span>
-              <select name="type" className="input" defaultValue="bingo"><option value="bingo">빙고</option><option value="poll">투표·설문</option><option value="challenge">기록 챌린지</option></select></label>
-            <label className="field"><span className="label">월</span><input name="ym" type="month" className="input" defaultValue={nowYm} required /></label>
-          </div>
-          <label className="field"><span className="label">이벤트 이름</span><input name="title" className="input" maxLength={40} required placeholder="예: 11월 5×5 미션 빙고" /></label>
-          <label className="field"><span className="label">투표 질문 (투표·설문일 때)</span><input name="question" className="input" maxLength={100} placeholder="예: 다음 번개런 코스는?" /></label>
-          <label className="field"><span className="label">선택지 (투표·설문일 때, 한 줄에 하나·2~8개)</span><textarea name="options" className="input" rows={4} placeholder={"한강 10km\n남산 순환\n탄천 하프"} /></label>
-          <div className="grid grid-cols-3 gap-2">
-            <label className="field"><span className="label">은행 (챌린지일 때)</span><input name="bank" className="input" maxLength={20} /></label>
-            <label className="field"><span className="label">계좌번호</span><input name="account" className="input" maxLength={30} /></label>
-            <label className="field"><span className="label">예금주</span><input name="holder" className="input" maxLength={20} /></label>
-          </div>
-          <label className="field"><span className="label">상품 예정 (챌린지일 때, 한 줄에 하나)</span><textarea name="prizes" className="input" rows={4} defaultValue={"넥워머\n카프슬리브\n오스무브 모자\n데카르트 장갑"} /></label>
+          <EventBlockFields nowYm={nowYm} />
           <div><Submit>블록 만들기</Submit></div>
         </ActionForm>
         {/* 빙고 운영: 안내 제목·오픈/종료일·하루 인증 횟수 */}

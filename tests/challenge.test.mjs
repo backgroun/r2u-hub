@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules, fillRules, parseDuration, durationInput,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -418,4 +418,20 @@ test("규정 안내 글: 기본 글에 설정 값이 들어가고, 묶음·번�
   // 제목 없는 앞부분과 윈도 줄바꿈, "- " 접두사
   const t = parseRules("첫 줄\r\n- 둘째\r\n## 제목\r\n1) 가\r\n2) 나");
   assert.deepEqual(t.map((x) => [x.title, x.ordered, x.items]), [["", false, ["첫 줄", "둘째"]], ["제목", true, ["가", "나"]]]);
+});
+
+test("달린 시간 한 칸 입력: 시:분 · 한글 · 분만", () => {
+  assert.equal(parseDuration("1:30"), 5400);
+  assert.equal(parseDuration("0:45"), 2700);
+  assert.equal(parseDuration("1:30:15"), 5415);
+  assert.equal(parseDuration("1시간 30분"), 5400);
+  assert.equal(parseDuration("1시간"), 3600);
+  assert.equal(parseDuration("45분"), 2700);
+  assert.equal(parseDuration("90"), 5400); // 숫자만이면 분
+  assert.equal(parseDuration(" 1:05 "), 3900);
+  for (const bad of ["", "abc", "1:60", "1:30:60", "시간", "-5", "1.5"]) assert.equal(parseDuration(bad), null, bad);
+  assert.equal(durationInput(5400), "1:30");
+  assert.equal(durationInput(2700), "0:45");
+  assert.equal(durationInput(5415), "1:30:15");
+  assert.equal(parseDuration(durationInput(3723)), 3723);
 });

@@ -411,3 +411,27 @@ export function parseRules(text: string): RulesSection[] {
   }
   return out;
 }
+
+/** 달린 시간 입력 한 칸을 초로 바꾼다. "1:30"(시:분) · "1:30:15"(시:분:초) · "1시간 30분" · "90"(분만) 을 받고, 읽을 수 없으면 null. */
+export function parseDuration(text: string): number | null {
+  const t = text.trim();
+  if (!t) return null;
+  if (/^\d+$/.test(t)) return Number(t) * 60;
+  const colon = /^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(t);
+  if (colon) {
+    const [h, m, sec] = [Number(colon[1]), Number(colon[2]), Number(colon[3] ?? 0)];
+    return m < 60 && sec < 60 ? h * 3600 + m * 60 + sec : null;
+  }
+  const kr = /^(?:(\d+)\s*시간)?\s*(?:(\d+)\s*분)?\s*(?:(\d+)\s*초)?$/.exec(t);
+  if (kr && (kr[1] || kr[2] || kr[3])) {
+    const [h, m, sec] = [Number(kr[1] ?? 0), Number(kr[2] ?? 0), Number(kr[3] ?? 0)];
+    return m < 60 && sec < 60 ? h * 3600 + m * 60 + sec : null;
+  }
+  return null;
+}
+
+/** 초 → 입력칸에 채울 "시:분"(초가 있으면 "시:분:초") */
+export function durationInput(sec: number): string {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return `${h}:${String(m).padStart(2, "0")}${s ? `:${String(s).padStart(2, "0")}` : ""}`;
+}

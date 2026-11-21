@@ -8,7 +8,7 @@ import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-bloc
 import {
   addLog, delImage, getActRec, getMemberRec, listActs, purgeChallenge, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, nowKst, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, nowKst, parseDuration, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -99,11 +99,10 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
     if (m < 0) return fail("하루에 올릴 수 있는 기록 수를 넘었어요.");
     startedAt = `${runDate}T${hm(m)}`;
   }
-  const dur = [num(fd, "durH"), num(fd, "durM"), num(fd, "durS")].map((n) => n ?? 0);
   const raw: RawInput = {
     startedAt,
     distanceKm: num(fd, "distanceKm"),
-    durationSec: dur.every((n) => Number.isFinite(n) && n >= 0) ? Math.round(dur[0] * 3600 + dur[1] * 60 + dur[2]) : null,
+    durationSec: parseDuration(str(fd, "dur", 20)),
     surface: str(fd, "surface", 10),
     cadence: num(fd, "cadence"),
     avgHr: num(fd, "avgHr"),

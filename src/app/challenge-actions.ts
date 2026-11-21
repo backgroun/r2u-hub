@@ -8,7 +8,7 @@ import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-bloc
 import {
   addLog, delImage, getActRec, getMemberRec, claimBib, claimTicket, getAwards, listActs, listMembers, listPlaceMap, saveAwards, purgeChallenge, saveRaffle, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, currentPhase, effectiveCfg, CATEGORIES, CATEGORY_LABEL, awardConflict, awardWinners, buildBoard, defaultRulesText, drawRaffle, effectiveWinners, fmtBib, fmtTicket, nowKst, parseDuration, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, currentPhase, effectiveCfg, CATEGORIES, CATEGORY_LABEL, awardConflict, awardWinners, buildBoard, defaultRulesText, drawRaffle, effectiveWinners, fmtBib, fmtTicket, nowKst, parseDuration, zone2Plan, cadencePlan, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -151,6 +151,32 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   const mine = (await listActs(live.block.id)).filter((a) => a.nick === u.nick);
   if (mine.some((a) => a.startedAt === v.value.startedAt && a.id !== actId)) return fail("같은 시작 시각의 기록을 이미 올렸어요.");
 
+  // Zone 2는 한 사람당 가장 긴 거리의 기록 하나만 남긴다: 더 긴 기록을 올리면 이전 Zone 2 인증을 이번 것으로 교체하고, 이미 더 긴 기록이 있으면 이번 Zone 2는 반영하지 않는다.
+  // 케이던스도 같은 방식: 한 사람당 가장 높은 케이던스(10km 이상) 기록 하나만 남긴다.
+  let zoneNote = "";
+  const clears: { id: string; what: "zone" | "cadence" }[] = []; // 교체되어 비워질 이전 인증
+  const others = mine.filter((a) => a.id !== existing?.id);
+  if (v.value.zone2Pct != null && v.value.zone2Pct >= RULE.zone2MinPct) {
+    const plan = zone2Plan(v.value.distanceKm, others);
+    if (!plan.keep) {
+      v.value.zone2Pct = null; v.value.avgHr = null; flags.zone = false; delete files.zone;
+      zoneNote += ` Zone 2는 이미 더 긴 거리(${plan.bestKm}km)의 인증이 있어서 이번에는 반영하지 않았어요.`;
+    } else if (plan.clearIds.length) {
+      clears.push(...plan.clearIds.map((id) => ({ id, what: "zone" as const })));
+      zoneNote += " 이전 Zone 2 인증은 이번 기록으로 교체됐어요.";
+    }
+  }
+  if (v.value.cadence != null && v.value.distanceKm >= RULE.cadenceMinKm) {
+    const plan = cadencePlan(v.value.cadence, others);
+    if (!plan.keep) {
+      v.value.cadence = null; flags.cadence = false; delete files.cadence;
+      zoneNote += ` 케이던스는 이미 더 높은 기록(${plan.bestCadence}spm)이 있어서 이번에는 반영하지 않았어요.`;
+    } else if (plan.clearIds.length) {
+      clears.push(...plan.clearIds.map((id) => ({ id, what: "cadence" as const })));
+      zoneNote += " 이전 케이던스 인증은 이번 기록으로 교체됐어요.";
+    }
+  }
+
   // 새 기록은 (닉네임, 시작 시각)에서 정한 id를 쓴다: 더블탭·재시도로 동시에 두 번 들어와도 한 기록으로 합쳐진다.
   // 수정으로 시작 시각이 바뀐 옛 기록이 같은 id를 쓰고 있으면 충돌이므로 무작위 id로 돌린다.
   let id = existing?.id;
@@ -178,9 +204,17 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   }
   // 기록을 먼저 저장한 뒤에 빠진 캡처를 지운다(저장이 실패해도 기록이 지워진 이미지를 가리키지 않게)
   for (const kind of IMG_KINDS) if (existing?.imgs[kind] && !imgs[kind]) await delImage(live.block.id, id, kind);
+  // 교체되는 이전 Zone 2·케이던스 인증은 이번 기록을 저장한 뒤에 비운다
+  for (const c of clears) {
+    const o = await getActRec(live.block.id, c.id);
+    if (!o || o.nick !== u.nick) continue;
+    const kind = c.what === "zone" ? "zone" : "cadence";
+    await saveActRec(live.block.id, { ...o, ...(c.what === "zone" ? { zone2Pct: null, avgHr: null } : { cadence: null }), imgs: { ...o.imgs, [kind]: false }, updatedAt: now });
+    await delImage(live.block.id, o.id, kind);
+  }
   if (existing) await addLog(live.block.id, { by: u.nick, action: "edit", target: `${u.nick}/${id}` });
   refresh();
-  return ok(existing ? "수정했어요." : `기록을 올렸어요! 행운 번호 ${fmtTicket(rec.ticket as number)}번이 발급됐어요.`);
+  return ok((existing ? "수정했어요." : `기록을 올렸어요! 행운 번호 ${fmtTicket(rec.ticket as number)}번이 발급됐어요.`) + zoneNote);
 }
 
 export async function deleteActivityAction(fd: FormData) {

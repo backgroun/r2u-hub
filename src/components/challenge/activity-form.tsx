@@ -28,19 +28,35 @@ function PaceGauge({ pace }: { pace: number | null }) {
   );
 }
 
+/** 기준에 못 미쳐 입력할 수 없는 선택 부문: 흐리게 보이고 입력칸은 아예 없다(저장할 때도 값이 가지 않는다). */
+function Locked({ title, reason }: { title: string; reason: string }) {
+  return (
+    <div className={SECTION} style={{ opacity: 0.55 }} aria-disabled="true">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm"><b>{title}</b><span className="text-xs text-muted">{reason}</span></div>
+    </div>
+  );
+}
+
 /** 기록 올리기·수정 폼. 활동 요약 캡처는 필수, 케이던스·Zone 2·장소는 해당할 때만 값과 캡처를 함께 채운다. */
 export default function ActivityForm({ blockId, start, end, now, initial }: { blockId: string; start: string; end: string; now: string; initial?: Activity }) {
   const max = now < end ? now : end; // 기록은 지금보다 미래일 수 없고 종료 시각을 넘을 수 없다
   const dur = initial?.durationSec ?? 0;
-  const [pace, setPace] = useState<number | null>(initial && initial.durationSec > 0 && initial.distanceKm > 0 ? paceSecOf(initial.distanceKm, initial.durationSec) : null);
-  // 거리·시간 칸에 글자를 넣을 때마다 평균 페이스를 다시 계산한다
-  const onPace = (e: React.FormEvent<HTMLDivElement>) => {
-    const q = (n: string) => (e.currentTarget.querySelector(`[name="${n}"]`) as HTMLInputElement | null)?.value ?? "";
-    const km = parseFloat(q("distanceKm").replace(",", ".")), sec = (Number(q("durH")) || 0) * 3600 + (Number(q("durM")) || 0) * 60;
-    setPace(km > 0 && sec >= 60 ? paceSecOf(km, sec) : null);
+  // 입력 중인 거리·시간·종류·Zone 2 비율: 평균 페이스를 보여 주고, 기준에 못 미치는 선택 부문을 비활성으로 만든다
+  const [run, setRun] = useState<{ km: number | null; sec: number; surface: string; z2: number | null }>({ km: initial?.distanceKm ?? null, sec: dur, surface: initial?.surface ?? "road", z2: initial?.zone2Pct ?? null });
+  const onAny = (e: React.FormEvent<HTMLDivElement>) => {
+    const q = (n: string) => (e.currentTarget.querySelector(`[name="${n}"]`) as HTMLInputElement | HTMLSelectElement | null)?.value;
+    const km = parseFloat((q("distanceKm") ?? "").replace(",", ".")), z2 = parseFloat(q("zone2Pct") ?? "");
+    setRun((r) => ({
+      km: km > 0 ? km : null, sec: (Number(q("durH")) || 0) * 3600 + (Number(q("durM")) || 0) * 60,
+      surface: q("surface") ?? r.surface, z2: q("zone2Pct") !== undefined ? (Number.isFinite(z2) ? z2 : null) : r.z2,
+    }));
   };
+  const pace = run.km && run.sec >= 60 ? paceSecOf(run.km, run.sec) : null;
+  const cadenceOff = run.km != null && run.km < RULE.cadenceMinKm; // 거리를 적었는데 10km보다 짧으면
+  const placeOff = run.surface === "treadmill" || (run.sec > 0 && run.sec < RULE.placeMinSec); // 트레드밀이거나 40분보다 짧으면
   return (
     <ActionForm action={submitActivityAction} keep={!!initial} restoreOnError className="grid gap-3">
+      <div className="contents" onInput={onAny}>
       <input type="hidden" name="id" value={blockId} />
       {initial && <input type="hidden" name="actId" value={initial.id} />}
       <div className="flex items-center gap-2">
@@ -50,7 +66,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
           {(["road", "treadmill"] as Surface[]).map((k) => <option key={k} value={k}>{SURFACE_LABEL[k]}</option>)}
         </select>
       </div>
-      <div className="field" onInput={onPace}>
+      <div className="field">
         <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
           <label className="field min-w-0"><span className="label">거리 (km)</span>
             <input name="distanceKm" inputMode="decimal" className="input min-w-0" required placeholder="10.05" defaultValue={initial?.distanceKm ?? ""} /></label>
@@ -63,17 +79,19 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       </div>
       <PhotoField name="img_summary" label="활동 요약 캡처" required inline have={!!initial?.imgs.summary} />
 
-      <details className={SECTION} open={initial?.cadence != null}>
-        <summary className="font-bold cursor-pointer text-sm">케이던스 부문 (10km 이상 활동)</summary>
-        <div className="grid gap-2 pt-2">
-          <div className="grid grid-cols-2 items-start gap-3">
-            <label className="field"><span className="label">평균 케이던스 (spm)</span>
-              <input name="cadence" inputMode="numeric" className="input min-w-0" placeholder="예: 178" defaultValue={initial?.cadence ?? ""} /></label>
-            <PhotoField name="img_cadence" label="케이던스 캡처" have={!!initial?.imgs.cadence} />
+      {cadenceOff ? <Locked title="케이던스 부문" reason={`${RULE.cadenceMinKm}km 이상 달린 기록만 입력할 수 있어요`} /> : (
+        <details className={SECTION} open={initial?.cadence != null}>
+          <summary className="font-bold cursor-pointer text-sm">케이던스 부문 (10km 이상 활동)</summary>
+          <div className="grid gap-2 pt-2">
+            <div className="grid grid-cols-2 items-start gap-3">
+              <label className="field"><span className="label">평균 케이던스 (spm)</span>
+                <input name="cadence" inputMode="numeric" className="input min-w-0" placeholder="예: 178" defaultValue={initial?.cadence ?? ""} /></label>
+              <PhotoField name="img_cadence" label="케이던스 캡처" have={!!initial?.imgs.cadence} />
+            </div>
+            <p className="text-xs text-muted">{RULE.cadenceMinKm}km 이상 활동만 인정 · 더 높은 케이던스로 올리면 이전 케이던스 인증이 교체돼요</p>
           </div>
-          <p className="text-xs text-muted">10km 이상 활동만 인정 · 케이던스가 보이는 캡처</p>
-        </div>
-      </details>
+        </details>
+      )}
 
       <details className={SECTION} open={initial?.zone2Pct != null}>
         <summary className="font-bold cursor-pointer text-sm">Zone 2 부문 (80% 이상)</summary>
@@ -85,22 +103,25 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
               <input name="avgHr" inputMode="numeric" className="input min-w-0" placeholder="예: 140" defaultValue={initial?.avgHr ?? ""} /></label>
           </div>
           <PhotoField name="img_zone" label="심박 구간 캡처" have={!!initial?.imgs.zone} />
-          <p className="text-xs text-muted">존 번호·비율이 보이는 캡처 · 본인 기기의 5존 기준</p>
+          <p className="text-xs" style={run.z2 != null && run.z2 < RULE.zone2MinPct ? { color: "var(--warn)", fontWeight: 700 } : { color: "var(--muted)" }}>{run.z2 != null && run.z2 < RULE.zone2MinPct ? `${RULE.zone2MinPct}% 미만은 인정되지 않아요` : "더 긴 거리의 기록으로 올리면 이전 Zone 2 인증이 교체돼요 · 존 번호·비율이 보이는 캡처"}</p>
         </div>
       </details>
 
-      <details className={SECTION} open={!!initial?.place}>
-        <summary className="font-bold cursor-pointer text-sm">다양한 장소 부문 (40분 이상 · 트레드밀 제외)</summary>
-        <div className="grid gap-2 pt-2">
-          {/* 카카오 장소 검색으로 고르고, 검색이 안 되면 같은 칸에 직접 입력한다. 같은 장소는 이름이 같아야 한 곳으로 세어지므로 가능하면 검색 결과를 골라 주세요. */}
-          <div className="grid grid-cols-2 items-start gap-3">
-            <KakaoPlaceField label="장소 (검색·직접 입력)" placeholder="예: 올림픽공원" place={initial?.place ?? ""} allowUndecided={false} />
-            <PhotoField name="img_map" label="지도 캡처" have={!!initial?.imgs.map} />
+      {placeOff ? <Locked title="다양한 장소 부문" reason={run.surface === "treadmill" ? "트레드밀은 입력할 수 없어요" : `${RULE.placeMinSec / 60}분 이상 달린 기록만 입력할 수 있어요`} /> : (
+        <details className={SECTION} open={!!initial?.place}>
+          <summary className="font-bold cursor-pointer text-sm">다양한 장소 부문 (40분 이상 · 트레드밀 제외)</summary>
+          <div className="grid gap-2 pt-2">
+            {/* 카카오 장소 검색으로 고르고, 검색이 안 되면 같은 칸에 직접 입력한다. 같은 장소는 이름이 같아야 한 곳으로 세어지므로 가능하면 검색 결과를 골라 주세요. */}
+            <div className="grid grid-cols-2 items-start gap-3">
+              <KakaoPlaceField label="장소 (검색·직접 입력)" placeholder="예: 올림픽공원" place={initial?.place ?? ""} allowUndecided={false} />
+              <PhotoField name="img_map" label="지도 캡처" have={!!initial?.imgs.map} />
+            </div>
+            <p className="text-xs text-muted">같은 장소는 한 곳으로만 세요 · 출발 지점이 보이는 지도 캡처</p>
           </div>
-          <p className="text-xs text-muted">같은 장소는 한 곳으로만 세요 · 출발 지점이 보이는 지도 캡처</p>
-        </div>
-      </details>
+        </details>
+      )}
 
+      </div>
       <div><Submit className="btn btn-primary ch-go w-full" pendingText="올리는 중…">{initial ? "수정 저장" : "기록 올리기 · 번호 받기"}</Submit></div>
     </ActionForm>
   );

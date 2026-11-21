@@ -1,6 +1,7 @@
 import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import ActivityForm from "@/components/challenge/activity-form";
+import ChallengeBoard from "@/components/challenge/challenge-board";
 import { deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
@@ -31,45 +32,42 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
       {cfg.testMode && (
         <p className="panel p-3 text-sm font-bold" style={{ background: "#fff4d6", color: "#5a4300" }}>🧪 테스트 모드 · 운영진에게만 보여요 · 단계: {PHASE_LABEL[phase]}</p>
       )}
-      <section className="panel p-4 grid gap-1">
-        <p className="text-xs text-muted">{block.title}</p>
-        <h1 className="text-lg font-bold">{fmtDateTime(cfg.start)} ~ {fmtDateTime(cfg.end)} 기록 챌린지</h1>
-        <p className="text-sm"><span className="chip chip-open">{PHASE_LABEL[phase]}</span></p>
-        {staff && <a href="/admin?tab=bingo" className="text-xs text-muted underline">운영진 관리 화면으로</a>}
-      </section>
+      {showBoard && <ChallengeBoard me={nick} tabs={CATEGORIES.map((c) => ({ key: c, label: CATEGORY_LABEL[c], rows: board[c].map((e) => ({ nick: e.nick, rank: e.rank, value: formatValue(c, e.value) })) }))} />}
+
+      <Hero title={block.title} cfg={cfg} phase={phase} now={now} staff={staff} />
 
       <SignupPanel blockId={block.id} cfg={cfg} phase={phase} mine={mine} />
 
       {mine && phase === "running" && (
-        <section className="panel p-4 grid gap-3">
-          <h2 className="font-bold">기록 올리기</h2>
-          <p className="text-xs text-muted">{fmtDateTime(cfg.end)}까지 올리고 고칠 수 있어요. 올린 캡처는 나와 운영진만 볼 수 있어요. 운영진 확인 없이 바로 인정돼요.</p>
+        <section className="ch-card">
+          <h2 className="ch-h">기록 올리기 <small>{fmtMdTime(cfg.end)}까지</small></h2>
+          <p className="ch-note">올린 캡처는 나와 운영진만 볼 수 있어요. 운영진 확인 없이 바로 인정돼요.</p>
           <ActivityForm blockId={block.id} start={ecfg.start} end={ecfg.end} now={now} />
         </section>
       )}
 
       {mine && myActs.length > 0 && (
         <section className="grid gap-1.5">
-          <h2 className="font-bold px-1">내 기록 {myActs.length}건</h2>
+          <h2 className="ch-h px-1">내 기록 <small>{myActs.length}건</small></h2>
           {myActs.map((a) => <MyAct key={a.id} a={a} cfg={cfg} ecfg={ecfg} blockId={block.id} now={now} canEdit={live} />)}
         </section>
       )}
 
       {awards && (
-        <section className="panel p-4 grid gap-2">
-          <h2 className="font-bold">🏆 시상</h2>
-          <ul className="grid gap-1 text-sm">
+        <section className="ch-card">
+          <h2 className="ch-h">시상</h2>
+          <dl className="m-0">
             {awards.map((x) => (
-              <li key={x.category} className="flex gap-2"><span className="w-24 text-muted">{CATEGORY_LABEL[x.category]}</span>
-                <b>{x.winner ?? (x.tie.length ? `동점 (${x.tie.join(", ")}) — 운영진이 정해요` : "해당자 없음")}</b>
-                {x.provisional && <span className="text-xs text-muted">앞 부문 동점 정리 후 확정</span>}</li>
+              <div key={x.category} className="ch-win">
+                <dt>{CATEGORY_LABEL[x.category]}</dt>
+                <dd>{x.winner ?? (x.tie.length ? `동점 (${x.tie.join(", ")}) — 운영진이 정해요` : "해당자 없음")}
+                  {x.provisional && <span className="ch-note font-normal"> · 앞 부문 동점 정리 후 확정</span>}</dd>
+              </div>
             ))}
-          </ul>
-          <p className="text-xs text-muted">1인 1상이에요. 상품은 위 순서대로 수상자가 고르고, 순위와 상품은 양도할 수 없어요.</p>
+          </dl>
+          <p className="ch-note">1인 1상이에요. 상품은 위 순서대로 수상자가 고르고, 순위와 상품은 양도할 수 없어요.</p>
         </section>
       )}
-
-      {showBoard && <BoardPanel board={board} me={nick} />}
 
       <FeePanel cfg={cfg} paid={paidNicks.length} />
       <RulesPanel cfg={cfg} open={phase === "soon" || phase === "signup"} />
@@ -77,12 +75,32 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
   );
 }
 
+/** 오늘(now)부터 마감일까지 남은 일수. 0이면 오늘 마감. */
+function daysLeft(now: string, end: string) {
+  const d = (v: string) => Date.UTC(Number(v.slice(0, 4)), Number(v.slice(5, 7)) - 1, Number(v.slice(8, 10)));
+  return Math.round((d(end) - d(now)) / 86400000);
+}
+
+function Hero({ title, cfg, phase, now, staff }: { title: string; cfg: ChallengeConfig; phase: Phase; now: string; staff: boolean }) {
+  const left = phase === "running" ? daysLeft(now, cfg.end) : null;
+  return (
+    <section className="ch-hero">
+      <div className="ch-meta">
+        <h1 className="ch-title">{title}</h1>
+        <span className="ch-pill" data-live={phase === "running" ? "1" : undefined} data-quiet={phase === "closed" || phase === "soon" ? "1" : undefined}>{PHASE_LABEL[phase]}</span>
+      </div>
+      <p className="ch-period"><b>{fmtMdTime(cfg.start)}</b> ~ <b>{fmtMdTime(cfg.end)}</b>{left !== null && <span className="ch-dday"> · {left > 0 ? `종료까지 ${left}일` : "오늘 마감"}</span>}</p>
+      {staff && <a href="/admin?tab=bingo" className="text-xs text-muted underline">운영진 관리 화면으로</a>}
+    </section>
+  );
+}
+
 function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: ChallengeConfig; phase: Phase; mine?: ChallengeMember }) {
   const bank = cfg.bank.bank && cfg.bank.account ? `${cfg.bank.bank} ${cfg.bank.account} (${cfg.bank.holder})` : "입금 계좌는 곧 안내해요";
   if (phase === "signup" && !mine) {
     return (
-      <section className="panel p-4 grid gap-3">
-        <h2 className="font-bold">참가 신청 <span className="text-xs text-muted font-normal">{fmtDateTime(cfg.signupEnd)}까지</span></h2>
+      <section className="ch-card">
+        <h2 className="ch-h">참가 신청 <small>{fmtDateTime(cfg.signupEnd)}까지</small></h2>
         <p className="text-sm">회비 <b>{won(cfg.fee)}</b> · {bank}</p>
         <p className="text-sm text-[var(--bad)]">회비는 신청을 취소하거나 중간에 그만두어도 환불되지 않아요.</p>
         <ActionForm action={joinChallengeAction} keep alertError className="grid gap-3">
@@ -95,8 +113,8 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
   }
   if (phase === "signup" && mine) {
     return (
-      <section className="panel p-4 grid gap-2">
-        <h2 className="font-bold">✅ 신청 완료 {mine.paid ? <span className="chip chip-confirmed">입금 확인됨</span> : <span className="chip chip-warn">입금 확인 전</span>}</h2>
+      <section className="ch-card">
+        <h2 className="ch-h">신청 완료 <span>{mine.paid ? <span className="chip chip-confirmed">입금 확인됨</span> : <span className="chip chip-warn">입금 확인 전</span>}</span></h2>
         {!mine.paid && <p className="text-sm">회비 <b>{won(cfg.fee)}</b>을 입금해 주세요 · {bank}</p>}
         <ActionForm action={leaveChallengeAction} keep alertError className="flex">
           <input type="hidden" name="id" value={blockId} />
@@ -105,8 +123,8 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
       </section>
     );
   }
-  if (phase === "soon") return <section className="panel p-4 text-sm">{fmtDateTime(cfg.signupStart)}부터 신청을 받아요.</section>;
-  if (!mine) return <section className="panel p-4 text-sm">신청 기간이 끝나서 이번 챌린지에는 참가할 수 없어요. 순위는 구경할 수 있어요.</section>;
+  if (phase === "soon") return <section className="ch-card text-sm">{fmtDateTime(cfg.signupStart)}부터 신청을 받아요.</section>;
+  if (!mine) return <section className="ch-card text-sm">신청 기간이 끝나서 이번 챌린지에는 참가할 수 없어요. 순위는 구경할 수 있어요.</section>;
   return null;
 }
 
@@ -114,7 +132,7 @@ function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: Challenge
   const j = judge(a, ecfg);
   const rest = [a.surface !== "road" ? SURFACE_LABEL[a.surface] : null, `${a.distanceKm.toFixed(2)}km`, fmtDur(a.durationSec), `${fmtPace(j.paceSec)}/km`, a.cadence != null ? `${a.cadence}spm` : null, a.zone2Pct != null ? `Z2 ${a.zone2Pct}%` : null, a.place].filter(Boolean).join(" · ");
   return (
-    <details className="panel px-3 py-2">
+    <details className="panel ch-act px-3 py-2">
       <summary className="cursor-pointer text-sm num">
         <span className="min-w-0"><b>{fmtDate(a.date)}</b> <span className="text-muted">· {rest}</span>{j.notes.length > 0 && <span className="text-[var(--bad)]"> ⚠</span>}</span>
       </summary>
@@ -139,33 +157,10 @@ function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: Challenge
   );
 }
 
-function BoardPanel({ board, me }: { board: Board; me: string }) {
-  return (
-    <section className="panel p-4 grid gap-3">
-      <h2 className="font-bold">부문별 순위</h2>
-      {CATEGORIES.map((c) => (
-        <div key={c} className="grid gap-1">
-          <h3 className="text-sm font-bold">{CATEGORY_LABEL[c]}</h3>
-          {board[c].length === 0 ? <p className="text-sm text-muted">아직 기록이 없어요.</p> : (
-            <ol className="grid gap-1 text-sm">
-              {board[c].map((e) => (
-                <li key={e.nick} className={`flex items-center gap-2 ${e.nick === me ? "font-bold" : ""}`}>
-                  <span className="num w-6 text-muted">{e.rank}</span><span className="truncate">{e.nick}</span>
-                  <span className="ml-auto num">{formatValue(c, e.value)}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      ))}
-    </section>
-  );
-}
-
 function FeePanel({ cfg, paid }: { cfg: ChallengeConfig; paid: number }) {
   return (
-    <section className="panel p-4 grid gap-1 text-sm">
-      <h2 className="font-bold">회비와 상품</h2>
+    <section className="ch-card text-sm">
+      <h2 className="ch-h">회비와 상품</h2>
       <p>모인 회비 <b>{won(cfg.fee * paid)}</b> ({paid}명 입금 확인)</p>
       <p>상품(예정, 변경될 수 있어요): {cfg.prizes.join(" · ") || "곧 안내해요"}</p>
     </section>
@@ -180,7 +175,7 @@ function Rich({ text }: { text: string }) {
 function RulesPanel({ cfg, open }: { cfg: ChallengeConfig; open: boolean }) {
   const sections = parseRules(fillRules(cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText(), cfg));
   return (
-    <details className="panel p-4" open={open}>
+    <details className="panel p-4 rounded-[18px]" open={open}>
       <summary className="font-bold cursor-pointer">규정 한눈에 보기</summary>
       <div className="grid gap-3 pt-3 text-sm">
         {sections.map((sec, i) => (

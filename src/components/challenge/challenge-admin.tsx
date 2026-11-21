@@ -95,34 +95,36 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         </div>
       </details>
 
-      <details className="panel p-4" open>
-        <summary className="font-bold cursor-pointer">경품 추첨 (번호 {eligibleTickets}장 · 상품 {(cfg.raffle ?? []).length}개)</summary>
-        <div className="grid gap-3 pt-3">
-          <p className="text-xs text-muted">기록을 올릴 때마다 행운 번호가 한 장씩 발급돼요. 추첨은 입금 확인된 참가자의 번호만 대상이고, 한 사람은 한 번만 당첨돼요.{!raffleReady && " 기록이 끝난 뒤에 추첨할 수 있어요."}</p>
-          {(cfg.raffle ?? []).length === 0 && <p className="text-sm">이벤트 블록 설정의 “추첨 상품”에 상품을 적어야 추첨할 수 있어요.</p>}
-          {ticketRows.length === 0 ? <p className="text-sm text-muted">아직 발급된 행운 번호가 없어요.</p> : (
-            <ul className="grid gap-2" aria-label="참가자별 행운 번호">
-              {ticketRows.map((r) => (
-                <li key={r.nick} className="grid gap-1" style={r.ok ? undefined : { opacity: 0.5 }}>
-                  <span className="text-sm"><b>{r.nick}</b> <span className="text-xs text-muted">{r.list.length}장{r.ok ? "" : " · 입금 확인 전이라 추첨에서 빠져요"}</span></span>
-                  <ul className="ch-balls">{r.list.map((n) => <li key={n} className="ch-ball ch-ball-sm" data-c={n % 5} data-hit={wonTickets.has(n) ? "1" : undefined}>{fmtTicket(n)}</li>)}</ul>
-                </li>
-              ))}
-            </ul>
-          )}
-          {raffle && (
-            <ol className="grid gap-1 text-sm">
-              {raffle.winners.map((w) => <li key={`${w.prize}-${w.ticket}`}><b>{w.prize}</b> · {w.nick} <span className="text-muted num">({fmtTicket(w.ticket)})</span></li>)}
-            </ol>
-          )}
-          {(cfg.raffle ?? []).length > 0 && raffleReady && (
-            <ActionForm action={drawRaffleAction} keep className="flex">
-              <input type="hidden" name="id" value={block.id} />
-              <ConfirmButton className="btn btn-primary" message={raffle ? "이미 추첨했어요. 다시 뽑으면 이전 결과가 사라져요. 다시 추첨할까요?" : `번호 ${eligibleTickets}장으로 추첨할까요?\n결과는 참가자 화면에 바로 보여요.`}>{raffle ? "다시 추첨하기" : "추첨하기"}</ConfirmButton>
-            </ActionForm>
-          )}
-        </div>
-      </details>
+      <ActionForm action={drawRaffleAction} keep>
+        <input type="hidden" name="id" value={block.id} />
+        <details className="panel p-4" open>
+          <summary className="font-bold cursor-pointer">
+            <span className="grow">경품 추첨 (번호 {eligibleTickets}장 · 상품 {(cfg.raffle ?? []).length}개)</span>
+            {(cfg.raffle ?? []).length > 0 && raffleReady && (
+              <ConfirmButton className="btn btn-primary text-xs py-1 px-3" message={raffle ? "이미 추첨했어요. 다시 뽑으면 이전 결과가 사라져요. 다시 추첨할까요?" : `번호 ${eligibleTickets}장으로 추첨할까요?\n결과는 참가자 화면에 바로 보여요.`}>{raffle ? "다시 추첨하기" : "추첨하기"}</ConfirmButton>
+            )}
+          </summary>
+          <div className="grid gap-3 pt-3">
+            <p className="text-xs text-muted">기록을 올릴 때마다 행운 번호가 한 장씩 발급돼요. 추첨은 입금 확인된 참가자의 번호만 대상이고, 한 사람은 한 번만 당첨돼요.{!raffleReady && " 기록이 끝난 뒤에 추첨할 수 있어요."}</p>
+            {(cfg.raffle ?? []).length === 0 && <p className="text-sm">이벤트 블록 설정의 “추첨 상품”에 상품을 적어야 추첨할 수 있어요.</p>}
+            {ticketRows.length === 0 ? <p className="text-sm text-muted">아직 발급된 행운 번호가 없어요.</p> : (
+              <ul className="grid gap-2" aria-label="참가자별 행운 번호">
+                {ticketRows.map((r) => (
+                  <li key={r.nick} className="grid gap-1" style={r.ok ? undefined : { opacity: 0.5 }}>
+                    <span className="text-sm"><b>{r.nick}</b> <span className="text-xs text-muted">{r.list.length}장{r.ok ? "" : " · 입금 확인 전이라 추첨에서 빠져요"}</span></span>
+                    <ul className="ch-balls">{r.list.map((n) => <li key={n} className="ch-ball ch-ball-sm" data-c={n % 5} data-hit={wonTickets.has(n) ? "1" : undefined}>{fmtTicket(n)}</li>)}</ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {raffle && (
+              <ol className="grid gap-1 text-sm">
+                {raffle.winners.map((w) => <li key={`${w.prize}-${w.ticket}`}><b>{w.prize}</b> · {w.nick} <span className="text-muted num">({fmtTicket(w.ticket)})</span></li>)}
+              </ol>
+            )}
+          </div>
+        </details>
+      </ActionForm>
 
       <details className="panel p-4">
         <summary className="font-bold cursor-pointer">올라온 기록 ({acts.length}건)</summary>

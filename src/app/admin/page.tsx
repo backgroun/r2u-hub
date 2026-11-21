@@ -41,7 +41,7 @@ import { adjustMemberPoints, savePointRules, settleVersusByAdmin } from "@/app/a
 export const dynamic = "force-dynamic";
 export const metadata = { title: "운영진" };
 
-const TABS = { members: "회원", content: "게시물", notice: "공지", menu: "메뉴·링크", races: "대회", points: "포인트", gear: "스팟게임", versus: "대결", groupbuy: "공구", bingo: "이벤트", me: "내 비밀번호" } as const;
+const TABS = { bingo: "이벤트", members: "회원", content: "게시물", notice: "공지", menu: "메뉴·링크", races: "대회", points: "포인트", gear: "스팟게임", versus: "대결", groupbuy: "공구", me: "내 비밀번호" } as const;
 type Tab = keyof typeof TABS;
 const TAGS = ["커뮤니티", "기록", "공지", "이벤트", "공구", "기타"];
 
@@ -51,7 +51,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const { tab: t, sec, m, past, edit } = await searchParams;
   if (t === "nicknames") redirect("/admin?tab=members");
   if (t === "links") redirect("/admin?tab=menu"); // 링크는 메뉴와 합쳐졌다
-  const tab: Tab = t && t in TABS ? (t as Tab) : u.admin ? "members" : "me";
+  const tab: Tab = t && t in TABS ? (t as Tab) : u.admin ? "bingo" : "me"; // 운영진이 처음 여는 탭은 이벤트
   if (!u.admin && tab !== "me") redirect("/admin?tab=me");
   const [pendingJoins, pendingNicknames] = u.admin ? await Promise.all([pendingJoinCount(), listNickChangeRequests()]) : [0, []];
   const todo: Partial<Record<Tab, number>> = u.admin ? { members: pendingJoins + pendingNicknames.length } : {};

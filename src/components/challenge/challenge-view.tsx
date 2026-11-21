@@ -5,7 +5,7 @@ import { deleteActivityAction, joinChallengeAction, leaveChallengeAction } from 
 import { listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
   CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst,
-  type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
+  parseRules, defaultRulesText, type Activity, type Board, type ChallengeConfig, type ChallengeMember, type Phase,
 } from "@/lib/challenge/rules";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -20,11 +20,11 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
   const mine = members.find((m) => m.nick === nick);
   const paidNicks = members.filter((m) => m.paid).map((m) => m.nick);
   const boardNicks = cfg.testMode ? members.map((m) => m.nick) : paidNicks; // 테스트 모드에서는 입금 확인 전 신청자도 순위에 넣는다
-  const live = phase === "running" || phase === "upload";
+  const live = phase === "running";
   const board = buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places });
   const myActs = acts.filter((a) => a.nick === nick);
   const awards = canShowWinners(cfg, now, phase) ? awardWinners(buildBoard(acts, boardNicks, ecfg, { verifiedOnly: false, places })) : null;
-  const showBoard = phase === "running" || phase === "upload" || phase === "closed";
+  const showBoard = phase === "running" || phase === "closed";
 
   return (
     <div className="grid gap-4">
@@ -40,10 +40,10 @@ export default async function ChallengeView({ block, nick, staff }: { block: Eve
 
       <SignupPanel blockId={block.id} cfg={cfg} phase={phase} mine={mine} />
 
-      {mine && (phase === "running" || phase === "upload") && (
+      {mine && phase === "running" && (
         <section className="panel p-4 grid gap-3">
           <h2 className="font-bold">기록 올리기</h2>
-          <p className="text-xs text-muted">{fmtDateTime(cfg.uploadEnd)}까지 올리고 고칠 수 있어요. 올린 캡처는 나와 운영진만 볼 수 있어요. 운영진 확인 없이 바로 인정돼요.</p>
+          <p className="text-xs text-muted">{fmtDateTime(cfg.end)}까지 올리고 고칠 수 있어요. 올린 캡처는 나와 운영진만 볼 수 있어요. 운영진 확인 없이 바로 인정돼요.</p>
           <ActivityForm blockId={block.id} start={ecfg.start} end={ecfg.end} now={now} />
         </section>
       )}
@@ -172,48 +172,27 @@ function FeePanel({ cfg, paid }: { cfg: ChallengeConfig; paid: number }) {
   );
 }
 
+/** **굵게** 표시만 해석해서 보여 준다 */
+function Rich({ text }: { text: string }) {
+  return <>{text.split(/\*\*(.+?)\*\*/g).map((t, i) => (i % 2 ? <b key={i}>{t}</b> : t))}</>;
+}
+
 function RulesPanel({ cfg, open }: { cfg: ChallengeConfig; open: boolean }) {
-  const li = "list-disc ml-5";
-  const h = "font-bold";
+  const sections = parseRules(cfg.rulesText?.trim() ? cfg.rulesText : defaultRulesText(cfg));
   return (
     <details className="panel p-4" open={open}>
       <summary className="font-bold cursor-pointer">규정 한눈에 보기</summary>
       <div className="grid gap-3 pt-3 text-sm">
-        <div className="grid gap-1">
-          <b className={h}>📅 기록</b>
-          <ul className="grid gap-1">
-            <li className={li}>기간은 {fmtMdTime(cfg.start)} ~ {fmtMdTime(cfg.end)}예요. 활동 <b>시작 시각</b> 기준이에요.</li>
-            <li className={li}>모든 활동에는 <b>요약 캡처가 필수</b>예요. 편집한 캡처는 실격이고, 요청하면 원본을 내야 해요.</li>
-            <li className={li}>평균 페이스 <b>km당 {fmtPace(RULE.maxPaceSec)} 이내</b>만 인정해요. (Zone 2 부문은 예외)</li>
-            <li className={li}>로드·트레드밀·트랙 모두 가능해요.</li>
-          </ul>
-        </div>
-        <div className="grid gap-1">
-          <b className={h}>🏆 부문 (1인 1상, 아래 순서로 확정)</b>
-          <ol className="grid gap-1 list-decimal ml-5">
-            <li><b>거리</b>: 인정 거리 합계가 가장 긴 사람</li>
-            <li><b>최장시간</b>: 인정 시간 합계가 가장 긴 사람</li>
-            <li><b>케이던스</b>: {RULE.cadenceMinKm}km 이상 1건의 평균 케이던스가 가장 높은 사람</li>
-            <li><b>Zone 2</b>: 비율 {RULE.zone2MinPct}% 이상 1건의 거리가 가장 긴 사람</li>
-            <li><b>다양한 장소</b>: {RULE.placeMinSec / 60}분 이상 뛴 서로 다른 장소가 가장 많은 사람 (트레드밀 제외, 같은 장소는 한 번만 세요)</li>
-            <li><b>5km</b>: 하루 합계 {RULE.fiveKmHundredths / 100}km 이상인 날이 가장 많은 사람</li>
-          </ol>
-        </div>
-        <div className="grid gap-1">
-          <b className={h}>🎁 수상</b>
-          <ul className="grid gap-1">
-            <li className={li}>동률이면 페이스가 빠른 사람, 그다음엔 먼저 달성한 사람이 이겨요. 완전히 같으면 공동으로 표시하고 운영진이 정해요.</li>
-            <li className={li}>앞 부문 수상자는 뒤 부문에서 빠지고 차순위가 올라와요.</li>
-            <li className={li}>순위와 상품은 양도할 수 없고, 상품은 확정 순서대로 골라요.</li>
-          </ul>
-        </div>
-        <div className="grid gap-1">
-          <b className={h}>💳 참가</b>
-          <ul className="grid gap-1">
-            <li className={li}>회비 {won(cfg.fee)} (환불 없음). 입금이 확인된 분만 순위에 들어가요.</li>
-            <li className={li}>일정: 신청 {fmtMdTime(cfg.signupStart)}~{fmtMdTime(cfg.signupEnd)} · 기록 수정·업로드 {fmtMdTime(cfg.uploadEnd)}까지</li>
-          </ul>
-        </div>
+        {sections.map((sec, i) => (
+          <div key={i} className="grid gap-1">
+            {sec.title && <b className="font-bold">{sec.title}</b>}
+            {sec.ordered ? (
+              <ol className="grid gap-1 list-decimal ml-5">{sec.items.map((t, k) => <li key={k}><Rich text={t} /></li>)}</ol>
+            ) : (
+              <ul className="grid gap-1">{sec.items.map((t, k) => <li key={k} className="list-disc ml-5"><Rich text={t} /></li>)}</ul>
+            )}
+          </div>
+        ))}
       </div>
     </details>
   );

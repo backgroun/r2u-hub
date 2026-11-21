@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG, paceSecOf, fmtPace, fmtDur, phaseOf, judge, validateConfig, addDaysYmd, validateActivity,
   buildBoard, awardWinners, placeKey, placeGroupOf, formatValue,
   normalizeConfig, nowKst, fmtDateTime, fmtMdTime, fmtDate,
-  currentPhase, effectiveCfg, canShowWinners,
+  currentPhase, effectiveCfg, canShowWinners, defaultRulesText, parseRules,
 } from "../src/lib/challenge/rules.ts";
 
 // 단계·검증 시험은 최종 확정 시각이 업로드 마감보다 늦은 설정으로 본다
@@ -44,27 +44,24 @@ test("기간 단계 (시각까지 본다)", () => {
   assert.equal(p("2026-11-30T23:59"), "signup");
   assert.equal(p("2026-12-01T00:00"), "running");
   assert.equal(p("2026-12-18T23:59"), "running");
-  assert.equal(p("2026-12-19T00:00"), "upload");
-  assert.equal(p("2026-12-20T23:59"), "upload");
-  assert.equal(p("2026-12-21T00:00"), "closed");
+  assert.equal(p("2026-12-19T00:00"), "closed");
   assert.equal(p("2026-12-23T00:00"), "closed");
   const c2 = { ...cfg, end: "2026-12-18T22:00" };
   assert.equal(phaseOf(c2, "2026-12-18T22:00"), "running");
-  assert.equal(phaseOf(c2, "2026-12-18T22:01"), "upload");
+  assert.equal(phaseOf(c2, "2026-12-18T22:01"), "closed");
 });
 
 test("날짜 더하기와 설정 검증", () => {
   assert.equal(addDaysYmd("2026-12-23", 30), "2027-01-22");
   assert.equal(validateConfig(cfg), null);
   assert.match(validateConfig({ ...cfg, signupEnd: "2026-12-01T00:00" }), /신청 마감/);
-  assert.match(validateConfig({ ...cfg, uploadEnd: "2026-12-18T23:59" }), /업로드 마감/);
-  assert.match(validateConfig({ ...cfg, finalAt: "2026-12-20T23:58" }), /확정/);
+  assert.match(validateConfig({ ...cfg, finalAt: "2026-12-18T23:58" }), /확정/);
   assert.match(validateConfig({ ...cfg, start: "2026-13-01T00:00" }), /날짜/);
   assert.match(validateConfig({ ...cfg, start: "2026-12-01T25:00" }), /날짜/);
   assert.match(validateConfig({ ...cfg, start: "2026-12-01" }), /날짜/); // 시각이 없으면 거절
   assert.match(validateConfig({ ...cfg, signupStart: "2026-12-01T00:00", signupEnd: "2026-11-30T23:59" }), /신청 시작/);
-  assert.match(validateConfig({ ...cfg, start: "2026-12-19T00:00", end: "2026-12-18T23:59", uploadEnd: "2026-12-20T23:59" }), /기록 시작/);
-  assert.equal(validateConfig({ ...cfg, end: "2026-12-18T22:00", uploadEnd: "2026-12-18T22:01" }), null);
+  assert.match(validateConfig({ ...cfg, start: "2026-12-19T00:00", end: "2026-12-18T23:59" }), /기록 시작/);
+  assert.equal(validateConfig({ ...cfg, end: "2026-12-18T22:00" }), null);
   assert.match(validateConfig({ ...cfg, fee: -1 }), /회비/);
 });
 
@@ -72,14 +69,13 @@ test("옛 날짜만 있는 설정은 시각을 붙여 읽는다", () => {
   const legacy = {
     fee: 5000, bank: { bank: "", account: "", holder: "" },
     signupStart: "2026-11-24", signupEnd: "2026-11-30", start: "2026-12-01", end: "2026-12-18",
-    uploadEnd: "2026-12-20", finalAt: "2026-12-23", prizes: [],
+    finalAt: "2026-12-23", prizes: [],
   };
   const n = normalizeConfig(legacy);
   assert.equal(n.signupStart, "2026-11-24T00:00");
   assert.equal(n.signupEnd, "2026-11-30T23:59");
   assert.equal(n.start, "2026-12-01T00:00");
   assert.equal(n.end, "2026-12-18T23:59");
-  assert.equal(n.uploadEnd, "2026-12-20T23:59");
   assert.equal(n.finalAt, "2026-12-23T00:00");
   assert.equal(n.spendNote, "");
   assert.equal(validateConfig(n), null);
@@ -397,10 +393,24 @@ test("테스트 모드: 시상 공개 조건", () => {
   assert.equal(canShowWinners(T, "2026-11-20T10:00", "closed"), true); // 테스트 모드는 날짜와 상관없이
 });
 
-test("기본 설정: 최종 확정은 업로드 마감과 같아 마감 직후 종료된다", () => {
+test("기본 설정: 업로드·최종 확정은 기록 종료와 같아 종료 직후 끝난다", () => {
   const d = DEFAULT_CONFIG;
-  assert.equal(d.finalAt, d.uploadEnd);
+  assert.equal(d.finalAt, d.end);
   assert.equal(validateConfig(d), null);
-  assert.equal(phaseOf(d, "2026-12-20T23:59"), "upload");
-  assert.equal(phaseOf(d, "2026-12-21T00:00"), "closed");
+  assert.equal(phaseOf(d, "2026-12-18T23:59"), "running");
+  assert.equal(phaseOf(d, "2026-12-19T00:00"), "closed");
+});
+
+test("규정 안내 글: 기본 글에 설정 값이 들어가고, 묶음·번호·점 목록으로 읽힌다", () => {
+  const text = defaultRulesText(DEFAULT_CONFIG);
+  assert.match(text, /12\/1 00:00 ~ 12\/18 23:59/);
+  assert.match(text, /5,000원/);
+  const secs = parseRules(text);
+  assert.deepEqual(secs.map((x) => x.title), ["📅 기록", "🏆 부문 (1인 1상, 아래 순서로 확정)", "🎁 수상", "💳 참가"]);
+  assert.equal(secs[1].ordered, true);
+  assert.equal(secs[1].items.length, 6);
+  assert.equal(secs[0].ordered, false);
+  // 제목 없는 앞부분과 윈도 줄바꿈, "- " 접두사
+  const t = parseRules("첫 줄\r\n- 둘째\r\n## 제목\r\n1) 가\r\n2) 나");
+  assert.deepEqual(t.map((x) => [x.title, x.ordered, x.items]), [["", false, ["첫 줄", "둘째"]], ["제목", true, ["가", "나"]]]);
 });

@@ -57,10 +57,10 @@ export type ChallengeConfig = {
   // 일정은 모두 "YYYY-MM-DDTHH:mm" (한국 시각, 활동 시작 일시와 같은 형식)
   signupStart: string; signupEnd: string; // 신청·입금 기간
   start: string; end: string; // 기록 인정 기간 (활동 시작 시각 기준)
-  uploadEnd: string; // 업로드·수정 마감
   finalAt: string; // 최종 확정·시상 발표
   prizes: string[]; // 상품 예정 목록 (변경될 수 있음)
   spendNote: string; // 회비 사용 내역 공개 문구
+  rulesText?: string; // 운영진이 고친 규정 안내 글. 비어 있으면 defaultRulesText 를 쓴다
   // 운영진 전용 테스트 모드: 켜면 운영진에게만 보이고, testPhase가 있으면 날짜와 상관없이 그 단계로 본다
   testMode: boolean;
   testPhase: Phase | ""; // "" = 날짜대로
@@ -71,7 +71,7 @@ export const DEFAULT_CONFIG: ChallengeConfig = {
   bank: { bank: "", account: "", holder: "" },
   signupStart: "2026-11-24T09:00", signupEnd: "2026-11-30T23:59",
   start: "2026-12-01T00:00", end: "2026-12-18T23:59",
-  uploadEnd: "2026-12-20T23:59", finalAt: "2026-12-20T23:59", // 최종 확정은 따로 두지 않고 업로드 마감과 같게 둔다
+  finalAt: "2026-12-18T23:59", // 업로드·최종 확정은 따로 두지 않고 기록 종료와 같게 둔다
   prizes: ["넥워머", "카프슬리브", "오스무브 모자", "데카르트 장갑"],
   spendNote: "",
   testMode: false, testPhase: "",
@@ -89,21 +89,21 @@ export function normalizeConfig(c: ChallengeConfig): ChallengeConfig {
     ...c,
     signupStart: fix(c.signupStart, "00:00"), signupEnd: fix(c.signupEnd, "23:59"),
     start: fix(c.start, "00:00"), end: fix(c.end, "23:59"),
-    uploadEnd: fix(c.uploadEnd, "23:59"), finalAt: fix(c.finalAt, "00:00"),
+    finalAt: fix(c.finalAt, "00:00"),
     spendNote: c.spendNote ?? "",
-    testMode: c.testMode === true, testPhase: (c.testPhase as string) === "appeal" ? "closed" : c.testPhase ?? "", // 없어진 이의 제기 단계로 고정돼 있던 값은 종료로
+    rulesText: c.rulesText ?? "",
+    testMode: c.testMode === true, testPhase: ["appeal", "upload"].includes(c.testPhase as string) ? "closed" : c.testPhase ?? "", // 없어진 업로드·이의 제기 단계로 고정돼 있던 값은 종료로
   };
 }
 
 /** 설정이 말이 되는지 확인한다. 문제가 있으면 화면에 보여 줄 문구, 없으면 null */
 export function validateConfig(c: ChallengeConfig): string | null {
-  const times = [c.signupStart, c.signupEnd, c.start, c.end, c.uploadEnd, c.finalAt];
+  const times = [c.signupStart, c.signupEnd, c.start, c.end, c.finalAt];
   if (!times.every((t) => typeof t === "string" && isDateTime(t))) return "날짜와 시각을 다시 골라 주세요.";
   if (!(c.signupStart <= c.signupEnd)) return "신청 시작이 신청 마감보다 늦어요.";
   if (!(c.signupEnd < c.start)) return "신청 마감은 기록 시작보다 앞이어야 해요.";
   if (!(c.start <= c.end)) return "기록 시작이 종료보다 늦어요.";
-  if (!(c.end < c.uploadEnd)) return "업로드 마감은 기록 종료보다 뒤여야 해요.";
-  if (!(c.uploadEnd <= c.finalAt)) return "최종 확정은 업로드 마감보다 뒤여야 해요.";
+  if (!(c.end <= c.finalAt)) return "최종 확정은 기록 종료보다 뒤여야 해요.";
   if (!Number.isInteger(c.fee) || c.fee < 0) return "회비를 확인해 주세요.";
   return null;
 }
@@ -131,9 +131,9 @@ export const fmtMdTime = (dt: string): string => `${Number(dt.slice(5, 7))}/${Nu
 /** 지금 한국 시각 "YYYY-MM-DDTHH:mm" (UTC+9) */
 export const nowKst = (ms: number = Date.now()): string => new Date(ms + 9 * 3600e3).toISOString().slice(0, 16);
 
-export type Phase = "soon" | "signup" | "ready" | "running" | "upload" | "closed";
+export type Phase = "soon" | "signup" | "ready" | "running" | "closed";
 export const PHASE_LABEL: Record<Phase, string> = {
-  soon: "곧 열려요", signup: "신청 중", ready: "시작 전", running: "기록 중", upload: "기록 마감 · 업로드 기간", closed: "종료",
+  soon: "곧 열려요", signup: "신청 중", ready: "시작 전", running: "기록 중", closed: "종료",
 };
 
 /** 지금(한국 시각 "YYYY-MM-DDTHH:mm")이 어느 단계인가. 각 마감 시각 그 분까지는 앞 단계다. */
@@ -142,7 +142,6 @@ export function phaseOf(cfg: ChallengeConfig, now: string): Phase {
   if (now <= cfg.signupEnd) return "signup";
   if (now < cfg.start) return "ready";
   if (now <= cfg.end) return "running";
-  if (now <= cfg.uploadEnd) return "upload";
   return "closed";
 }
 
@@ -351,4 +350,50 @@ export function formatValue(c: Category, v: number): string {
   if (c === "cadence") return `${v}spm`;
   if (c === "place") return `${v}곳`;
   return `${v}일`;
+}
+
+/* ---------- 규정 안내 글 ----------
+   형식: "## 제목" 줄이 새 묶음, "1. " 로 시작하면 번호 목록, 나머지 줄은 점 목록("- " 는 있어도 없어도 됨). **굵게** 표시를 쓸 수 있다. */
+export type RulesSection = { title: string; ordered: boolean; items: string[] };
+
+/** 설정 값(기간·페이스·회비)이 들어간 기본 규정 글. 운영진이 고치지 않으면 이 글을 보여 준다. */
+export function defaultRulesText(cfg: ChallengeConfig): string {
+  const won = `${cfg.fee.toLocaleString("ko-KR")}원`;
+  return [
+    "## 📅 기록",
+    `기간은 ${fmtMdTime(cfg.start)} ~ ${fmtMdTime(cfg.end)}예요. 활동 **시작 시각** 기준이에요.`,
+    "모든 활동에는 **요약 캡처가 필수**예요. 편집한 캡처는 실격이고, 요청하면 원본을 내야 해요.",
+    `평균 페이스 **km당 ${fmtPace(RULE.maxPaceSec)} 이내**만 인정해요. (Zone 2 부문은 예외)`,
+    "로드·트레드밀·트랙 모두 가능해요.",
+    "## 🏆 부문 (1인 1상, 아래 순서로 확정)",
+    "1. **거리**: 인정 거리 합계가 가장 긴 사람",
+    "2. **최장시간**: 인정 시간 합계가 가장 긴 사람",
+    `3. **케이던스**: ${RULE.cadenceMinKm}km 이상 1건의 평균 케이던스가 가장 높은 사람`,
+    `4. **Zone 2**: 비율 ${RULE.zone2MinPct}% 이상 1건의 거리가 가장 긴 사람`,
+    `5. **다양한 장소**: ${RULE.placeMinSec / 60}분 이상 뛴 서로 다른 장소가 가장 많은 사람 (트레드밀 제외, 같은 장소는 한 번만 세요)`,
+    `6. **5km**: 하루 합계 ${RULE.fiveKmHundredths / 100}km 이상인 날이 가장 많은 사람`,
+    "## 🎁 수상",
+    "동률이면 페이스가 빠른 사람, 그다음엔 먼저 달성한 사람이 이겨요. 완전히 같으면 공동으로 표시하고 운영진이 정해요.",
+    "앞 부문 수상자는 뒤 부문에서 빠지고 차순위가 올라와요.",
+    "순위와 상품은 양도할 수 없고, 상품은 확정 순서대로 골라요.",
+    "## 💳 참가",
+    `회비 ${won} (환불 없음). 입금이 확인된 분만 순위에 들어가요.`,
+    `일정: 신청 ${fmtMdTime(cfg.signupStart)}~${fmtMdTime(cfg.signupEnd)} · 기록 ${fmtMdTime(cfg.start)}~${fmtMdTime(cfg.end)}`,
+  ].join("\n");
+}
+
+/** 규정 글 → 묶음 목록 (제목 없는 앞부분도 하나의 묶음으로 본다) */
+export function parseRules(text: string): RulesSection[] {
+  const out: RulesSection[] = [];
+  let cur: RulesSection | null = null;
+  for (const raw of text.replace(/\r\n?/g, "\n").split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith("## ")) { cur = { title: line.slice(3).trim(), ordered: false, items: [] }; out.push(cur); continue; }
+    if (!cur) { cur = { title: "", ordered: false, items: [] }; out.push(cur); }
+    const num = /^\d+[.)]\s+(.*)$/.exec(line);
+    if (num && cur.items.length === 0) cur.ordered = true;
+    cur.items.push((num ? num[1] : line.replace(/^[-•]\s+/, "")).trim());
+  }
+  return out;
 }

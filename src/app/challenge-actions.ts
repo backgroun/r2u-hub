@@ -8,7 +8,7 @@ import { activeChallenge, getBlocks, setChallengeConfig } from "@/lib/event-bloc
 import {
   addLog, delImage, getActRec, getMemberRec, listActs, purgeChallenge, putImage, removeActRec, removeMemberRec, saveActRec, saveMemberRec,
 } from "@/lib/challenge/store";
-import { IMG_KINDS, RULE, currentPhase, effectiveCfg, nowKst, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
+import { IMG_KINDS, RULE, currentPhase, effectiveCfg, defaultRulesText, nowKst, validateActivity, validateConfig, type Activity, type ChallengeConfig, type ImgKind, type Phase, type RawInput } from "@/lib/challenge/rules";
 import type { Result } from "@/app/actions";
 
 const ok = (msg?: string): Result => ({ ok: true, msg });
@@ -70,7 +70,7 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
   if (!live) return fail("지금 기록을 받는 챌린지가 없어요.");
   const nowStr = nowKst();
   const phase = currentPhase(live.cfg, nowStr);
-  if (phase !== "running" && phase !== "upload") return fail("지금은 기록을 올릴 수 있는 기간이 아니에요.");
+  if (phase !== "running") return fail("지금은 기록을 올릴 수 있는 기간이 아니에요.");
   if (!(await getMemberRec(live.block.id, u.nick))) return fail("참가 신청한 사람만 기록을 올릴 수 있어요.");
 
   const actId = str(fd, "actId", 20);
@@ -146,7 +146,7 @@ export async function deleteActivityAction(fd: FormData) {
   const live = await liveBlock(fd, u);
   if (!live) return;
   const phase = currentPhase(live.cfg, nowKst());
-  if (phase !== "running" && phase !== "upload") return;
+  if (phase !== "running") return;
   const a = await getActRec(live.block.id, str(fd, "actId", 20));
   if (!a || a.nick !== u.nick) return;
   await removeActRec(live.block.id, a.id);
@@ -185,8 +185,8 @@ function configDiff(a: ChallengeConfig, b: ChallengeConfig): string {
   const cmp = (name: string, x: string | number, y: string | number) => { if (x !== y) out.push(`${name} ${show(x)}→${show(y)}`); };
   cmp("신청시작", a.signupStart, b.signupStart); cmp("신청마감", a.signupEnd, b.signupEnd);
   cmp("기록시작", a.start, b.start); cmp("기록종료", a.end, b.end);
-  cmp("업로드마감", a.uploadEnd, b.uploadEnd);
   cmp("회비", a.fee, b.fee);
+  if ((a.rulesText ?? "") !== (b.rulesText ?? "")) out.push("규정 안내 글 변경");
   cmp("은행", a.bank.bank, b.bank.bank); cmp("계좌", a.bank.account, b.bank.account); cmp("예금주", a.bank.holder, b.bank.holder);
   cmp("상품", a.prizes.join(", "), b.prizes.join(", "));
   return out.length ? out.join(" / ") : "변경 없음";
@@ -202,12 +202,16 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
     bank: { bank: str(fd, "bank", 20), account: str(fd, "account", 30), holder: str(fd, "holder", 20) },
     signupStart: str(fd, "signupStart", 16), signupEnd: str(fd, "signupEnd", 16),
     start: str(fd, "start", 16), end: str(fd, "end", 16),
-    uploadEnd: str(fd, "uploadEnd", 16), finalAt: str(fd, "uploadEnd", 16), // 업로드 마감이 지나면 바로 종료·시상
+    finalAt: str(fd, "end", 16), // 기록 종료가 지나면 바로 종료·시상
     prizes: String(fd.get("prizes") ?? "").split("\n").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 12),
     spendNote: "", // 회비 사용 내역은 더 이상 입력하지 않는다
+    rulesText: "", // 아래에서 기본 글과 비교해 채운다
     // 테스트 모드 설정은 이 폼이 건드리지 않는다
     testMode: b.challenge?.testMode === true, testPhase: b.challenge?.testPhase ?? "",
   };
+  // 규정 안내 글: 기본 글과 같으면 비워 둔다(그래야 기간·회비를 바꿀 때 기본 글이 같이 바뀐다)
+  const rulesInput = String(fd.get("rulesText") ?? "").replace(/\r\n?/g, "\n").trim().slice(0, 4000);
+  cfg.rulesText = rulesInput === defaultRulesText(cfg) ? "" : rulesInput;
   const bad = validateConfig(cfg);
   if (bad) return fail(bad);
   const note = configDiff(b.challenge as ChallengeConfig, cfg);
@@ -218,7 +222,7 @@ export async function saveChallengeConfigAction(_: Result, fd: FormData): Promis
 }
 
 /* ---------- 테스트 모드 (운영진 전용) ---------- */
-const PHASES: Phase[] = ["soon", "signup", "ready", "running", "upload", "closed"];
+const PHASES: Phase[] = ["soon", "signup", "ready", "running", "closed"];
 
 /** 테스트 모드 켜기·끄기와 단계 고정. testMode·testPhase 두 값만 바꾼다. */
 export async function setChallengeTestAction(_: Result, fd: FormData): Promise<Result> {

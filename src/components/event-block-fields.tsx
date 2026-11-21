@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { Submit } from "@/components/action-form";
 
 type Kind = "bingo" | "poll" | "challenge";
 export type SavedAccount = { bank: string; account: string; holder: string };
@@ -24,7 +25,10 @@ export default function EventBlockFields({ nowYm, accounts = [] }: { nowYm: stri
           </select></label>
         <label className="field"><span className="label">월</span><input name="ym" type="month" className="input" defaultValue={nowYm} required /></label>
       </div>
-      <label className="field"><span className="label">이벤트 이름</span><input name="title" className="input" maxLength={40} required placeholder="예: 11월 5×5 미션 빙고" /></label>
+      <div className="flex items-end gap-2">
+        <label className="field grow min-w-0"><span className="label">이벤트 이름</span><input name="title" className="input" maxLength={40} required placeholder="예: 11월 5×5 미션 빙고" /></label>
+        <Submit className="btn btn-primary shrink-0">블록 만들기</Submit>
+      </div>
       {kind === "poll" && (
         <>
           <label className="field"><span className="label">투표 질문</span><input name="question" className="input" maxLength={100} placeholder="예: 다음 번개런 코스는?" /></label>

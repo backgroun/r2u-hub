@@ -864,7 +864,6 @@ async function Events() {
         <summary className="font-bold cursor-pointer">+ 이벤트 블록 만들기</summary>
         <ActionForm action={createEventBlock} className="grid gap-3 pt-3" collapse>
           <EventBlockFields nowYm={nowYm} accounts={savedAccounts} />
-          <div><Submit>블록 만들기</Submit></div>
         </ActionForm>
         {/* 빙고 운영: 안내 제목·오픈/종료일·하루 인증 횟수 */}
         <div className="grid gap-2 border-t border-[var(--line)] pt-3">

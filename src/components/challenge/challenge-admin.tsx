@@ -32,15 +32,18 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
         <div className="flex items-start gap-2 border-t border-[var(--line)] pt-2">
           <details className="grow min-w-0">
             <summary className="cursor-pointer text-sm font-bold py-1" style={cfg.testMode ? { color: "#8a5a00" } : undefined}>🧪 테스트 {cfg.testMode ? "켜짐 · 운영진에게만 보여요" : "꺼짐"}</summary>
-            <ActionForm action={setChallengeTestAction} keep className="flex items-stretch gap-2 pt-2">
+            <ActionForm action={setChallengeTestAction} keep className="flex flex-wrap items-center gap-2 pt-2">
               <input type="hidden" name="id" value={block.id} />
-              <select name="testPhase" aria-label="단계" className="input min-w-0 flex-[3] py-1.5 text-sm" style={{ width: "auto" }} defaultValue={TEST_PHASES.includes(cfg.testPhase as Phase) ? cfg.testPhase : "running"}>
-                {TEST_PHASES.map((p) => <option key={p} value={p}>단계: {PHASE_LABEL[p]}</option>)}
-              </select>
-              <select name="testMode" aria-label="테스트 모드" className="input min-w-0 flex-[2] py-1.5 text-sm" style={{ width: "auto" }} defaultValue={cfg.testMode ? "1" : "0"}>
-                <option value="1">켜기</option><option value="0">끄기</option>
-              </select>
-              <Submit className="btn btn-primary shrink-0 text-sm px-4" pendingText="…">적용</Submit>
+              <div className="ch-radios" role="radiogroup" aria-label="테스트 단계">
+                {TEST_PHASES.map((p) => (
+                  <label key={p} className="ch-radio">
+                    <input type="radio" name="testPhase" value={p} defaultChecked={p === (TEST_PHASES.includes(cfg.testPhase as Phase) ? cfg.testPhase : "running")} />
+                    <span>{PHASE_LABEL[p]}</span>
+                  </label>
+                ))}
+              </div>
+              <button type="submit" name="testMode" value="1" className="btn btn-primary shrink-0 text-sm px-4">{cfg.testMode ? "적용" : "테스트 시작"}</button>
+              {cfg.testMode && <button type="submit" name="testMode" value="0" className="btn shrink-0 text-sm px-4">테스트 끄기</button>}
             </ActionForm>
           </details>
           {cfg.testMode && (

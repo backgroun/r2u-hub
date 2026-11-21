@@ -1761,3 +1761,11 @@ button.came-chip { cursor: pointer; }
 .ch-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .ch-line .ch-title { font-size: 18px; }
 .ch-line .ch-period { margin-right: auto; }
+
+.ch-radios { display: flex; flex: 1 1 auto; gap: 6px; }
+.ch-radio { position: relative; flex: 1 1 0; text-align: center; }
+.ch-radio input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+.ch-radio span { display: block; padding: 9px 10px; border-radius: 12px; border: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; transition: background-color .2s, color .2s, border-color .2s; }
+.ch-radio:has(input:checked) span { background: var(--bib); border-color: transparent; color: var(--bib-ink); }
+.ch-radio:has(input:focus-visible) span { outline: 2px solid var(--lane); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .ch-radio span { transition: none; } }

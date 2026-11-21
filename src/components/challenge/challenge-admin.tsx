@@ -1,6 +1,7 @@
 import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import MoneyInput from "@/components/money-input";
+import RecordSlider from "@/components/challenge/record-slider";
 import { drawRaffleAction, resetChallengeDataAction, saveChallengeConfigAction, setChallengeTestAction, setPaidAction } from "@/app/challenge-actions";
 import { getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
@@ -122,12 +123,13 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
 
       <details className="panel p-4">
         <summary className="font-bold cursor-pointer">올라온 기록 ({acts.length}건)</summary>
-        <div className="grid gap-3 pt-3">
+        <div className="pt-3">
+          <RecordSlider>
           {recent.map((a) => {
             const j = judge(a, ecfg);
             return (
-              <div key={a.id} className="grid gap-2 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
-                <div className="flex items-center gap-2 flex-wrap"><b>{a.nick}</b><span className="num text-sm">{fmtDate(a.date)}</span></div>
+              <div key={a.id} className="grid content-start gap-2">
+                <div className="flex items-center gap-2 flex-wrap"><b>{a.nick}</b><span className="num text-sm">{fmtDate(a.date)}</span>{a.ticket != null && <span className="ch-ball ch-ball-sm ml-auto" data-c={a.ticket % 5} aria-label={`행운 번호 ${fmtTicket(a.ticket)}`}>{fmtTicket(a.ticket)}</span>}</div>
                 <p className="text-sm num">{a.distanceKm.toFixed(2)}km · {fmtDur(a.durationSec)} · 평균 {fmtPace(j.paceSec)}/km · {SURFACE_LABEL[a.surface]}{a.cadence != null ? ` · ${a.cadence}spm` : ""}{a.zone2Pct != null ? ` · Zone 2 ${a.zone2Pct}% · 심박 ${a.avgHr}` : ""}{a.place ? ` · ${a.place}` : ""}</p>
                 {j.notes.map((n) => <p key={n} className="text-xs text-[var(--bad)]">{n}</p>)}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -145,6 +147,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
               </div>
             );
           })}
+          </RecordSlider>
           {recent.length === 0 && <p className="text-sm text-muted">아직 올라온 기록이 없어요.</p>}
         </div>
       </details>

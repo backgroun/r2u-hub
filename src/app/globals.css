@@ -1865,3 +1865,9 @@ button.came-chip { cursor: pointer; }
   box-shadow: 0 2px 0 color-mix(in srgb, #000 30%, transparent); transform: rotate(-1.5deg); }
 .ch-bibmini::before, .ch-bibmini::after { content: ""; position: absolute; bottom: 3px; width: 3px; height: 3px; border-radius: 50%; background: color-mix(in srgb, #15212c 30%, #f6f3eb); }
 .ch-bibmini::before { left: 3px; } .ch-bibmini::after { right: 3px; }
+
+/* ---------- 관리자: 기록을 가로로 넘겨 보는 슬라이더 ---------- */
+.ch-slider { display: flex; gap: 10px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: thin; padding-bottom: 6px; border-radius: 14px; }
+.ch-slider:focus-visible { outline: 2px solid var(--lane); outline-offset: 2px; }
+.ch-slide { flex: 0 0 min(92%, 440px); scroll-snap-align: start; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--ink) 4%, transparent); min-width: 0; }
+@media (prefers-reduced-motion: reduce) { .ch-slider { scroll-behavior: auto; } }

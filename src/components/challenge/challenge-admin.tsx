@@ -162,17 +162,16 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
       </ActionForm>
       <details className="panel p-4" open>
         <summary className="font-bold cursor-pointer">
-          <span className="grow">수상 결과 (확정·교체)</span>
+          <span className="grow flex flex-wrap items-center gap-x-2 gap-y-1">수상 결과 (확정·교체)
+            {awardsRec.confirmed
+              ? <><span className="chip chip-confirmed">확정됨</span><span className="text-xs font-normal text-muted">{awardsRec.confirmedAt ? when(awardsRec.confirmedAt) : ""} · {awardsRec.confirmedBy}</span></>
+              : <><span className="chip chip-warn">확정 전</span>{!awardsReady && <span className="text-xs font-normal text-muted">기록이 끝난 뒤에 확정할 수 있어요</span>}</>}
+          </span>
           {awardsRec.confirmed
             ? <ConfirmButton form={`aw-${block.id}`} className="btn btn-danger text-xs py-1 px-3" message={"확정을 취소할까요?\n참가자 화면에서 수상 결과가 다시 숨겨져요."}>확정 취소</ConfirmButton>
             : <ConfirmButton form={`aw-${block.id}`} className="btn btn-primary text-xs py-1 px-3" message={"수상 결과를 확정할까요?\n지금 결과가 고정되어 참가자 화면에 공개돼요."}>수상 결과 확정</ConfirmButton>}
         </summary>
         <div className="grid gap-3 pt-3">
-          <p className="text-sm">
-            {awardsRec.confirmed
-              ? <><span className="chip chip-confirmed">확정됨</span> <span className="text-xs text-muted">{awardsRec.confirmedAt ? when(awardsRec.confirmedAt) : ""} · {awardsRec.confirmedBy} · 참가자 화면에 공개 중</span></>
-              : <><span className="chip chip-warn">확정 전</span> <span className="text-xs text-muted">{awardsReady ? "" : "기록이 끝난 뒤에 확정할 수 있어요"}</span></>}
-          </p>
           <ul className="grid gap-3">
             {awards.map((x) => {
               const rest = board[x.category].filter((e) => e.rank >= 2 && e.rank <= 10);

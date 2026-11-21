@@ -1770,3 +1770,26 @@ button.came-chip { cursor: pointer; }
 .ch-phase[data-on="1"] { background: var(--bib); border-color: transparent; color: var(--bib-ink); }
 .ch-phase:focus-visible { outline: 2px solid var(--lane); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .ch-phase { transition: none; } }
+
+/* ---------- 순위판(롤링): 한 부문 = 한 줄 ---------- */
+.ch-board { gap: 8px; padding: 12px 14px; }
+.ch-rolls { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.ch-roll { border-radius: 12px; background: color-mix(in srgb, var(--ink) 5%, transparent); overflow: hidden; }
+.ch-roll[data-open="1"] { background: color-mix(in srgb, var(--bib) 9%, transparent); }
+.ch-roll-head { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; height: 42px; padding: 0 12px; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ch-roll-head:focus-visible { outline: 2px solid var(--lane); outline-offset: -2px; border-radius: 12px; }
+.ch-roll-k { font-size: 12px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+.ch-roll-v { position: relative; min-width: 0; height: 100%; display: flex; align-items: center; overflow: hidden; }
+.ch-roll-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; animation: ch-roll-in .5s cubic-bezier(.22, 1, .36, 1) both; }
+.ch-roll-r { display: inline-grid; place-items: center; min-width: 30px; height: 20px; padding-inline: 6px; border-radius: 7px; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; background: color-mix(in srgb, var(--ink) 11%, transparent); color: var(--muted); }
+.ch-roll-r[data-r="1"] { background: var(--bib); color: var(--bib-ink); }
+.ch-roll-r[data-r="2"], .ch-roll-r[data-r="3"] { background: color-mix(in srgb, var(--lane) 32%, transparent); color: var(--ink); }
+.ch-roll-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
+.ch-roll-x { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.ch-roll-item[data-me="1"] .ch-roll-n, .ch-roll-list li[data-me="1"] .ch-roll-n { color: var(--lane); }
+.ch-roll-none { font-size: 12px; color: var(--muted); }
+.ch-roll-list { display: grid; gap: 2px; margin: 0; padding: 2px 12px 10px; list-style: none; }
+.ch-roll-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--ink) 8%, transparent); }
+.ch-roll-list li:first-child { border-top: 0; }
+@keyframes ch-roll-in { 0% { opacity: 0; transform: translateY(70%); } 100% { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ch-roll-item { animation: none; } }

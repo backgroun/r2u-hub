@@ -97,7 +97,6 @@ export default async function ChallengeView({ block, nick }: { block: EventBlock
         </section>
       )}
 
-      <FeePanel cfg={cfg} paid={paidNicks.length} />
       <RulesPanel cfg={cfg} open={phase === "soon" || phase === "signup"} />
     </div>
   );
@@ -185,16 +184,6 @@ function MyAct({ a, ecfg, blockId, now, canEdit }: { a: Activity; cfg: Challenge
         )}
       </div>
     </details>
-  );
-}
-
-function FeePanel({ cfg, paid }: { cfg: ChallengeConfig; paid: number }) {
-  return (
-    <section className="ch-card text-sm">
-      <h2 className="ch-h">회비와 상품</h2>
-      <p>모인 회비 <b>{won(cfg.fee * paid)}</b> ({paid}명 입금 확인)</p>
-      <p>상품(예정, 변경될 수 있어요): {cfg.prizes.join(" · ") || "곧 안내해요"}</p>
-    </section>
   );
 }
 

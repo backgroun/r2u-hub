@@ -454,3 +454,14 @@ test("경품 추첨: 상품 순서대로 한 사람 한 번만 당첨, 번호가
   // 입력 배열은 바꾸지 않는다
   assert.equal(tickets.length, 4);
 });
+
+test("규정 글: 상품·추첨 상품 자리표시, 추첨 상품이 없으면 그 줄은 뺀다", () => {
+  const text = defaultRulesText();
+  const a = fillRules(text, { ...DEFAULT_CONFIG, raffle: ["치킨 쿠폰", "러닝 양말"] });
+  assert.match(a, /넥워머 · 카프슬리브 · 오스무브 모자 · 데카르트 장갑/);
+  assert.match(a, /추첨 상품: 치킨 쿠폰 · 러닝 양말/);
+  const b = fillRules(text, { ...DEFAULT_CONFIG, raffle: [] });
+  assert.doesNotMatch(b, /경품 추첨|추첨 상품/);
+  assert.match(b, /상품\(예정/);
+  assert.match(fillRules("{상품}", { ...DEFAULT_CONFIG, prizes: [] }), /곧 안내해요/);
+});

@@ -360,7 +360,7 @@ export function formatValue(c: Category, v: number): string {
 export type RulesSection = { title: string; ordered: boolean; items: string[] };
 
 /** 규정 글 안에서 쓰는 자리표시: 보여 줄 때 설정에서 정한 값으로 채워진다 */
-export const RULES_TOKENS = ["{신청시작}", "{신청마감}", "{기록시작}", "{기록종료}", "{회비}", "{입금계좌}"] as const;
+export const RULES_TOKENS = ["{신청시작}", "{신청마감}", "{기록시작}", "{기록종료}", "{회비}", "{입금계좌}", "{상품}", "{추첨상품}"] as const;
 
 /** 자리표시를 설정 값으로 바꾼다. 입금 계좌가 비어 있으면 "곧 안내해요". */
 export function fillRules(text: string, cfg: ChallengeConfig): string {
@@ -370,7 +370,11 @@ export function fillRules(text: string, cfg: ChallengeConfig): string {
     "{기록시작}": fmtMdTime(cfg.start), "{기록종료}": fmtMdTime(cfg.end),
     "{회비}": `${cfg.fee.toLocaleString("ko-KR")}원`, "{입금계좌}": bank,
   };
-  return text.replace(/\{[^{}]+\}/g, (t) => map[t] ?? t);
+  map["{상품}"] = cfg.prizes.join(" · ") || "곧 안내해요";
+  map["{추첨상품}"] = (cfg.raffle ?? []).join(" · ");
+  // 추첨 상품이 없으면 그 자리표시가 든 줄은 통째로 뺀다
+  const lines = (cfg.raffle ?? []).length ? text.split("\n") : text.split("\n").filter((l) => !l.includes("{추첨상품}"));
+  return lines.join("\n").replace(/\{[^{}]+\}/g, (t) => map[t] ?? t);
 }
 
 /** 기본 규정 글. 일자·회비·계좌는 자리표시로 두어 설정을 바꾸면 따라가고, 고치면 그 글이 고정된다. */
@@ -392,6 +396,8 @@ export function defaultRulesText(): string {
     "동률이면 페이스가 빠른 사람, 그다음엔 먼저 달성한 사람이 이겨요. 완전히 같으면 공동으로 표시하고 운영진이 정해요.",
     "앞 부문 수상자는 뒤 부문에서 빠지고 차순위가 올라와요.",
     "순위와 상품은 양도할 수 없고, 상품은 확정 순서대로 골라요.",
+    "상품(예정, 변경될 수 있어요): {상품}",
+    "경품 추첨: 기록을 올릴 때마다 행운 번호가 한 장씩 발급돼요. 추첨 상품: {추첨상품}",
     "## 💳 참가",
     "회비 {회비} (환불 없음). 입금이 확인된 분만 순위에 들어가요.",
     "입금 계좌: {입금계좌}",

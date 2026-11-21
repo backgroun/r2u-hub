@@ -2,7 +2,7 @@ import type { EventBlock } from "@/lib/event-blocks";
 import { ActionForm, ConfirmButton, Submit } from "@/components/action-form";
 import ActivityForm from "@/components/challenge/activity-form";
 import ChallengeBoard from "@/components/challenge/challenge-board";
-import { deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
+import { claimPaidAction, deleteActivityAction, joinChallengeAction, leaveChallengeAction } from "@/app/challenge-actions";
 import { getRaffle, listActs, listMembers, listPlaceMap } from "@/lib/challenge/store";
 import {
   CATEGORIES, CATEGORY_LABEL, IMG_KINDS, IMG_LABEL, PHASE_LABEL, RULE, SURFACE_LABEL, awardWinners, buildBoard, fmtDate, fmtDateTime, fmtDur, fmtMdTime, fmtPace, canShowWinners, currentPhase, effectiveCfg, formatValue, judge, nowKst, fmtTicket,
@@ -144,10 +144,20 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
         <h2 className="ch-h">신청 완료 <span>{mine.paid ? <span className="chip chip-confirmed">입금 확인됨</span> : <span className="chip chip-warn">입금 확인 전</span>}</span></h2>
         {!mine.paid && <p className="text-sm">회비 <b>{won(cfg.fee)}</b>을 입금해 주세요 · {bank}</p>}
         {mine.paid && <p className="text-sm text-[var(--bad)]">입금이 확인된 뒤에는 신청을 취소해도 회비가 환불되지 않아요.</p>}
-        <ActionForm action={leaveChallengeAction} keep alertError className="flex">
-          <input type="hidden" name="id" value={blockId} />
-          <Submit className="btn btn-danger text-sm" confirm={mine.paid ? "신청을 취소할까요? 낸 회비는 돌려받을 수 없어요." : "신청을 취소할까요?"}>{mine.paid ? "신청 취소 (환불 없음)" : "신청 취소"}</Submit>
-        </ActionForm>
+        <div className="flex flex-wrap items-center gap-2">
+          {!mine.paid && (
+            <ActionForm action={claimPaidAction} keep alertError className="flex">
+              <input type="hidden" name="id" value={blockId} />
+              {mine.paidClaimedAt && <input type="hidden" name="undo" value="1" />}
+              <Submit className={mine.paidClaimedAt ? "btn text-sm" : "btn btn-primary text-sm"}>{mine.paidClaimedAt ? "입금 완료 알림 취소" : "입금 완료"}</Submit>
+            </ActionForm>
+          )}
+          <ActionForm action={leaveChallengeAction} keep alertError className="flex">
+            <input type="hidden" name="id" value={blockId} />
+            <Submit className="btn btn-danger text-sm" confirm={mine.paid ? "신청을 취소할까요? 낸 회비는 돌려받을 수 없어요." : "신청을 취소할까요?"}>{mine.paid ? "신청 취소 (환불 없음)" : "신청 취소"}</Submit>
+          </ActionForm>
+        </div>
+        {!mine.paid && mine.paidClaimedAt && <p className="ch-note">입금했다고 알렸어요. 운영진이 확인하면 “입금 확인됨”으로 바뀌어요.</p>}
       </section>
     );
   }

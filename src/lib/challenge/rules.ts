@@ -48,7 +48,7 @@ export type Activity = {
   updatedAt: number;
 };
 
-export type ChallengeMember = { nick: string; appliedAt: number; agreedAt: number; paid: boolean; paidAt?: number; paidBy?: string };
+export type ChallengeMember = { nick: string; appliedAt: number; agreedAt: number; paid: boolean; paidAt?: number; paidBy?: string; paidClaimedAt?: number /* 참가자가 "입금 완료"를 눌러 알린 시각(운영진 확인 전) */ };
 export type Appeal = { id: string; nick: string; actId: string; reason: string; at: number; done: boolean; answer?: string; answeredBy?: string; answeredAt?: number };
 export type LogEntry = { at: number; by: string; action: string; target: string; note?: string };
 

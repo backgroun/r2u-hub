@@ -85,7 +85,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
           {members.map((m) => (
             <form key={m.nick} action={setPaidAction} className="flex items-center gap-2 text-sm">
               <input type="hidden" name="id" value={block.id} /><input type="hidden" name="nick" value={m.nick} />
-              <b className="truncate">{m.nick}</b><span className="text-xs text-muted">{when(m.appliedAt)} 신청 · 동의 {when(m.agreedAt)}</span>
+              <b className="truncate">{m.nick}</b><span className="text-xs text-muted">{when(m.appliedAt)} 신청</span>{!m.paid && m.paidClaimedAt && <span className="chip chip-warn">입금했다고 알림 {when(m.paidClaimedAt)}</span>}
               <input type="hidden" name="paid" value={m.paid ? "0" : "1"} />
               <button className={`btn text-xs py-1 px-2.5 ml-auto ${m.paid ? "" : "btn-primary"}`}>{m.paid ? "입금 확인됨 (취소)" : "입금 확인"}</button>
             </form>

@@ -60,6 +60,21 @@ export async function leaveChallengeAction(_: Result, fd: FormData): Promise<Res
   return ok(member.paid ? "신청을 취소했어요. 낸 회비는 돌려드리지 않아요." : "신청을 취소했어요."); // 입금 확인 전에는 환불 얘기를 하지 않는다
 }
 
+/** 참가자가 "입금 완료"를 눌러 운영진에게 입금했다고 알린다(다시 누르면 취소). 입금 확인은 운영진이 따로 한다. */
+export async function claimPaidAction(_: Result, fd: FormData): Promise<Result> {
+  const u = await me();
+  const live = await liveBlock(fd, u);
+  if (!live) return fail("지금 신청을 받는 챌린지가 없어요.");
+  if (currentPhase(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 아니에요.");
+  const m = await getMemberRec(live.block.id, u.nick);
+  if (!m) return fail("신청 내역이 없어요.");
+  if (m.paid) return fail("이미 입금이 확인됐어요.");
+  const undo = fd.get("undo") === "1";
+  await saveMemberRec(live.block.id, { ...m, paidClaimedAt: undo ? undefined : Date.now() });
+  refresh();
+  return ok(undo ? "입금 완료 알림을 취소했어요." : "입금했다고 운영진에게 알렸어요. 확인되면 입금 확인됨으로 바뀌어요.");
+}
+
 /* ---------- 기록 올리기·수정 ---------- */
 const FILE_FIELD: Record<ImgKind, string> = { summary: "img_summary", cadence: "img_cadence", zone: "img_zone", map: "img_map" };
 const IMG_TYPES = ["image/webp", "image/jpeg", "image/png"];

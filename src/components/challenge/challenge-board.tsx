@@ -9,7 +9,6 @@ export default function ChallengeBoard({ tabs, me }: { tabs: BoardTab[]; me: str
   const [active, setActive] = useState(() => tabs.find((t) => t.rows.length > 0)?.key ?? tabs[0]?.key);
   const id = useId();
   const cur = tabs.find((t) => t.key === active) ?? tabs[0];
-  const mine = tabs.flatMap((t) => { const r = t.rows.find((x) => x.nick === me); return r ? [`${t.label} ${r.rank}위`] : []; });
   if (!cur) return null;
   return (
     <section className="ch-card" aria-label="부문별 순위">
@@ -32,7 +31,6 @@ export default function ChallengeBoard({ tabs, me }: { tabs: BoardTab[]; me: str
           );
         })}
       </ul>
-      {mine.length > 0 && <div className="ch-mine" aria-label="내 순위">{mine.map((m) => <span key={m}>{m}</span>)}</div>}
       <div className="ch-tabs" role="tablist" aria-label="부문">
         {tabs.map((t) => (
           <button key={t.key} type="button" role="tab" id={`${id}-${t.key}`} aria-selected={t.key === cur.key} aria-controls={`${id}-panel`} className="ch-tab" onClick={() => setActive(t.key)}>{t.label}</button>

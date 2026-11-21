@@ -192,6 +192,11 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
                       <b className="text-sm">{CATEGORY_LABEL[x.category]}</b>
                       <span className="font-bold">{x.winner ?? (x.tie.length ? `동점 · ${x.tie.join(", ")}` : "해당자 없음")}</span>
                       {x.overridden && <span className="chip">교체됨</span>}
+                      {x.winner === null && x.tie.length === 0 && board[x.category][0] && (() => {
+                        // 기록은 있는데 해당자가 없는 경우: 1위가 앞 부문 수상자라 1인 1상으로 빠진 것
+                        const top = board[x.category][0], other = awards.find((y) => y.category !== x.category && y.winner === top.nick);
+                        return <span className="text-xs text-muted">1위 {top.nick} {formatValue(x.category, top.value)}{other ? ` · ${CATEGORY_LABEL[other.category]} 수상자라 제외(1인 1상)` : ""}</span>;
+                      })()}
                       <span className="btn btn-ghost ml-auto min-h-0 px-3 py-1 text-xs">교체</span>
                     </summary>
                     <ActionForm action={replaceAwardAction} keep className="flex items-center gap-2 pt-2">

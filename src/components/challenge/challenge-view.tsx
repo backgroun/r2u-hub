@@ -127,14 +127,15 @@ function SignupPanel({ blockId, cfg, phase, mine }: { blockId: string; cfg: Chal
   if (phase === "signup" && !mine) {
     return (
       <section className="ch-card">
-        <h2 className="ch-h">참가 신청 <small>{fmtDateTime(cfg.signupEnd)}까지</small></h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="ch-h min-w-0 flex-wrap gap-x-2">참가 신청 <small>{fmtDateTime(cfg.signupEnd)}까지</small></h2>
+          <ActionForm action={joinChallengeAction} keep alertError className="shrink-0">
+            <input type="hidden" name="id" value={blockId} />
+            <Submit className="btn btn-primary" pendingText="신청 중…">참가 신청하기</Submit>
+          </ActionForm>
+        </div>
         <p className="text-sm">회비 <b>{won(cfg.fee)}</b> · {bank}</p>
         <p className="text-sm text-[var(--bad)]">회비는 신청을 취소하거나 중간에 그만두어도 환불되지 않아요.</p>
-        <ActionForm action={joinChallengeAction} keep alertError className="grid gap-3">
-          <input type="hidden" name="id" value={blockId} />
-          <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="agree" className="mt-1" /> 아래 규정을 모두 읽었고, 회비 환불이 없다는 점에 동의해요.</label>
-          <div><Submit pendingText="신청 중…">참가 신청하기</Submit></div>
-        </ActionForm>
       </section>
     );
   }

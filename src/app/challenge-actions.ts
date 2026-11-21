@@ -39,7 +39,6 @@ export async function joinChallengeAction(_: Result, fd: FormData): Promise<Resu
   const live = await liveBlock(fd, u);
   if (!live) return fail("지금 신청을 받는 챌린지가 없어요.");
   if (currentPhase(live.cfg, nowKst()) !== "signup") return fail("신청 기간이 아니에요.");
-  if (fd.get("agree") !== "on") return fail("규정과 ‘회비 환불 없음’에 동의해 주세요.");
   if (await getMemberRec(live.block.id, u.nick)) return fail("이미 신청했어요.");
   const now = Date.now();
   await saveMemberRec(live.block.id, { nick: u.nick, appliedAt: now, agreedAt: now, paid: false });

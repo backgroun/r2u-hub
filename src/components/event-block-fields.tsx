@@ -18,12 +18,13 @@ export default function EventBlockFields({ nowYm, accounts = [] }: { nowYm: stri
   }, []);
   return (
     <div ref={root} className="grid gap-3">
-      <div className="grid grid-cols-2 gap-3">
-        <label className="field"><span className="label">종류</span>
-          <select name="type" className="input" value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
-            <option value="bingo">빙고</option><option value="poll">투표·설문</option><option value="challenge">기록 챌린지</option>
-          </select></label>
-        <label className="field"><span className="label">월</span><input name="ym" type="month" className="input" defaultValue={nowYm} required /></label>
+      <div className="flex items-center gap-2">
+        <label htmlFor="block-type" className="label shrink-0 whitespace-nowrap">종류</label>
+        <select id="block-type" name="type" className="input grow min-w-0" value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
+          <option value="bingo">빙고</option><option value="poll">투표·설문</option><option value="challenge">기록 챌린지</option>
+        </select>
+        <label htmlFor="block-ym" className="label shrink-0 whitespace-nowrap ml-1">월</label>
+        <input id="block-ym" name="ym" type="month" className="input grow min-w-0" defaultValue={nowYm} required />
       </div>
       <div className="flex items-center gap-2">
         <label htmlFor="block-title" className="label shrink-0 whitespace-nowrap">이벤트 이름</label>

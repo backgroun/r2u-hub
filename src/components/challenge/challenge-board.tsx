@@ -1,68 +1,57 @@
 "use client";
 import { useEffect, useState } from "react";
 
-export type BoardRow = { nick: string; rank: number; value: string; pct: number /* 1위 기록 대비 비율(0~1) */ };
+export type BoardRow = { nick: string; rank: number; value: string; pct: number };
 export type BoardTab = { key: string; label: string; rows: BoardRow[] };
 
 const TOP_N = 5;
-const ROLL_MS = 2600;
+const ROLL_MS = 2400;
 
-/** 부문별 순위판: 한 부문이 한 줄(제목 | 1~5위가 위로 넘어가는 칸). 줄을 누르면 1~5위가 펼쳐진다. */
+const listOf = (tab: BoardTab, me: string) => {
+  const top = tab.rows.filter((r) => r.rank <= TOP_N);
+  const myRow = tab.rows.find((r) => r.nick === me && r.rank > TOP_N); // 5위 밖이면 내 줄도 한 번 보여 준다
+  return [...top, ...(myRow ? [myRow] : [])];
+};
+
+/** 부문별 순위판: 한 줄에 3칸씩. 각 칸은 누르지 않아도 1위부터 5위까지 저절로 넘어가며 보여 준다. */
 export default function ChallengeBoard({ tabs, me }: { tabs: BoardTab[]; me: string }) {
-  const [open, setOpen] = useState<string | null>(null);
-  const [still, setStill] = useState(false); // 움직임 줄이기 설정이면 롤링하지 않는다
+  const [still, setStill] = useState(false); // 움직임 줄이기 설정이면 롤링 대신 1위만 보인다
   useEffect(() => { setStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches); }, []);
   return (
     <section className="ch-card ch-board" aria-label="부문별 순위">
-      <h2 className="ch-h"><span className="ch-live">실시간 순위</span> <small>줄을 누르면 1~5위</small></h2>
-      <ul className="ch-rolls">
-        {tabs.map((t, i) => (
-          <Roll key={t.key} tab={t} me={me} delay={i * 450} open={open === t.key} still={still} onToggle={() => setOpen(open === t.key ? null : t.key)} />
-        ))}
+      <h2 className="ch-h"><span className="ch-live">실시간 순위</span> <small>1위부터 5위까지 자동으로 넘어가요</small></h2>
+      <ul className="ch-cells">
+        {tabs.map((t, i) => <Cell key={t.key} tab={t} me={me} delay={i * 400} still={still} />)}
       </ul>
     </section>
   );
 }
 
-function Roll({ tab, me, delay, open, still, onToggle }: { tab: BoardTab; me: string; delay: number; open: boolean; still: boolean; onToggle: () => void }) {
-  const top = tab.rows.filter((r) => r.rank <= TOP_N);
-  const myRow = tab.rows.find((r) => r.nick === me && r.rank > TOP_N); // 5위 밖이면 내 줄만 따로
-  const list = [...top, ...(myRow ? [myRow] : [])];
+function Cell({ tab, me, delay, still }: { tab: BoardTab; me: string; delay: number; still: boolean }) {
+  const list = listOf(tab, me);
   const [i, setI] = useState(0);
-  const rolling = !open && !still && list.length > 1;
+  const rolling = !still && list.length > 1;
   useEffect(() => {
     if (!rolling) return;
     let tick: ReturnType<typeof setInterval> | undefined;
-    const start = setTimeout(() => { tick = setInterval(() => setI((n) => n + 1), ROLL_MS); }, delay); // 줄마다 시작을 어긋나게
+    const start = setTimeout(() => { tick = setInterval(() => setI((n) => n + 1), ROLL_MS); }, delay); // 칸마다 시작을 어긋나게
     return () => { clearTimeout(start); if (tick) clearInterval(tick); };
   }, [rolling, delay]);
-  const cur = list.length ? list[(open ? 0 : i) % list.length] : null;
+  const at = list.length ? i % list.length : 0;
+  const cur = list[at];
   return (
-    <li className="ch-roll" data-open={open ? "1" : undefined}>
-      <button type="button" className="ch-roll-head" onClick={onToggle} aria-expanded={open} aria-label={`${tab.label} 순위 ${open ? "접기" : "펼치기"}`}>
-        <span className="ch-roll-k">{tab.label}</span>
-        <span className="ch-roll-v" aria-live="off">
-          {!cur ? <span className="ch-roll-none">기록 없음</span> : open ? <span className="ch-roll-none">{list.length}명</span> : (
-            <span key={`${tab.key}-${i % list.length}`} className="ch-roll-item" data-me={cur.nick === me ? "1" : undefined}>
-              <span className="ch-bib" data-r={cur.rank <= 3 ? cur.rank : undefined}>{cur.rank}</span>
-              <span className="ch-roll-n">{cur.nick}{cur.nick === me ? " · 나" : ""}</span>
-              <span className="ch-roll-x">{cur.value}</span>
-            </span>
-          )}
-        </span>
-      </button>
-      {open && (
-        <ol className="ch-roll-list">
-          {list.map((r, k) => (
-            <li key={r.nick} data-me={r.nick === me ? "1" : undefined} data-r={r.rank <= 3 ? r.rank : undefined}>
-              <span className="ch-bib" data-r={r.rank <= 3 ? r.rank : undefined}>{r.rank}</span>
-              <span className="ch-roll-n">{r.nick}{r.nick === me ? " · 나" : ""}</span>
-              <span className="ch-roll-x">{r.value}</span>
-              <span className="ch-lane" aria-hidden style={{ ["--p" as string]: `${Math.max(4, Math.round(r.pct * 100))}%`, ["--d" as string]: `${k * 110}ms` }}><i /><b /></span>
-            </li>
-          ))}
-          {list.length === 0 && <li className="ch-roll-none">아직 기록이 없어요.</li>}
-        </ol>
+    <li className="ch-cell" data-me={cur?.nick === me ? "1" : undefined}>
+      <span className="ch-cell-k">{tab.label}</span>
+      <span className="ch-cell-v">
+        {!cur ? <span className="ch-roll-none">기록 없음</span> : (
+          <span key={`${tab.key}-${at}`} className="ch-cell-item" data-me={cur.nick === me ? "1" : undefined}>
+            <span className="ch-cell-top"><span className="ch-bib" data-r={cur.rank <= 3 ? cur.rank : undefined}>{cur.rank}</span><span className="ch-cell-n">{cur.nick}</span></span>
+            <span className="ch-cell-x">{cur.value}</span>
+          </span>
+        )}
+      </span>
+      {list.length > 1 && (
+        <span className="ch-cell-dots" aria-hidden>{list.map((_, k) => <i key={k} data-on={k === at ? "1" : undefined} />)}</span>
       )}
     </li>
   );

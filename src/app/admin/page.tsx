@@ -867,7 +867,7 @@ async function Events() {
         </ActionForm>
         {/* 빙고 운영: 안내 제목·오픈/종료일·하루 인증 횟수 */}
         <div className="grid gap-2 border-t border-[var(--line)] pt-3">
-          <h3 className="font-bold text-sm">빙고 안내/기간/인증 횟수</h3>
+          <h3 className="font-bold text-sm">이벤트 안내/기간/인증 횟수</h3>
           <ActionForm action={bingoInfo} keep className="event-info-form grid gap-2">
             <label className="field"><span className="label">안내 제목</span><input name="title" className="input" maxLength={60} defaultValue={view.info.title} /></label>
             <label className="field"><span className="label">하루 최대 인증 횟수 (0 = 제한 없음, 최대 25)</span><input name="maxPerDay" type="number" min={0} max={25} className="input" defaultValue={view.info.maxPerDay} required /></label>

@@ -48,7 +48,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
                 <input type="hidden" name="id" value={block.id} />
                 <input type="hidden" name="testMode" value={cfg.testMode ? "0" : "1"} />
                 <input type="hidden" name="testPhase" value={TEST_PHASES.includes(cfg.testPhase as Phase) ? cfg.testPhase : "running"} />
-                <Submit className={cfg.testMode ? "btn text-sm px-4" : "btn btn-primary text-sm px-4"} pendingText="…">{cfg.testMode ? "테스트 끄기" : "테스트 켜기"}</Submit>
+                <Submit className={`btn h-10 min-h-0 py-0 text-sm px-4 ${cfg.testMode ? "" : "btn-primary"}`} pendingText="…">{cfg.testMode ? "테스트 끄기" : "테스트 켜기"}</Submit>
               </ActionForm>
             </div>
           </details>

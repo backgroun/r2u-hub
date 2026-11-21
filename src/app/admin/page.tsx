@@ -851,12 +851,7 @@ async function Events() {
                   <form action={removeEventBlock}><input type="hidden" name="id" value={b.id} /><ConfirmButton className="btn btn-ghost btn-danger text-xs py-1 px-2">삭제</ConfirmButton></form>
                 </div>
               </div>
-              {b.type === "challenge" && b.challenge && (
-                <details className="rounded-lg border border-[var(--line)] p-3">
-                  <summary className="font-bold cursor-pointer text-sm">일정·회비·계좌·상품 설정</summary>
-                  <div className="pt-3"><ChallengeSettings block={b} /></div>
-                </details>
-              )}
+              {b.type === "challenge" && b.challenge && <ChallengeSettings block={b} />}
               </div>
             );
           })}

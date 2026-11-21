@@ -1757,3 +1757,4 @@ button.came-chip { cursor: pointer; }
 @keyframes ch-pop { 0% { opacity: 0; transform: translateY(10px) scale(.94); } 100% { opacity: 1; transform: none; } }
 .ch-win-me { padding: 12px 14px; border-radius: 14px; font-weight: 800; background: var(--bib); color: var(--bib-ink); }
 @media (prefers-reduced-motion: reduce) { .ch-draw li { animation: none; } }
+.ch-ball-sm { flex: none; min-width: 40px; height: 28px; padding-inline: 6px; font-size: 11px; box-shadow: 0 3px 6px -3px color-mix(in srgb, var(--bc) 70%, transparent), inset 0 -2px 3px color-mix(in srgb, #000 22%, transparent); }

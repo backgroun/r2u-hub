@@ -17,8 +17,8 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       {initial && <input type="hidden" name="actId" value={initial.id} />}
       <div className="flex items-center gap-2">
         <label htmlFor="run-date" className="label shrink-0 whitespace-nowrap">러닝 일자</label>
-        <input id="run-date" name="runDate" type="date" className="input min-w-0" style={{ width: "10.5rem" }} required min={start.slice(0, 10)} max={max.slice(0, 10)} defaultValue={initial?.date ?? max.slice(0, 10)} />
-        <select name="surface" aria-label="종류" className="input shrink-0 min-w-0" style={{ width: "auto" }} defaultValue={initial?.surface ?? "road"}>
+        <input id="run-date" name="runDate" type="date" className="input min-w-0 flex-[3]" style={{ width: "auto" }} required min={start.slice(0, 10)} max={max.slice(0, 10)} defaultValue={initial?.date ?? max.slice(0, 10)} />
+        <select name="surface" aria-label="종류" className="input min-w-0 flex-[2]" style={{ width: "auto" }} defaultValue={initial?.surface ?? "road"}>
           {(["road", "treadmill"] as Surface[]).map((k) => <option key={k} value={k}>{SURFACE_LABEL[k]}</option>)}
         </select>
       </div>

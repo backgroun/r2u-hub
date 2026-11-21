@@ -37,14 +37,14 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
               {cfg.testMode && (
                 <div className="ch-radios" role="group" aria-label="테스트 단계">
                   {TEST_PHASES.map((p) => (
-                    <ActionForm key={p} action={setChallengeTestAction} keep className="flex-1">
+                    <ActionForm key={p} action={setChallengeTestAction} keep hideInline className="flex-1">
                       <input type="hidden" name="id" value={block.id} /><input type="hidden" name="testMode" value="1" /><input type="hidden" name="testPhase" value={p} />
                       <button type="submit" className="ch-phase" aria-pressed={cfg.testPhase === p} data-on={cfg.testPhase === p ? "1" : undefined}>{PHASE_LABEL[p]}</button>
                     </ActionForm>
                   ))}
                 </div>
               )}
-              <ActionForm action={setChallengeTestAction} keep className="shrink-0">
+              <ActionForm action={setChallengeTestAction} keep hideInline className="shrink-0">
                 <input type="hidden" name="id" value={block.id} />
                 <input type="hidden" name="testMode" value={cfg.testMode ? "0" : "1"} />
                 <input type="hidden" name="testPhase" value={TEST_PHASES.includes(cfg.testPhase as Phase) ? cfg.testPhase : "running"} />

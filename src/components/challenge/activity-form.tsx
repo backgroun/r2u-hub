@@ -83,7 +83,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
         </div>
         <PaceGauge pace={pace} />
       </div>
-      <PhotoField name="img_summary" label="활동 요약 캡처" required inline have={!!initial?.imgs.summary}  existingSrc={initial ? `/api/challenge/${blockId}/${initial.id}/summary?v=${initial.updatedAt}` : undefined} />
+      <PhotoField name="img_summary" label="러닝 기록 등록" required inline have={!!initial?.imgs.summary}  existingSrc={initial ? `/api/challenge/${blockId}/${initial.id}/summary?v=${initial.updatedAt}` : undefined} />
 
       {cadenceOff ? <Locked title={<Title>케이던스 부문</Title>} reason={`${RULE.cadenceMinKm}km 이상 달린 기록만 입력할 수 있어요`} /> : (
         <details className={SECTION} open={initial?.cadence != null}>
@@ -92,7 +92,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
             <div className="grid grid-cols-2 items-start gap-3">
               <label className="field"><span className="label">평균 케이던스 (spm)</span>
                 <input name="cadence" inputMode="numeric" className="input min-w-0" placeholder="예: 178" defaultValue={initial?.cadence ?? ""} /></label>
-              <PhotoField name="img_cadence" label="케이던스 캡처" have={!!initial?.imgs.cadence}  existingSrc={initial ? `/api/challenge/${blockId}/${initial.id}/cadence?v=${initial.updatedAt}` : undefined} />
+              <PhotoField name="img_cadence" label="케이던스 캡처" have={!!initial?.imgs.cadence}  />
             </div>
             <p className="text-xs text-muted">{RULE.cadenceMinKm}km 이상 활동만 인정 · 여러 번 올려도 가장 높은 기록 하나만 인정돼요</p>
           </div>
@@ -108,7 +108,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
             <label className="field"><span className="label">평균 심박</span>
               <input name="avgHr" inputMode="numeric" className="input min-w-0" placeholder="예: 140" defaultValue={initial?.avgHr ?? ""} /></label>
           </div>
-          <PhotoField name="img_zone" label="심박 구간 캡처" have={!!initial?.imgs.zone}  existingSrc={initial ? `/api/challenge/${blockId}/${initial.id}/zone?v=${initial.updatedAt}` : undefined} />
+          <PhotoField name="img_zone" label="심박 구간 캡처" have={!!initial?.imgs.zone}  />
           <p className="text-xs" style={run.z2 != null && run.z2 < RULE.zone2MinPct ? { color: "var(--warn)", fontWeight: 700 } : { color: "var(--muted)" }}>{run.z2 != null && run.z2 < RULE.zone2MinPct ? `${RULE.zone2MinPct}% 미만은 인정되지 않아요` : "여러 번 올려도 가장 긴 거리의 기록 하나만 인정돼요 · 존 번호·비율이 보이는 캡처"}</p>
         </div>
       </details>
@@ -120,7 +120,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
             {/* 카카오 장소 검색으로 고르고, 검색이 안 되면 같은 칸에 직접 입력한다. 같은 장소는 이름이 같아야 한 곳으로 세어지므로 가능하면 검색 결과를 골라 주세요. */}
             <div className="grid grid-cols-2 items-start gap-3">
               <KakaoPlaceField label="장소 (검색·직접 입력)" placeholder="예: 올림픽공원" place={initial?.place ?? ""} allowUndecided={false} />
-              <PhotoField name="img_map" label="지도 캡처" have={!!initial?.imgs.map}  existingSrc={initial ? `/api/challenge/${blockId}/${initial.id}/map?v=${initial.updatedAt}` : undefined} />
+              <PhotoField name="img_map" label="지도 캡처" have={!!initial?.imgs.map}  />
             </div>
             <p className="text-xs text-muted">같은 장소는 한 곳으로만 세요 · 출발 지점이 보이는 지도 캡처</p>
           </div>

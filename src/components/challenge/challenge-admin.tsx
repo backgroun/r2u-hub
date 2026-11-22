@@ -13,6 +13,7 @@ import {
 
 const TEST_PHASES: Phase[] = ["signup", "running", "closed"]; // 테스트에서 고정해 볼 단계 (날짜대로·시작 전은 뺐다)
 const when = (ms: number) => new Date(ms + 9 * 3600e3).toISOString().slice(5, 16).replace("T", " ");
+const day = (ms: number) => when(ms).slice(0, 5); // 월-일만
 
 /** 운영진용 챌린지 관리: 설정 → 입금 → 올라온 기록 → 결과 미리보기 */
 export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
@@ -98,7 +99,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
           {members.map((m) => (
             <form key={m.nick} action={setPaidAction} className="flex items-center gap-2 text-sm">
               <input type="hidden" name="id" value={block.id} /><input type="hidden" name="nick" value={m.nick} />
-              <b className="truncate">{m.nick}</b>{m.bib != null && <span className="chip num">배번 {fmtBib(m.bib)}</span>}<span className="text-xs text-muted">{when(m.appliedAt)} 신청</span>{!m.paid && m.paidClaimedAt && <span className="chip chip-warn">입금함 {when(m.paidClaimedAt)}</span>}
+              <b className="truncate">{m.nick}</b>{m.bib != null && <span className="chip num">배번 {fmtBib(m.bib)}</span>}<span className="text-xs text-muted">{day(m.appliedAt)} 신청</span>{!m.paid && m.paidClaimedAt && <span className="chip chip-warn">입금함 {day(m.paidClaimedAt)}</span>}
               <input type="hidden" name="paid" value={m.paid ? "0" : "1"} />
               <button className={`btn text-xs py-1 px-2.5 ml-auto ${m.paid ? "" : "btn-primary"}`}>{m.paid ? "입금 확인됨 (취소)" : "입금 확인"}</button>
             </form>

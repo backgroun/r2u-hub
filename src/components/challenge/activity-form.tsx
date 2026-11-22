@@ -128,7 +128,7 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       )}
 
       </div>
-      <div><Submit className="btn btn-primary ch-go w-full" pendingText="올리는 중…">{initial ? "수정 저장" : "기록 올리기 · 번호 받기"}</Submit></div>
+      <div><Submit className="btn btn-primary ch-go w-full" pendingText="등록 중…">{initial ? "수정 저장" : "기록 등록 · 추첨권 받기"}</Submit></div>
     </ActionForm>
   );
 }

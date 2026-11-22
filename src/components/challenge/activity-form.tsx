@@ -8,7 +8,7 @@ import { RULE, SURFACE_LABEL, fmtPace, paceSecOf, type Activity, type Surface } 
 
 const SECTION = "rounded-lg border border-[var(--line)] p-3";
 /** 케이던스·Zone 2 는 가장 좋은 기록 한 번만 인증한다는 표시 */
-const BEST = <span className="chip chip-open shrink-0" style={{ fontSize: 11 }}>최고기록 1회 인증</span>;
+const BEST = <span className="chip chip-open shrink-0" style={{ fontSize: 11 }}>중복 등록 가능 · 최고기록만 인정</span>;
 /** 섹션 제목: 뱃지를 제목 앞에 둔다 */
 const Title = ({ children }: { children: React.ReactNode }) => <span className="flex flex-wrap items-center gap-x-2 gap-y-1">{BEST}<span>{children}</span></span>;
 

@@ -101,7 +101,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
               <input type="hidden" name="id" value={block.id} /><input type="hidden" name="nick" value={m.nick} />
               <b className="truncate">{m.nick}</b>{m.bib != null && <span className="chip num">배번 {fmtBib(m.bib)}</span>}<span className="text-xs text-muted">{day(m.appliedAt)} 신청</span>{!m.paid && m.paidClaimedAt && <span className="chip chip-warn">입금함 {day(m.paidClaimedAt)}</span>}
               <input type="hidden" name="paid" value={m.paid ? "0" : "1"} />
-              <button className={`btn text-xs py-1 px-2.5 ml-auto ${m.paid ? "" : "btn-primary"}`}>{m.paid ? "입금 확인됨 (취소)" : "입금 확인"}</button>
+              <button className={`btn text-xs py-1 px-2.5 ml-auto ${m.paid ? "" : "btn-primary"}`} style={m.paid ? { background: "var(--good-bg)", color: "var(--good)", borderColor: "var(--good)" } : undefined} title={m.paid ? "누르면 확인을 취소해요" : undefined}>{m.paid ? "확인완료" : "입금 확인"}</button>
             </form>
           ))}
         </div>

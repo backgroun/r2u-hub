@@ -147,7 +147,7 @@ export default async function ChallengeAdmin({ block }: { block: EventBlock }) {
             return (
               <div key={a.id} className="grid content-start gap-2">
                 <div className="flex items-center gap-2 flex-wrap"><b>{a.nick}</b><span className="num text-sm">{fmtDate(a.date)}</span>{a.ticket != null && <span className="ch-ball ch-ball-sm ml-auto" data-c={a.ticket % 5} aria-label={`행운 번호 ${fmtTicket(a.ticket)}`}>{fmtTicket(a.ticket)}</span>}</div>
-                <p className="text-sm num">{a.distanceKm.toFixed(2)}km · {fmtDur(a.durationSec)} · 평균 {fmtPace(j.paceSec)}/km · {SURFACE_LABEL[a.surface]}{a.cadence != null ? ` · ${a.cadence}spm` : ""}{a.zone2Pct != null ? ` · Zone 2 ${a.zone2Pct}% · 심박 ${a.avgHr}` : ""}{a.place ? ` · ${a.place}` : ""}</p>
+                <p className="text-sm num">{a.distanceKm.toFixed(2)}km · {fmtDur(a.durationSec)} · 평균 {fmtPace(j.paceSec)}/km · {SURFACE_LABEL[a.surface]}{a.cadence != null ? ` · ${a.cadence}spm` : ""}{a.zone2Pct != null ? ` · 존2 ${a.zone2Pct}% · 심박 ${a.avgHr}` : ""}{a.place ? ` · ${a.place}` : ""}</p>
                 {j.notes.map((n) => <p key={n} className="text-xs text-[var(--bad)]">{n}</p>)}
                 <CaptureGallery maxHeight={240} className="grid grid-cols-2 gap-2" images={IMG_KINDS.filter((k) => a.imgs[k]).map((k) => ({ src: `/api/challenge/${block.id}/${a.id}/${k}?v=${a.updatedAt}`, alt: `${IMG_LABEL[k]} 캡처`, label: `${IMG_LABEL[k]} 캡처` }))} />
               </div>

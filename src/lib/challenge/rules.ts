@@ -18,7 +18,7 @@ export const SURFACE_LABEL: Record<Surface, string> = { road: "야외", treadmil
 /** 부문 6개. 배열 순서가 시상 확정 순서다. */
 export const CATEGORIES = ["distance", "time", "cadence", "zone2", "place", "fiveK"] as const;
 export type Category = (typeof CATEGORIES)[number];
-export const CATEGORY_LABEL: Record<Category, string> = { distance: "거리", time: "최장시간", cadence: "케이던스", zone2: "Zone 2", place: "다양한 장소", fiveK: "5km" };
+export const CATEGORY_LABEL: Record<Category, string> = { distance: "거리", time: "최장시간", cadence: "케이던스", zone2: "존2", place: "다양한 장소", fiveK: "5km" };
 
 export type ImgKind = "summary" | "cadence" | "zone" | "map";
 export const IMG_KINDS: ImgKind[] = ["summary", "cadence", "zone", "map"];
@@ -36,7 +36,7 @@ export type Activity = {
   surface: Surface;
   cadence: number | null; // 평균 케이던스(spm)
   avgHr: number | null;
-  zone2Pct: number | null; // 캡처에 보이는 Zone 2 체류 비율(%)
+  zone2Pct: number | null; // 캡처에 보이는 존2 체류 비율(%)
   place: string | null; // 입력한 그대로
   ticket?: number; // 경품 추첨용 행운 번호(새 기록을 올릴 때 한 장 발급, 수정해도 그대로)
   imgs: Partial<Record<ImgKind, boolean>>; // 올려 둔 캡처 종류
@@ -178,9 +178,9 @@ export function judge(a: Activity, cfg: ChallengeConfig): Judgement {
   const paceOk = paceSec <= RULE.maxPaceSec;
   if (!paceOk) notes.push(`평균 페이스 ${fmtPace(paceSec)}/km → 8:00보다 느려서 거리·시간·5km·케이던스·장소에서 제외돼요.`);
   const zone2 = a.zone2Pct != null && a.avgHr != null && a.zone2Pct >= RULE.zone2MinPct;
-  if (a.zone2Pct != null && a.zone2Pct < RULE.zone2MinPct) notes.push(`Zone 2 비율 ${a.zone2Pct}% → ${RULE.zone2MinPct}% 미만이라 Zone 2 부문에서 제외돼요.`);
+  if (a.zone2Pct != null && a.zone2Pct < RULE.zone2MinPct) notes.push(`존2 비율 ${a.zone2Pct}% → ${RULE.zone2MinPct}% 미만이라 존2에서 제외돼요.`);
   const cadence = paceOk && a.cadence != null && a.distanceKm >= RULE.cadenceMinKm;
-  if (paceOk && a.cadence != null && a.distanceKm < RULE.cadenceMinKm) notes.push(`${RULE.cadenceMinKm}km 미만이라 케이던스 부문에서 제외돼요.`);
+  if (paceOk && a.cadence != null && a.distanceKm < RULE.cadenceMinKm) notes.push(`${RULE.cadenceMinKm}km 미만이라 케이던스에서 제외돼요.`);
   const place = paceOk && !!a.place && a.surface !== "treadmill" && a.durationSec >= RULE.placeMinSec;
   if (paceOk && a.place && a.durationSec < RULE.placeMinSec) notes.push("40분 미만이라 장소 부문에서 제외돼요.");
   return { paceSec, paceOk, counts: { distance: paceOk, time: paceOk, cadence, zone2, place, fiveK: paceOk }, notes };
@@ -232,10 +232,10 @@ export function validateActivity(i: RawInput, img: ImgFlags, cfg: ChallengeConfi
 
   const z = i.zone2Pct, hr = i.avgHr;
   if (z != null || hr != null || img.zone) {
-    if (z == null) return bad("Zone 2 체류 비율(%)을 입력해 주세요.");
+    if (z == null) return bad("존2 체류 비율(%)을 입력해 주세요.");
     if (hr == null) return bad("평균 심박을 입력해 주세요.");
     if (!img.zone) return bad("심박 구간 캡처를 올려 주세요. (존 번호와 비율이 보여야 해요)");
-    if (!Number.isInteger(z) || z < 0 || z > 100) return bad("Zone 2 비율은 0~100 사이 정수로 입력해 주세요.");
+    if (!Number.isInteger(z) || z < 0 || z > 100) return bad("존2 비율은 0~100 사이 정수로 입력해 주세요.");
     if (!inRange(hr, 60, 230)) return bad("평균 심박을 확인해 주세요. (60~230)");
   }
 
@@ -243,7 +243,7 @@ export function validateActivity(i: RawInput, img: ImgFlags, cfg: ChallengeConfi
   if (place || img.map) {
     if (!place) return bad("장소를 입력해 주세요. (예: 송파구 올림픽공원)");
     if (!img.map) return bad("지도(경로) 캡처를 올려 주세요.");
-    if (surface === "treadmill") return bad("트레드밀은 다양한 장소 부문에 쓸 수 없어요. 장소와 지도 캡처를 비워 주세요.");
+    if (surface === "treadmill") return bad("트레드밀은 다양한 장소에 쓸 수 없어요. 장소와 지도 캡처를 비워 주세요.");
     if (place.length < 2 || place.length > 40) return bad("장소는 2~40자로 입력해 주세요.");
   }
 
@@ -384,13 +384,13 @@ export function defaultRulesText(): string {
     "## 📅 기록",
     "기간은 {기록시작} ~ {기록종료}예요. 활동 **시작 시각** 기준이에요.",
     "모든 활동에는 **요약 캡처가 필수**예요. 편집한 캡처는 실격이고, 요청하면 원본을 내야 해요.",
-    `평균 페이스 **km당 ${fmtPace(RULE.maxPaceSec)} 이내**만 인정해요. (Zone 2 부문은 예외)`,
+    `평균 페이스 **km당 ${fmtPace(RULE.maxPaceSec)} 이내**만 인정해요. (존2은 예외)`,
     "야외·트레드밀 모두 가능해요.",
     "## 🏆 부문 (1인 1상, 아래 순서로 확정)",
     "1. **거리**: 인정 거리 합계가 가장 긴 사람",
     "2. **최장시간**: 인정 시간 합계가 가장 긴 사람",
     `3. **케이던스**: ${RULE.cadenceMinKm}km 이상 1건의 평균 케이던스가 가장 높은 사람`,
-    `4. **Zone 2**: 비율 ${RULE.zone2MinPct}% 이상 1건의 거리가 가장 긴 사람`,
+    `4. **존2**: 비율 ${RULE.zone2MinPct}% 이상 1건의 거리가 가장 긴 사람`,
     `5. **다양한 장소**: ${RULE.placeMinSec / 60}분 이상 뛴 서로 다른 장소가 가장 많은 사람 (트레드밀 제외, 같은 장소는 한 번만 세요)`,
     `6. **5km**: 한 번에 ${RULE.fiveKmHundredths / 100}km 이상 뛴 횟수가 가장 많은 사람 (하루에 아침·점심·저녁으로 여러 번 뛰어도 모두 세고, ${RULE.fiveKmHundredths / 100}km 미만 기록은 합쳐도 세지 않아요)`,
     "## 🎁 수상",
@@ -539,7 +539,7 @@ export function awardConflict(list: EffectiveAward[], category: Category, nick: 
   return list.find((x) => x.category !== category && x.winner === nick)?.category ?? null;
 }
 
-/** 한 사람의 기록 중 케이던스·Zone 2 "최고기록"인 활동. 순위(candidates)가 쓰는 것과 같은 기준이다.
+/** 한 사람의 기록 중 케이던스·존2 "최고기록"인 활동. 순위(candidates)가 쓰는 것과 같은 기준이다.
     기록은 모두 그대로 남기고, 이 활동에만 최고기록 표시를 붙인다. */
 export function bestIds(list: Activity[], cfg: ChallengeConfig): { cadence: string | null; zone2: string | null } {
   const ok = (c: "cadence" | "zone2") => list.filter((a) => judge(a, cfg).counts[c]);

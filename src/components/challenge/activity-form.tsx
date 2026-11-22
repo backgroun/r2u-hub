@@ -7,7 +7,7 @@ import { useState } from "react";
 import { RULE, SURFACE_LABEL, fmtPace, paceSecOf, type Activity, type Surface } from "@/lib/challenge/rules";
 
 const SECTION = "rounded-lg border border-[var(--line)] p-3";
-/** 케이던스·Zone 2 는 가장 좋은 기록 한 번만 인증한다는 표시 */
+/** 케이던스·존2 는 가장 좋은 기록 한 번만 인증한다는 표시 */
 const BEST = <span className="chip chip-open shrink-0" style={{ fontSize: 11 }}>중복 등록 가능 · 최고기록만 인정</span>;
 /** 섹션 제목: 뱃지를 제목 앞에 둔다 */
 const Title = ({ children }: { children: React.ReactNode }) => <span className="flex flex-wrap items-center gap-x-2 gap-y-1">{BEST}<span>{children}</span></span>;
@@ -41,11 +41,11 @@ function Locked({ title, reason }: { title: React.ReactNode; reason: string }) {
   );
 }
 
-/** 기록 올리기·수정 폼. 활동 요약 캡처는 필수, 케이던스·Zone 2·장소는 해당할 때만 값과 캡처를 함께 채운다. */
+/** 기록 올리기·수정 폼. 활동 요약 캡처는 필수, 케이던스·존2·장소는 해당할 때만 값과 캡처를 함께 채운다. */
 export default function ActivityForm({ blockId, start, end, now, initial }: { blockId: string; start: string; end: string; now: string; initial?: Activity }) {
   const max = now < end ? now : end; // 기록은 지금보다 미래일 수 없고 종료 시각을 넘을 수 없다
   const dur = initial?.durationSec ?? 0;
-  // 입력 중인 거리·시간·종류·Zone 2 비율: 평균 페이스를 보여 주고, 기준에 못 미치는 선택 부문을 비활성으로 만든다
+  // 입력 중인 거리·시간·종류·존2 비율: 평균 페이스를 보여 주고, 기준에 못 미치는 선택 부문을 비활성으로 만든다
   const [run, setRun] = useState<{ km: number | null; sec: number; surface: string; z2: number | null }>({ km: initial?.distanceKm ?? null, sec: dur, surface: initial?.surface ?? "road", z2: initial?.zone2Pct ?? null });
   const onAny = (e: React.FormEvent<HTMLDivElement>) => {
     // 이벤트 대상(currentTarget)은 이 함수가 끝나면 사라지므로, 값은 여기서 바로 읽어 둔다(상태 갱신 함수 안에서 읽으면 null 이 된다)
@@ -85,9 +85,9 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       </div>
       <PhotoField name="img_summary" label="러닝 기록 등록" required inline have={!!initial?.imgs.summary} />
 
-      {cadenceOff ? <Locked title={<Title>케이던스 부문</Title>} reason={`${RULE.cadenceMinKm}km 이상 달린 기록만 입력할 수 있어요`} /> : (
+      {cadenceOff ? <Locked title={<Title>케이던스</Title>} reason={`${RULE.cadenceMinKm}km 이상 달린 기록만 입력할 수 있어요`} /> : (
         <details className={SECTION} open={initial?.cadence != null}>
-          <summary className="font-bold cursor-pointer text-sm"><Title>케이던스 부문 (10km 이상 활동)</Title></summary>
+          <summary className="font-bold cursor-pointer text-sm"><Title>케이던스 (10km 이상 활동)</Title></summary>
           <div className="grid gap-2 pt-2">
             <div className="grid grid-cols-2 items-start gap-3">
               <label className="field"><span className="label">평균 케이던스 (spm)</span>
@@ -100,10 +100,10 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
       )}
 
       <details className={SECTION} open={initial?.zone2Pct != null}>
-        <summary className="font-bold cursor-pointer text-sm"><Title>Zone 2 부문 (80% 이상)</Title></summary>
+        <summary className="font-bold cursor-pointer text-sm"><Title>존2 (80% 이상)</Title></summary>
         <div className="grid gap-2 pt-2">
           <div className="grid grid-cols-2 items-start gap-3">
-            <label className="field"><span className="label">Zone 2 체류 비율 (%)</span>
+            <label className="field"><span className="label">존2 체류 비율 (%)</span>
               <input name="zone2Pct" inputMode="numeric" className="input min-w-0" placeholder="예: 85" defaultValue={initial?.zone2Pct ?? ""} /></label>
             <label className="field"><span className="label">평균 심박</span>
               <input name="avgHr" inputMode="numeric" className="input min-w-0" placeholder="예: 140" defaultValue={initial?.avgHr ?? ""} /></label>
@@ -113,9 +113,9 @@ export default function ActivityForm({ blockId, start, end, now, initial }: { bl
         </div>
       </details>
 
-      {placeOff ? <Locked title="다양한 장소 부문" reason={run.surface === "treadmill" ? "트레드밀은 입력할 수 없어요" : `${RULE.placeMinSec / 60}분 이상 달린 기록만 입력할 수 있어요`} /> : (
+      {placeOff ? <Locked title="다양한 장소" reason={run.surface === "treadmill" ? "트레드밀은 입력할 수 없어요" : `${RULE.placeMinSec / 60}분 이상 달린 기록만 입력할 수 있어요`} /> : (
         <details className={SECTION} open={!!initial?.place}>
-          <summary className="font-bold cursor-pointer text-sm">다양한 장소 부문 (40분 이상 · 트레드밀 제외)</summary>
+          <summary className="font-bold cursor-pointer text-sm">다양한 장소 (40분 이상 · 트레드밀 제외)</summary>
           <div className="grid gap-2 pt-2">
             {/* 카카오 장소 검색으로 고르고, 검색이 안 되면 같은 칸에 직접 입력한다. 같은 장소는 이름이 같아야 한 곳으로 세어지므로 가능하면 검색 결과를 골라 주세요. */}
             <div className="grid grid-cols-2 items-start gap-3">

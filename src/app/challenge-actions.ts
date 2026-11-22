@@ -131,7 +131,7 @@ export async function submitActivityAction(_: Result, fd: FormData): Promise<Res
     zone2Pct: num(fd, "zone2Pct"),
     place: str(fd, "place", 60),
   };
-  // 수정할 때 선택 항목(케이던스·Zone 2·장소)을 비우고 새 캡처도 없으면 그 항목은 지운 것으로 본다
+  // 수정할 때 선택 항목(케이던스·존2·장소)을 비우고 새 캡처도 없으면 그 항목은 지운 것으로 본다
   const keep = (kind: ImgKind, hasValue: boolean) => !!files[kind] || (hasValue && !!existing?.imgs[kind]);
   const flags = {
     summary: !!files.summary || !!existing?.imgs.summary,
